@@ -9,11 +9,15 @@ export default function Timeline() {
 
 	const MIN_YEAR = 2000;
 	const MAX_YEAR = 2025;
-	const TICK_SPACING_PX = 36; // distance between consecutive years
+	const TICK_SPACING_PX = 24; // distance between consecutive years
 	const INVERT_SCALE = true; // render ticks from the top instead of bottom
 
 	const containerRef = useRef(null);
+	const sliderRef = useRef(null);
 	const [containerWidth, setContainerWidth] = useState(0);
+	const [isDragging, setIsDragging] = useState(false);
+	const [dragStartX, setDragStartX] = useState(0);
+	const [buttonOffset, setButtonOffset] = useState(0);
 
 	useEffect(() => {
 		if (!containerRef.current) return;
@@ -50,6 +54,57 @@ export default function Timeline() {
 		dispatch(setYear(y));
 	};
 
+	const handleMouseDown = (e) => {
+		e.preventDefault();
+		setIsDragging(true);
+		setDragStartX(e.clientX);
+		setButtonOffset(0);
+	};
+
+	const handleMouseMove = (e) => {
+		if (!isDragging) return;
+
+		const deltaX = e.clientX - dragStartX;
+		const maxOffset = 40; // Maximum offset in pixels
+		const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, deltaX));
+		setButtonOffset(clampedOffset);
+
+		// Determine direction and speed based on offset
+		if (Math.abs(clampedOffset) > 20) {
+			const direction = clampedOffset > 0 ? "right" : "left";
+			if (direction === "left" && year > MIN_YEAR) {
+				dispatch(setYear(year - 1));
+			} else if (direction === "right" && year < MAX_YEAR) {
+				dispatch(setYear(year + 1));
+			}
+		}
+	};
+
+	const handleMouseUp = () => {
+		setIsDragging(false);
+		setButtonOffset(0);
+	};
+
+	useEffect(() => {
+		const handleGlobalMouseMove = (e) => {
+			handleMouseMove(e);
+		};
+
+		const handleGlobalMouseUp = () => {
+			handleMouseUp();
+		};
+
+		if (isDragging) {
+			document.addEventListener("mousemove", handleGlobalMouseMove);
+			document.addEventListener("mouseup", handleGlobalMouseUp);
+		}
+
+		return () => {
+			document.removeEventListener("mousemove", handleGlobalMouseMove);
+			document.removeEventListener("mouseup", handleGlobalMouseUp);
+		};
+	}, [isDragging, dragStartX, year]);
+
 	return (
 		<Box
 			sx={{
@@ -58,6 +113,19 @@ export default function Timeline() {
 				color: "#fff",
 			}}
 		>
+			{/* Current year display at top */}
+			<Box
+				sx={{
+					textAlign: "center",
+					mb: 2,
+					fontSize: "24px",
+					fontWeight: "bold",
+					color: "#fff",
+					textShadow: "0 2px 4px rgba(0,0,0,0.5)",
+				}}
+			>
+				{year}
+			</Box>
 			<style>{`
 			.timeline-slider{ -webkit-appearance:none; appearance:none; width:100%; height:32px; background:transparent; }
 			.timeline-slider:focus{ outline:none; }
@@ -74,24 +142,9 @@ export default function Timeline() {
 					position: "relative",
 					height: 56,
 					overflow: "hidden",
-					borderTop: "1px solid rgba(255,255,255,0.2)",
-					mb: 1,
+					mb: 0.25,
 				}}
 			>
-				{/* Center indicator */}
-				<Box
-					sx={{
-						position: "absolute",
-						top: 0,
-						bottom: 0,
-						left: "50%",
-						width: 2,
-						transform: "translateX(-1px)",
-						background: "#fff",
-						opacity: 0.6,
-					}}
-				/>
-
 				{/* Center label above ruler (current year) */}
 				<Box
 					sx={{
@@ -152,16 +205,80 @@ export default function Timeline() {
 				</Box>
 			</Box>
 
-			{/* Slider control at bottom */}
-			<Box sx={{ display: "flex", justifyContent: "center" }}>
-				<input
-					className="timeline-slider"
-					type="range"
-					min={MIN_YEAR}
-					max={MAX_YEAR}
-					step={1}
-					value={year}
-					onChange={handleYearChange}
+			{/* Draggable Button Slider */}
+			<Box
+				sx={{
+					display: "flex",
+					justifyContent: "center",
+					alignItems: "center",
+					position: "relative",
+					height: 40,
+					width: 140,
+					border: "2px solid rgba(255,255,255,0.2)",
+					borderRadius: "20px",
+					padding: "6px",
+					margin: "0 auto",
+				}}
+			>
+				{/* Left arrow indicator */}
+				<Box
+					sx={{
+						position: "absolute",
+						left: "20px",
+						top: "50%",
+						transform: "translateY(-50%)",
+						color: "rgba(255,255,255,0.6)",
+						fontSize: "24px",
+						fontWeight: "bold",
+						cursor: "pointer",
+					}}
+				>
+					‹
+				</Box>
+
+				{/* Right arrow indicator */}
+				<Box
+					sx={{
+						position: "absolute",
+						right: "20px",
+						top: "50%",
+						transform: "translateY(-50%)",
+						color: "rgba(255,255,255,0.6)",
+						fontSize: "24px",
+						fontWeight: "bold",
+						cursor: "pointer",
+					}}
+				>
+					›
+				</Box>
+
+				{/* Draggable button */}
+				<Box
+					ref={sliderRef}
+					sx={{
+						position: "absolute",
+						width: 65,
+						height: 18,
+						background: "#fff",
+						borderRadius: "16px",
+						border: "2px solid rgba(255,255,255,0.3)",
+						padding: "4px",
+						margin: "2px",
+						boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+						cursor: "grab",
+						transform: `translateX(${buttonOffset}px)`,
+						transition: isDragging ? "none" : "transform 0.2s ease",
+						"&:active": {
+							cursor: "grabbing",
+							boxShadow: "0 6px 12px rgba(0,0,0,0.4)",
+							border: "2px solid rgba(255,255,255,0.5)",
+						},
+						"&:hover": {
+							boxShadow: "0 5px 10px rgba(0,0,255,0.35)",
+							border: "2px solid rgba(255,255,255,0.4)",
+						},
+					}}
+					onMouseDown={handleMouseDown}
 				/>
 			</Box>
 		</Box>
