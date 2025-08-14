@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import { useSelector } from "react-redux";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-export default function MapView() {
+export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
 
@@ -106,6 +106,42 @@ export default function MapView() {
 					"line-width": 2,
 				},
 			});
+
+			// Offset builtin control groups so they don't sit under side panels
+			try {
+				const container = map.current.getContainer();
+				const leftCorners = container.querySelectorAll(
+					".maplibregl-ctrl-bottom-left, .maplibregl-ctrl-top-left"
+				);
+				leftCorners.forEach((el) => {
+					el.style.left = `${leftOffset + 8}px`;
+					el.style.marginLeft = "0px";
+					el.style.zIndex = "20";
+				});
+				const rightCorners = container.querySelectorAll(
+					".maplibregl-ctrl-bottom-right, .maplibregl-ctrl-top-right"
+				);
+				rightCorners.forEach((el) => {
+					el.style.right = `${rightOffset + 8}px`;
+					el.style.marginRight = "0px";
+					el.style.zIndex = "20";
+				});
+
+				// Nudge bottom controls up to avoid bottom timeline overlay
+				const bottomLeft = container.querySelector(
+					".maplibregl-ctrl-bottom-left"
+				);
+				const bottomRight = container.querySelector(
+					".maplibregl-ctrl-bottom-right"
+				);
+				const timelineHost = document.getElementById("timeline-overlay");
+				const timelineHeight = timelineHost
+					? Math.ceil(timelineHost.getBoundingClientRect().height)
+					: 0;
+				const extra = timelineHeight > 0 ? timelineHeight + 12 : 0;
+				if (bottomLeft) bottomLeft.style.bottom = `${8 + extra}px`;
+				if (bottomRight) bottomRight.style.bottom = `${8 + extra}px`;
+			} catch (_) {}
 		});
 
 		// Search control powered by Photon (https://photon.komoot.io/)
@@ -713,10 +749,51 @@ export default function MapView() {
 		});
 	}, [polygons, year]);
 
+	// Reposition control corners whenever side offsets change
+	useEffect(() => {
+		if (!map.current) return;
+		try {
+			const container = map.current.getContainer();
+			const leftCorners = container.querySelectorAll(
+				".maplibregl-ctrl-bottom-left, .maplibregl-ctrl-top-left"
+			);
+			leftCorners.forEach((el) => {
+				el.style.left = `${leftOffset + 8}px`;
+				el.style.marginLeft = "0px";
+			});
+			const rightCorners = container.querySelectorAll(
+				".maplibregl-ctrl-bottom-right, .maplibregl-ctrl-top-right"
+			);
+			rightCorners.forEach((el) => {
+				el.style.right = `${rightOffset + 8}px`;
+				el.style.marginRight = "0px";
+			});
+
+			// Also nudge bottom controls up to avoid bottom timeline overlay on changes
+			const bottomLeft = container.querySelector(
+				".maplibregl-ctrl-bottom-left"
+			);
+			const bottomRight = container.querySelector(
+				".maplibregl-ctrl-bottom-right"
+			);
+			const timelineHost = document.getElementById("timeline-overlay");
+			const timelineHeight = timelineHost
+				? Math.ceil(timelineHost.getBoundingClientRect().height)
+				: 0;
+			const extra = timelineHeight > 0 ? timelineHeight + 12 : 0;
+			if (bottomLeft) bottomLeft.style.bottom = `${8 + extra}px`;
+			if (bottomRight) bottomRight.style.bottom = `${8 + extra}px`;
+		} catch (_) {}
+	}, [leftOffset, rightOffset]);
+
 	return (
 		<div
 			ref={mapContainer}
-			style={{ width: "100%", height: "87vh", backgroundColor: "#000" }}
+			style={{
+				width: "100%",
+				height: "100vh",
+				backgroundColor: "#000",
+			}}
 		/>
 	);
 }

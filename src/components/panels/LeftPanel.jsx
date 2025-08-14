@@ -19,8 +19,10 @@ export default function LeftPanel({
 		}),
 		display: "flex",
 		flexDirection: "column",
-		backgroundColor: theme.palette.background.paper, // CHAGNE IT TRANSPRENT
-		// border: `1px solid ${theme.palette.divider}`,
+		backgroundColor: "rgba(255,255,255,0.15)",
+		backdropFilter: "blur(1px)",
+		color: "#111",
+		borderRight: "0.25px solid rgba(255,255,255,0.3)",
 		// borderRadius: position === "left" ? "8px 0 0 8px" : "0 8px 8px 0",
 		overflow: "hidden",
 		boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
