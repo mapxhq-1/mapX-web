@@ -127,20 +127,15 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					el.style.zIndex = "20";
 				});
 
-				// Nudge bottom controls up to avoid bottom timeline overlay
+				// Position bottom controls higher up to avoid timeline
 				const bottomLeft = container.querySelector(
 					".maplibregl-ctrl-bottom-left"
 				);
 				const bottomRight = container.querySelector(
 					".maplibregl-ctrl-bottom-right"
 				);
-				const timelineHost = document.getElementById("timeline-overlay");
-				const timelineHeight = timelineHost
-					? Math.ceil(timelineHost.getBoundingClientRect().height)
-					: 0;
-				const extra = timelineHeight > 0 ? timelineHeight + 12 : 0;
-				if (bottomLeft) bottomLeft.style.bottom = `${8 + extra}px`;
-				if (bottomRight) bottomRight.style.bottom = `${8 + extra}px`;
+				if (bottomLeft) bottomLeft.style.bottom = "200px";
+				if (bottomRight) bottomRight.style.bottom = "200px";
 			} catch (_) {}
 		});
 
@@ -769,20 +764,15 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				el.style.marginRight = "0px";
 			});
 
-			// Also nudge bottom controls up to avoid bottom timeline overlay on changes
+			// Position bottom controls higher up to avoid timeline
 			const bottomLeft = container.querySelector(
 				".maplibregl-ctrl-bottom-left"
 			);
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			const timelineHost = document.getElementById("timeline-overlay");
-			const timelineHeight = timelineHost
-				? Math.ceil(timelineHost.getBoundingClientRect().height)
-				: 0;
-			const extra = timelineHeight > 0 ? timelineHeight + 12 : 0;
-			if (bottomLeft) bottomLeft.style.bottom = `${8 + extra}px`;
-			if (bottomRight) bottomRight.style.bottom = `${8 + extra}px`;
+			if (bottomLeft) bottomLeft.style.bottom = "200px";
+			if (bottomRight) bottomRight.style.bottom = "200px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 

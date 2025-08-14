@@ -7,8 +7,9 @@ export default function Timeline() {
 	const dispatch = useDispatch();
 	const year = useSelector((state) => state.map.year);
 
-	const MIN_YEAR = 2000;
-	const MAX_YEAR = 2025;
+	// Internal year range (negative for BCE, positive for CE)
+	const MIN_YEAR = -2000; // 2000 BCE
+	const MAX_YEAR = 2025; // 2025 CE
 	const TICK_SPACING_PX = 24; // distance between consecutive years
 	const INVERT_SCALE = true; // render ticks from the top instead of bottom
 
@@ -18,6 +19,27 @@ export default function Timeline() {
 	const [isDragging, setIsDragging] = useState(false);
 	const [dragStartX, setDragStartX] = useState(0);
 	const [buttonOffset, setButtonOffset] = useState(0);
+
+	// Helper functions to convert between display format and internal year
+	const formatYearForDisplay = (internalYear) => {
+		if (internalYear < 0) {
+			return `${Math.abs(internalYear)} BCE`;
+		} else if (internalYear === 0) {
+			return "1 CE";
+		} else {
+			return `${internalYear} CE`;
+		}
+	};
+
+	const parseYearFromDisplay = (displayYear) => {
+		if (displayYear.includes("BCE")) {
+			return -parseInt(displayYear.replace(" BCE", ""));
+		} else if (displayYear.includes("CE")) {
+			const year = parseInt(displayYear.replace(" CE", ""));
+			return year === 0 ? 1 : year;
+		}
+		return parseInt(displayYear);
+	};
 
 	useEffect(() => {
 		if (!containerRef.current) return;
@@ -70,7 +92,7 @@ export default function Timeline() {
 		setButtonOffset(clampedOffset);
 
 		// Determine direction and speed based on offset
-		if (Math.abs(clampedOffset) > 20) {
+		if (Math.abs(clampedOffset) > 15) {
 			const direction = clampedOffset > 0 ? "right" : "left";
 			if (direction === "left" && year > MIN_YEAR) {
 				dispatch(setYear(year - 1));
@@ -103,14 +125,36 @@ export default function Timeline() {
 			document.removeEventListener("mousemove", handleGlobalMouseMove);
 			document.removeEventListener("mouseup", handleGlobalMouseUp);
 		};
-	}, [isDragging, dragStartX, year]);
+	}, [isDragging, dragStartX, year, dispatch]);
+
+	// Continuous update when dragging
+	useEffect(() => {
+		if (!isDragging) return;
+
+		const interval = setInterval(() => {
+			if (buttonOffset > 15 && year < MAX_YEAR) {
+				dispatch(setYear(year + 1));
+			} else if (buttonOffset < -15 && year > MIN_YEAR) {
+				dispatch(setYear(year - 1));
+			}
+		}, 100); // Update every 100ms
+
+		return () => clearInterval(interval);
+	}, [isDragging, buttonOffset, year, dispatch]);
 
 	return (
 		<Box
 			sx={{
+				position: "fixed",
+				bottom: "20px",
+				left: 0,
+				right: 0,
+				width: "100vw",
+				zIndex: 1,
 				p: 1.25,
 				flexShrink: 0,
 				color: "#fff",
+				pointerEvents: "auto",
 			}}
 		>
 			{/* Current year display at top */}
@@ -124,7 +168,7 @@ export default function Timeline() {
 					textShadow: "0 2px 4px rgba(0,0,0,0.5)",
 				}}
 			>
-				{year}
+				{formatYearForDisplay(year)}
 			</Box>
 			<style>{`
 			.timeline-slider{ -webkit-appearance:none; appearance:none; width:100%; height:32px; background:transparent; }
@@ -162,7 +206,7 @@ export default function Timeline() {
 						boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
 					}}
 				>
-					{year}
+					{formatYearForDisplay(year)}
 				</Box>
 
 				{/* Ruler track */}
