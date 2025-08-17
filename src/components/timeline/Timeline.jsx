@@ -151,7 +151,7 @@ export default function Timeline() {
 				right: 0,
 				width: "100vw",
 				zIndex: 1,
-				p: 1.25,
+				p: 0,
 				flexShrink: 0,
 				color: "#fff",
 				pointerEvents: "auto",
@@ -164,11 +164,23 @@ export default function Timeline() {
 					mb: 2,
 					fontSize: "24px",
 					fontWeight: "bold",
-					color: "#fff",
-					textShadow: "0 2px 4px rgba(0,0,0,0.5)",
+					color: "#000",
+					// background: "#fff",
+
+					// borderRadius: 1,
+
+					// boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
 				}}
 			>
-				{formatYearForDisplay(year)}
+				<span
+					style={{
+						backgroundColor: "#fff",
+						padding: "2px 8px",
+						borderRadius: "6px",
+					}}
+				>
+					{formatYearForDisplay(year)}
+				</span>
 			</Box>
 			<style>{`
 			.timeline-slider{ -webkit-appearance:none; appearance:none; width:100%; height:32px; background:transparent; }
@@ -191,19 +203,18 @@ export default function Timeline() {
 			>
 				{/* Center label above ruler (current year) */}
 				<Box
+					component="span"
 					sx={{
 						position: "absolute",
 						top: -22,
 						left: "50%",
 						transform: "translateX(-50%)",
-						px: 1,
-						py: 0.2,
+						display: "inline-block",
+						whiteSpace: "nowrap",
 						fontSize: 12,
 						fontWeight: 700,
 						color: "#000",
 						background: "#fff",
-						borderRadius: 1,
-						boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
 					}}
 				>
 					{formatYearForDisplay(year)}

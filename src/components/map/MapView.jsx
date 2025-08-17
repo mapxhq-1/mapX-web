@@ -57,6 +57,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			center: [-5, 45],
 			zoom: 2,
 			projection: { type: "globe" },
+			attributionControl: false,
 		});
 
 		map.current.on("load", () => {
@@ -178,6 +179,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				input.style.borderRadius = "4px";
 				input.style.fontSize = "12px";
 				input.style.outline = "none";
+				input.style.display = "none";
 
 				const list = document.createElement("div");
 				list.style.maxHeight = "180px";
@@ -270,11 +272,17 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				};
 
 				btn.addEventListener("click", () => {
+					input.style.display = "block";
 					input.focus();
+				});
+				input.addEventListener("blur", () => {
+					input.style.display = "none";
 				});
 				input.addEventListener("input", (e) => debouncedSearch(e.target.value));
 				input.addEventListener("keydown", (e) => {
-					if (e.key === "Escape") clearList();
+					if (e.key === "Escape") {
+						input.style.display = "none";
+					}
 					e.stopPropagation();
 				});
 				this._container.addEventListener("mousedown", (e) =>
@@ -771,7 +779,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			if (bottomLeft) bottomLeft.style.bottom = "200px";
+			if (bottomLeft) bottomLeft.style.bottom = "180px";
 			if (bottomRight) bottomRight.style.bottom = "200px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
