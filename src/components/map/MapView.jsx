@@ -164,7 +164,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				btn.className = "maplibregl-ctrl-icon";
 				btn.setAttribute("aria-label", "Search");
 				btn.innerHTML = `
-								<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<circle cx="11" cy="11" r="8"/>
 									<path d="M21 21l-4.3-4.3"/>
 								</svg>`;
@@ -173,7 +173,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				input.type = "text";
 				input.placeholder = "Search places";
 				input.style.width = "220px";
-				input.style.height = "28px";
+				input.style.height = "16px";
 				input.style.padding = "2px 6px";
 				input.style.border = "1px solid #d0d7de";
 				input.style.borderRadius = "4px";
@@ -779,7 +779,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			if (bottomLeft) bottomLeft.style.bottom = "180px";
+			if (bottomLeft) bottomLeft.style.bottom = "200px";
 			if (bottomRight) bottomRight.style.bottom = "200px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);

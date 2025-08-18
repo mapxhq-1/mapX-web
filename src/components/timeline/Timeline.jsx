@@ -172,15 +172,23 @@ export default function Timeline() {
 					// boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
 				}}
 			>
-				<span
+				<input
+					value={year}
+					onChange={handleYearChange}
 					style={{
 						backgroundColor: "#fff",
 						padding: "2px 8px",
 						borderRadius: "6px",
+						border: "none",
+						fontWeight: "bold",
+						fontSize: "24px",
+						textAlign: "center",
+						color: "#000",
+						outline: "none",
+						width: `${String(year).length + 3}ch`, // auto-adjusts to content length
+						minWidth: "3ch", // keeps it from shrinking too much
 					}}
-				>
-					{formatYearForDisplay(year)}
-				</span>
+				/>
 			</Box>
 			<style>{`
 			.timeline-slider{ -webkit-appearance:none; appearance:none; width:100%; height:32px; background:transparent; }
@@ -201,7 +209,7 @@ export default function Timeline() {
 					mb: 0.25,
 				}}
 			>
-				{/* Center label above ruler (current year) */}
+				{/* //Center label above ruler (current year) */}
 				<Box
 					component="span"
 					sx={{
@@ -217,9 +225,9 @@ export default function Timeline() {
 						background: "#fff",
 					}}
 				>
-					{formatYearForDisplay(year)}
+					<input value={year} />
+					{/* {formatYearForDisplay(year)} */}
 				</Box>
-
 				{/* Ruler track */}
 				<Box
 					sx={{
