@@ -1,1 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Potta+One&display=swap');
 @import "tailwindcss";
+.potta-one {
+  font-family: "Potta One", cursive;
+}
