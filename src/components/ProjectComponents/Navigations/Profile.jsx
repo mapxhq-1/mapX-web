@@ -29,7 +29,6 @@ const Profile = ({setProfileOpen}) => {
     },[]);
     const formSubmit = (data)=>{
         setProfileOpen(false);
-        console.log(data);
     }
   return (
     <div className='fixed inset-0 flex items-center justify-center z-50'>

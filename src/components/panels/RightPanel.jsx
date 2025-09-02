@@ -23,9 +23,6 @@ export default function RightPanel({
 		backdropFilter: "blur(1px)",
 		color: "#111",
 		borderLeft: "0.25px solid rgba(255,255,255,0.3)",
-
-		// border: `1px solid ${theme.palette.divider}`,
-		// borderRadius: position === "left" ? "8px 0 0 8px" : "0 8px 8px 0",
 		overflow: "hidden",
 		boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
 		"&:hover": {
@@ -42,7 +39,6 @@ export default function RightPanel({
 				width: panelWidth,
 			})}
 		>
-			{/* <Box sx={{ flex: 1 }}>{children}</Box> */}
 			Right Panel
 		</Paper>
 	);
