@@ -4,346 +4,347 @@ import { setYear } from "../../store/mapSlice";
 import { Box } from "@mui/material";
 
 export default function Timeline() {
-	const dispatch = useDispatch();
-	const year = useSelector((state) => state.map.year);
+  const dispatch = useDispatch();
+  const globalYear = useSelector((state) => state.map.year);
 
-	// Internal year range (negative for BCE, positive for CE)
-	const MIN_YEAR = -2000; // 2000 BCE
-	const MAX_YEAR = 2025; // 2025 CE
-	const TICK_SPACING_PX = 24; // distance between consecutive years
-	const INVERT_SCALE = true; // render ticks from the top instead of bottom
+  // Local year for smooth dragging
+  const [localYear, setLocalYear] = useState(globalYear);
 
-	const containerRef = useRef(null);
-	const sliderRef = useRef(null);
-	const [containerWidth, setContainerWidth] = useState(0);
-	const [isDragging, setIsDragging] = useState(false);
-	const [dragStartX, setDragStartX] = useState(0);
-	const [buttonOffset, setButtonOffset] = useState(0);
+  // Constants
+  const MIN_YEAR = -4000;
+  const MAX_YEAR = 2025;
+  const TICK_SPACING_PX = 20;
 
-	// Helper functions to convert between display format and internal year
-	const formatYearForDisplay = (internalYear) => {
-		if (internalYear < 0) {
-			return `${Math.abs(internalYear)} BCE`;
-		} else if (internalYear === 0) {
-			return "1 CE";
-		} else {
-			return `${internalYear} CE`;
-		}
-	};
 
-	const parseYearFromDisplay = (displayYear) => {
-		if (displayYear.includes("BCE")) {
-			return -parseInt(displayYear.replace(" BCE", ""));
-		} else if (displayYear.includes("CE")) {
-			const year = parseInt(displayYear.replace(" CE", ""));
-			return year === 0 ? 1 : year;
-		}
-		return parseInt(displayYear);
-	};
+  // Refs & State
+  const containerRef = useRef(null);
+  const sliderRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartX = useRef(0);
+  const buttonOffsetRef = useRef(0);
+  const velocityRef = useRef(0);
 
-	useEffect(() => {
-		if (!containerRef.current) return;
-		const ro = new (window.ResizeObserver ||
-			class {
-				observe() {}
-				disconnect() {}
-			})((entries) => {
-			for (const entry of entries) {
-				const w = entry.contentRect
-					? entry.contentRect.width
-					: containerRef.current.clientWidth;
-				setContainerWidth(Math.max(0, Math.floor(w)));
-			}
-		});
-		ro.observe(containerRef.current);
-		// Initial
-		setContainerWidth(containerRef.current.clientWidth || 0);
-		return () => ro.disconnect();
-	}, []);
+  // Resize observer
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect?.width || containerRef.current.clientWidth;
+        setContainerWidth(Math.max(0, Math.floor(w)));
+      }
+    });
+    ro.observe(containerRef.current);
+    setContainerWidth(containerRef.current.clientWidth || 0);
+    return () => ro.disconnect();
+  }, []);
 
-	const years = useMemo(() => {
-		const arr = [];
-		for (let y = MIN_YEAR; y <= MAX_YEAR; y++) arr.push(y);
-		return arr;
-	}, []);
+  // Sync global year into local year when redux updates externally,
+  // but NOT while dragging or during inertia (prevents snap-back).
+  useEffect(() => {
+    const animating =
+      isDragging ||
+      buttonOffsetRef.current !== 0 ||
+      Math.abs(velocityRef.current) > 0.1;
 
-	const index = Math.max(0, Math.min(MAX_YEAR - MIN_YEAR, year - MIN_YEAR));
-	// Move the ruler so that the current year's tick sits at the horizontal center
-	const translateX = Math.floor(containerWidth / 2 - index * TICK_SPACING_PX);
+    if (!animating && globalYear !== localYear) {
+      setLocalYear(globalYear);
+    }
+  }, [globalYear, isDragging, localYear]);
 
-	const handleYearChange = (e) => {
-		const y = Number(e.target.value);
-		dispatch(setYear(y));
-	};
+  // Precompute years
+  const years = useMemo(
+    () => Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i),
+    []
+  );
 
-	const handleMouseDown = (e) => {
-		e.preventDefault();
-		setIsDragging(true);
-		setDragStartX(e.clientX);
-		setButtonOffset(0);
-	};
+  // Virtualization setup
+  const index = Math.max(0, Math.min(MAX_YEAR - MIN_YEAR, localYear - MIN_YEAR));
+  const translateX = useMemo(
+    () => Math.floor(containerWidth / 2 - index * TICK_SPACING_PX),
+    [containerWidth, index]
+  );
 
-	const handleMouseMove = (e) => {
-		if (!isDragging) return;
+  const visibleYears = useMemo(() => {
+    const visibleCount = Math.ceil(containerWidth / TICK_SPACING_PX) + 10;
+    const startIndex = Math.max(0, index - visibleCount);
+    const endIndex = Math.min(years.length, index + visibleCount);
+    return years
+      .slice(startIndex, endIndex)
+      .map((y, i) => ({ y, left: (startIndex + i) * TICK_SPACING_PX }));
+  }, [years, index, containerWidth]);
 
-		const deltaX = e.clientX - dragStartX;
-		const maxOffset = 40; // Maximum offset in pixels
-		const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, deltaX));
-		setButtonOffset(clampedOffset);
+  // Drag start
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartX.current = e.clientX;
+    velocityRef.current = 0;
+  };
 
-		// Determine direction and speed based on offset
-		if (Math.abs(clampedOffset) > 15) {
-			const direction = clampedOffset > 0 ? "right" : "left";
-			if (direction === "left" && year > MIN_YEAR) {
-				dispatch(setYear(year - 1));
-			} else if (direction === "right" && year < MAX_YEAR) {
-				dispatch(setYear(year + 1));
-			}
-		}
-	};
+  // Drag move
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - dragStartX.current;
+    const maxOffset = 40;
+    const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, deltaX));
 
-	const handleMouseUp = () => {
-		setIsDragging(false);
-		setButtonOffset(0);
-	};
+    buttonOffsetRef.current = clampedOffset;
+    if (sliderRef.current) {
+      sliderRef.current.style.transform = `translateX(${clampedOffset}px)`;
+    }
+    velocityRef.current = clampedOffset * 0.2;
+  };
 
-	useEffect(() => {
-		const handleGlobalMouseMove = (e) => {
-			handleMouseMove(e);
-		};
+  // Drag end — final sync
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    dispatch(setYear(localYear)); // final confirm
+    buttonOffsetRef.current = 0;
+    if (sliderRef.current) {
+      sliderRef.current.style.transform = "translateX(0px)";
+    }
+  };
 
-		const handleGlobalMouseUp = () => {
-			handleMouseUp();
-		};
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => handleMouseMove(e);
+    const handleGlobalMouseUp = () => handleMouseUp();
 
-		if (isDragging) {
-			document.addEventListener("mousemove", handleGlobalMouseMove);
-			document.addEventListener("mouseup", handleGlobalMouseUp);
-		}
+    if (isDragging) {
+      document.addEventListener("mousemove", handleGlobalMouseMove);
+      document.addEventListener("mouseup", handleGlobalMouseUp);
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleGlobalMouseMove);
+      document.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, [isDragging]);
 
-		return () => {
-			document.removeEventListener("mousemove", handleGlobalMouseMove);
-			document.removeEventListener("mouseup", handleGlobalMouseUp);
-		};
-	}, [isDragging, dragStartX, year, dispatch]);
+  // Precompute easing curve
+const speedLookup = useMemo(() => {
+  const maxSpeed = 1; // Maximum scroll speed at full drag
+  return Array.from({ length: 101 }, (_, i) => {
+    const t = i / 100; // Drag percentage (0 → 1)
+    let speed;
 
-	// Continuous update when dragging
-	useEffect(() => {
-		if (!isDragging) return;
+    if (t < 0.4) {
+      // First 20% → EXTREMELY slow start using cubic easing
+      // At 10% drag, speed is only ~0.1% of maxSpeed
+      speed = maxSpeed * Math.pow(t / 0.2, 3) * 0.05;
+    } else if (t < 0.4) {
+      // 20% → 40% → begin smoother ramp-up
+      const normalized = (t - 0.2) / 0.2; // Scale 0 → 1
+      speed = maxSpeed * (0.05 + Math.pow(normalized, 2) * 0.25);
+    } else {
+      // 40% → 100% → accelerate fully but controlled
+      const normalized = (t - 0.4) / 0.6;
+      speed = maxSpeed * (0.3 + normalized * 0.7);
+    }
 
-		const interval = setInterval(() => {
-			if (buttonOffset > 15 && year < MAX_YEAR) {
-				dispatch(setYear(year + 1));
-			} else if (buttonOffset < -15 && year > MIN_YEAR) {
-				dispatch(setYear(year - 1));
-			}
-		}, 100); // Update every 100ms
+    return speed;
+  });
+}, []);
 
-		return () => clearInterval(interval);
-	}, [isDragging, buttonOffset, year, dispatch]);
 
-	return (
-		<Box
-			sx={{
-				position: "fixed",
-				bottom: "20px",
-				left: 0,
-				right: 0,
-				width: "100vw",
-				zIndex: 1,
-				p: 0,
-				flexShrink: 0,
-				color: "#fff",
-				pointerEvents: "auto",
-			}}
-		>
-			{/* Current year display at top */}
-			<Box
-				sx={{
-					textAlign: "center",
-					mb: 2,
-					fontSize: "24px",
-					fontWeight: "bold",
-					color: "#000",
-					// background: "#fff",
+  // Physics + inertia loop
+  useEffect(() => {
+    let frameId;
+    const friction = 0.95;
 
-					// borderRadius: 1,
+    const animate = () => {
+      const offset = buttonOffsetRef.current;
 
-					// boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-				}}
-			>
-				<input
-					value={year}
-					onChange={handleYearChange}
-					style={{
-						backgroundColor: "#fff",
-						padding: "2px 8px",
-						borderRadius: "6px",
-						border: "none",
-						fontWeight: "bold",
-						fontSize: "24px",
-						textAlign: "center",
-						color: "#000",
-						outline: "none",
-						width: `${String(year).length + 3}ch`, // auto-adjusts to content length
-						minWidth: "3ch", // keeps it from shrinking too much
-					}}
-				/>
-			</Box>
-			<style>{`
-			.timeline-slider{ -webkit-appearance:none; appearance:none; width:100%; height:32px; background:transparent; }
-			.timeline-slider:focus{ outline:none; }
-			.timeline-slider::-webkit-slider-runnable-track{ height:2px; background:rgba(255,255,255,0.35); border-radius:2px; }
-			.timeline-slider::-moz-range-track{ height:2px; background:rgba(255,255,255,0.35); border-radius:2px; }
-			.timeline-slider::-webkit-slider-thumb{ -webkit-appearance:none; width:46px; height:22px; border-radius:14px; background:#0b0b0d; border:1px solid rgba(255,255,255,0.35); box-shadow: inset 0 0 0 10px #ffffff, 0 2px 4px rgba(0,0,0,0.6); margin-top:-10px; }
-			.timeline-slider::-moz-range-thumb{ width:46px; height:22px; border-radius:14px; background:#0b0b0d; border:1px solid rgba(255,255,255,0.35); box-shadow: inset 0 0 0 10px #ffffff, 0 2px 4px rgba(0,0,0,0.6); }
-			`}</style>
+      if (isDragging && offset !== 0) {
+        const t = Math.abs(offset) / 40;
+        const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
 
-			{/* Ruler viewport */}
-			<Box
-				ref={containerRef}
-				sx={{
-					position: "relative",
-					height: 56,
-					overflow: "hidden",
-					mb: 0.25,
-				}}
-			>
-				{/* //Center label above ruler (current year) */}
-				<Box
-					component="span"
-					sx={{
-						position: "absolute",
-						top: -22,
-						left: "50%",
-						transform: "translateX(-50%)",
-						display: "inline-block",
-						whiteSpace: "nowrap",
-						fontSize: 12,
-						fontWeight: 700,
-						color: "#000",
-						background: "#fff",
-					}}
-				>
-					<input value={year} />
-					{/* {formatYearForDisplay(year)} */}
-				</Box>
-				{/* Ruler track */}
-				<Box
-					sx={{
-						position: "absolute",
-						top: 0,
-						left: 0,
-						height: "100%",
-						width: (MAX_YEAR - MIN_YEAR + 1) * TICK_SPACING_PX,
-						transform: `translateX(${translateX}px)`,
-						transition: "transform 160ms ease",
-					}}
-				>
-					{years.map((y, i) => {
-						const isDecade = y % 10 === 0;
-						const isHalf = !isDecade && y % 5 === 0;
-						const tickHeight = isDecade ? 36 : isHalf ? 26 : 14;
-						return (
-							<Box
-								key={y}
-								sx={{
-									position: "absolute",
-									left: i * TICK_SPACING_PX,
-									...(INVERT_SCALE ? { top: 0 } : { bottom: 0 }),
-								}}
-							>
-								<Box
-									sx={{
-										width: 2,
-										height: tickHeight,
-										background: "#fff",
-										opacity: isDecade ? 0.95 : isHalf ? 0.8 : 0.55,
-									}}
-								/>
-								{/* year labels removed per request */}
-							</Box>
-						);
-					})}
-				</Box>
-			</Box>
+        let next = localYear;
 
-			{/* Draggable Button Slider */}
-			<Box
-				sx={{
-					display: "flex",
-					justifyContent: "center",
-					alignItems: "center",
-					position: "relative",
-					height: 40,
-					width: 140,
-					border: "2px solid rgba(255,255,255,0.2)",
-					borderRadius: "20px",
-					padding: "6px",
-					margin: "0 auto",
-				}}
-			>
-				{/* Left arrow indicator */}
-				<Box
-					sx={{
-						position: "absolute",
-						left: "20px",
-						top: "50%",
-						transform: "translateY(-50%)",
-						color: "rgba(255,255,255,0.6)",
-						fontSize: "24px",
-						fontWeight: "bold",
-						cursor: "pointer",
-					}}
-				>
-					‹
-				</Box>
+        if (offset > 0 && localYear < MAX_YEAR) {
+          next = Math.min(MAX_YEAR, Math.round(localYear + speed));
+          if (next !== localYear) setLocalYear(next);
+        } else if (offset < 0 && localYear > MIN_YEAR) {
+          next = Math.max(MIN_YEAR, Math.round(localYear - speed));
+          if (next !== localYear) setLocalYear(next);
+        }
 
-				{/* Right arrow indicator */}
-				<Box
-					sx={{
-						position: "absolute",
-						right: "20px",
-						top: "50%",
-						transform: "translateY(-50%)",
-						color: "rgba(255,255,255,0.6)",
-						fontSize: "24px",
-						fontWeight: "bold",
-						cursor: "pointer",
-					}}
-				>
-					›
-				</Box>
+        // 🔴 LIVE Redux sync during drag (only when year actually changes)
+        if (next !== globalYear) {
+          dispatch(setYear(next));
+        }
 
-				{/* Draggable button */}
-				<Box
-					ref={sliderRef}
-					sx={{
-						position: "absolute",
-						width: 65,
-						height: 18,
-						background: "#fff",
-						borderRadius: "16px",
-						border: "2px solid rgba(255,255,255,0.3)",
-						padding: "4px",
-						margin: "2px",
-						boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-						cursor: "grab",
-						transform: `translateX(${buttonOffset}px)`,
-						transition: isDragging ? "none" : "transform 0.2s ease",
-						"&:active": {
-							cursor: "grabbing",
-							boxShadow: "0 6px 12px rgba(0,0,0,0.4)",
-							border: "2px solid rgba(255,255,255,0.5)",
-						},
-						"&:hover": {
-							boxShadow: "0 5px 10px rgba(0,0,255,0.35)",
-							border: "2px solid rgba(255,255,255,0.4)",
-						},
-					}}
-					onMouseDown={handleMouseDown}
-				/>
-			</Box>
-		</Box>
-	);
+        velocityRef.current = offset * 0.12;
+      } else if (!isDragging && Math.abs(velocityRef.current) > 0.1) {
+        const inertiaSpeed = velocityRef.current * 0.15;
+        const next =
+          velocityRef.current > 0
+            ? Math.min(MAX_YEAR, Math.round(localYear + inertiaSpeed))
+            : Math.max(MIN_YEAR, Math.round(localYear + inertiaSpeed));
+
+        if (next !== localYear) {
+          setLocalYear(next);
+
+          // 🔴 LIVE Redux sync during inertia as well
+          if (next !== globalYear) {
+            dispatch(setYear(next));
+          }
+        }
+
+        velocityRef.current *= friction;
+      }
+
+      frameId = requestAnimationFrame(animate);
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [isDragging, localYear, globalYear, speedLookup, dispatch]);
+function PassNumber(n){
+  if(isNaN(Number(n)))return n;
+  return Number(n);
+}
+  return (
+    <Box sx={{ position: "fixed", bottom: "20px", left: 0, right: 0, width: "100vw", zIndex: 1, color: "#fff" }}>
+      {/* Year input */}
+      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative" }}>
+        <input
+          value={localYear}
+          onChange={(e) => {
+            const v = PassNumber(e.target.value);
+            setLocalYear(v);
+            dispatch(setYear(v)); // keep Redux in sync when typing
+          }}
+          style={{
+            backgroundColor: "#fff",
+            padding: "2px 8px",
+            borderRadius: "6px",
+            border: "none",
+            fontWeight: "bold",
+            fontSize: "24px",
+            textAlign: "center",
+            color: "#000",
+            outline: "none",
+            width: `${String(localYear).length + 3}ch`,
+            minWidth: "3ch",
+          }}
+        />
+        <Box
+          sx={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            top: "95%",
+            width: 0,
+            height: 0,
+            borderLeft: "8px solid transparent",
+            borderRight: "8px solid transparent",
+            borderTop: "8px solid #fff",
+            marginTop: "2px",
+          }}
+        />
+      </Box>
+
+      {/* Ruler */}
+      <Box ref={containerRef} sx={{ position: "relative", height: 56, overflow: "hidden", mb: 0.25 }}>
+        <Box
+          component="span"
+          sx={{
+            position: "absolute",
+            top: -22,
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#000",
+            background: "#fff",
+          }}
+        >
+          {localYear}
+        </Box>
+
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            height: "100%",
+            width: (MAX_YEAR - MIN_YEAR + 1) * TICK_SPACING_PX,
+            transform: `translateX(${translateX}px)`,
+          }}
+        >
+          {visibleYears.map(({ y, left }) => {
+            const isDecade = y % 5 === 0;
+            const tickHeight = isDecade ? 30 : 15;
+            return (
+              <Box key={y} sx={{ position: "absolute", left }}>
+                <Box sx={{ width: 2, height: tickHeight, background: "#fff" }} />
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* Draggable Control */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          position: "relative",
+          height: 44,
+          width: 109,
+          border: "2px solid rgba(255,255,255,0.2)",
+          borderRadius: "20px",
+          padding: "6px",
+          margin: "0 auto",
+        }}
+      >
+        <Box
+          sx={{
+            position: "absolute",
+            left: "7px",
+            color: "rgba(255,255,255,0.6)",
+            fontSize: "24px",
+            fontWeight: "bold",
+            top : "0"
+          }}
+        >
+          ‹
+        </Box>
+
+        <Box
+          sx={{
+            position: "absolute",
+            right: "7px",
+            color: "rgba(255,255,255,0.6)",
+            fontSize: "24px",
+            fontWeight: "bold",
+            top : "0.4px"
+          }}
+        >
+          ›
+        </Box>
+
+        <Box
+          ref={sliderRef}
+          sx={{
+            position: "absolute",
+            width: 62,
+            height: 27,
+            background: "#fff",
+            borderRadius: "16px",
+            border: "2px solid rgba(255,255,255,0.3)",
+            boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+            cursor: "grab",
+            transition: isDragging ? "none" : "transform 100ms ease-out",
+            "&:active": {
+              cursor: "grabbing",
+              boxShadow: "0 6px 12px rgba(0,0,0,0.4)",
+            },
+          }}
+          onMouseDown={handleMouseDown}
+        />
+      </Box>
+    </Box>
+  );
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { useSelector } from "react-redux";
 import "maplibre-gl/dist/maplibre-gl.css";
+import GalaxyCanvas from "../common/GalaxyCanvas";
 
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
@@ -11,44 +12,10 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const polygons = useSelector((state) => state.map.polygons);
 	const year = useSelector((state) => state.map.year);
 
+
+
 	useEffect(() => {
 		if (map.current) return;
-
-		// Generate a repeating starfield background and apply to the container
-		try {
-			const createStarfieldTile = (size = 512, starCount = 240) => {
-				const c = document.createElement("canvas");
-				c.width = size;
-				c.height = size;
-				const ctx = c.getContext("2d");
-				ctx.fillStyle = "#000";
-				ctx.fillRect(0, 0, size, size);
-				for (let i = 0; i < starCount; i++) {
-					const x = Math.random() * size;
-					const y = Math.random() * size;
-					const r = 0.4 + Math.random() * 1.3;
-					const a = 0.3 + Math.random() * 0.7;
-					ctx.beginPath();
-					ctx.arc(x, y, r, 0, Math.PI * 2);
-					ctx.fillStyle = `rgba(255,255,255,${a})`;
-					ctx.fill();
-					if (Math.random() < 0.12) {
-						const hue = Math.random() < 0.5 ? 200 : 45;
-						ctx.fillStyle = `hsla(${hue},80%,80%,${a * 0.6})`;
-						ctx.fill();
-					}
-				}
-				return c.toDataURL("image/png");
-			};
-
-			const tile = createStarfieldTile(512, 260);
-			if (mapContainer.current) {
-				mapContainer.current.style.backgroundColor = "#000";
-				mapContainer.current.style.backgroundImage = `url(${tile})`;
-				mapContainer.current.style.backgroundRepeat = "repeat";
-				mapContainer.current.style.backgroundSize = "auto";
-			}
-		} catch (_) {}
 
 		map.current = new maplibregl.Map({
 			container: mapContainer.current,
@@ -62,7 +29,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 		map.current.on("load", () => {
 			map.current.setProjection({ type: "globe" });
-			// Ensure the WebGL canvas is transparent so the container background shows
+			// Ensure the WebGL canvas is transparent so the galaxy background shows
 			try {
 				const canvas = map.current.getCanvas();
 				if (canvas) canvas.style.backgroundColor = "transparent";
@@ -135,174 +102,214 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				const bottomRight = container.querySelector(
 					".maplibregl-ctrl-bottom-right"
 				);
-				if (bottomLeft) bottomLeft.style.bottom = "200px";
-				if (bottomRight) bottomRight.style.bottom = "200px";
+				if (bottomLeft) bottomLeft.style.bottom = "130px";
+				if (bottomRight) bottomRight.style.bottom = "130px";
 			} catch (_) {}
 		});
 
 		// Search control powered by Photon (https://photon.komoot.io/)
-		class PhotonSearchControl {
-			onAdd(m) {
-				this._map = m;
-				this._container = document.createElement("div");
-				this._container.className = "maplibregl-ctrl";
-				this._container.style.padding = "4px";
-				this._container.style.background = "rgba(255,255,255,0.9)";
-				this._container.style.borderRadius = "4px";
-				this._container.style.boxShadow = "0 1px 2px rgba(0,0,0,0.15)";
-				this._container.style.display = "flex";
-				this._container.style.flexDirection = "column";
-				this._container.style.gap = "4px";
+	class PhotonSearchControl {
+		onAdd(m) {
+			this._map = m;
+			this._container = document.createElement("div");
+			this._container.className = "maplibregl-ctrl";
+			this._container.style.background = "white";
+			this._container.style.borderRadius = "4px";
+			this._container.style.boxShadow = "0 1px 2px rgba(0,0,0,0.15)";
+			this._container.style.display = "flex";
+			this._container.style.flexDirection = "column";
+			this._container.style.gap = "4px";
 
-				const row = document.createElement("div");
-				row.style.display = "flex";
-				row.style.alignItems = "center";
-				row.style.gap = "4px";
+			const row = document.createElement("div");
+			row.style.display = "flex";
+			row.style.alignItems = "center";
+			row.style.gap = "4px";
 
-				const btn = document.createElement("button");
-				btn.type = "button";
-				btn.className = "maplibregl-ctrl-icon";
-				btn.setAttribute("aria-label", "Search");
-				btn.innerHTML = `
-								<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<circle cx="11" cy="11" r="8"/>
-									<path d="M21 21l-4.3-4.3"/>
-								</svg>`;
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "maplibregl-ctrl-icon";
+			btn.setAttribute("aria-label", "Search");
+			btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m21 21l-3.5-3.5M17 10a7 7 0 1 1-14 0a7 7 0 0 1 14 0Z"/></svg>`;
 
-				const input = document.createElement("input");
-				input.type = "text";
-				input.placeholder = "Search places";
-				input.style.width = "220px";
-				input.style.height = "16px";
-				input.style.padding = "2px 6px";
-				input.style.border = "1px solid #d0d7de";
-				input.style.borderRadius = "4px";
-				input.style.fontSize = "12px";
-				input.style.outline = "none";
-				input.style.display = "none";
+			// Add these style properties to match MapLibre button styling
+			btn.style.backgroundColor = '#fff';
+			btn.style.border = '1px solid #ccc';
+			btn.style.borderRadius = '4px';
+			btn.style.padding = '4px';
+			btn.style.cursor = 'pointer';
+			btn.style.display = 'flex';
+			btn.style.alignItems = 'center';
+			btn.style.justifyContent = 'center';
+			btn.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+			
+			const input = document.createElement("input");
+			input.type = "text";
+			input.placeholder = "Search places";
+			input.style.width = "220px";
+			input.style.height = "16px";
+			input.style.padding = "2px 6px";
+			input.style.border = "1px solid #d0d7de";
+			input.style.borderRadius = "4px";
+			input.style.fontSize = "12px";
+			input.style.outline = "none";
+			input.style.display = "none";
 
-				const list = document.createElement("div");
-				list.style.maxHeight = "180px";
-				list.style.overflowY = "auto";
-				list.style.border = "1px solid #e5e7eb";
-				list.style.borderRadius = "4px";
+			const list = document.createElement("div");
+			list.style.maxHeight = "180px";
+			list.style.overflowY = "auto";
+			list.style.border = "1px solid #e5e7eb";
+			list.style.borderRadius = "4px";
+			list.style.display = "none";
+			list.style.background = "#fff";
+
+			this._container.appendChild(list);
+			row.appendChild(btn);
+			row.appendChild(input);
+			this._container.appendChild(row);
+
+			let aborter = null;
+			let debounceId = null;
+
+			const clearList = () => {
+				list.innerHTML = "";
 				list.style.display = "none";
-				list.style.background = "#fff";
+			};
 
-				row.appendChild(btn);
-				row.appendChild(input);
-				this._container.appendChild(row);
-				this._container.appendChild(list);
-
-				let aborter = null;
-				let debounceId = null;
-
-				const clearList = () => {
-					list.innerHTML = "";
-					list.style.display = "none";
-				};
-
-				const renderResults = (features) => {
-					clearList();
-					features.forEach((f) => {
-						const item = document.createElement("button");
-						item.type = "button";
-						item.style.display = "block";
-						item.style.width = "100%";
-						item.style.textAlign = "left";
-						item.style.padding = "6px 8px";
-						item.style.fontSize = "12px";
-						item.style.cursor = "pointer";
-						item.style.border = "none";
-						item.style.background = "#fff";
-						item.onmouseenter = () => (item.style.background = "#f3f4f6");
-						item.onmouseleave = () => (item.style.background = "#fff");
-						const props = f.properties || {};
-						const label = [props.name, props.city, props.state, props.country]
-							.filter(Boolean)
-							.join(", ");
-						item.textContent = label || "Unknown";
-						item.addEventListener("click", () => {
-							const [lon, lat] = f.geometry.coordinates;
-							const type = props.osm_value || props.type || "";
-							const targetZoom =
-								type === "house" || type === "building" ? 15 : 11;
-							this._map.flyTo({
-								center: [lon, lat],
-								zoom: Math.max(this._map.getZoom(), targetZoom),
-								speed: 0.7,
-								curve: 1.5,
-								easing: (t) => 1 - Math.pow(1 - t, 2),
-								essential: false,
-							});
-							clearList();
+			const renderResults = (features) => {
+				clearList();
+				features.forEach((f) => {
+					const item = document.createElement("button");
+					item.type = "button";
+					item.style.display = "block";
+					item.style.width = "100%";
+					item.style.textAlign = "left";
+					item.style.padding = "6px 8px";
+					item.style.fontSize = "12px";
+					item.style.cursor = "pointer";
+					item.style.border = "none";
+					item.style.background = "#fff";
+					item.onmouseenter = () => (item.style.background = "#f3f4f6");
+					item.onmouseleave = () => (item.style.background = "#fff");
+					const props = f.properties || {};
+					const label = [props.name, props.city, props.state, props.country]
+						.filter(Boolean)
+						.join(", ");
+					item.textContent = label || "Unknown";
+					item.addEventListener("click", () => {
+						const [lon, lat] = f.geometry.coordinates;
+						const type = props.osm_value || props.type || "";
+						const targetZoom =
+							type === "house" || type === "building" ? 15 : 11;
+						this._map.flyTo({
+							center: [lon, lat],
+							zoom: Math.max(this._map.getZoom(), targetZoom),
+							speed: 0.7,
+							curve: 1.5,
+							easing: (t) => 1 - Math.pow(1 - t, 2),
+							essential: false,
 						});
-						list.appendChild(item);
-					});
-					if (features.length > 0) list.style.display = "block";
-				};
-
-				const search = async (q) => {
-					if (!q || q.trim().length < 2) {
 						clearList();
-						return;
-					}
-					if (aborter) aborter.abort();
-					aborter = new AbortController();
-					const c = this._map.getCenter();
-					const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-						q
-					)}&limit=6&lat=${c.lat}&lon=${c.lng}`;
-					try {
-						const r = await fetch(url, {
-							signal: aborter.signal,
-							headers: { Accept: "application/json" },
-						});
-						if (!r.ok) return;
-						const data = await r.json();
-						renderResults((data && data.features) || []);
-					} catch (_) {
-						/* silently ignore aborts/errors */
-					}
-				};
-
-				const debouncedSearch = (q) => {
-					if (debounceId) clearTimeout(debounceId);
-					debounceId = setTimeout(() => search(q), 220);
-				};
-
-				btn.addEventListener("click", () => {
-					input.style.display = "block";
-					input.focus();
+					});
+					list.appendChild(item);
 				});
-				input.addEventListener("blur", () => {
+				if (features.length > 0) list.style.display = "block";
+			};
+
+			const search = async (q) => {
+				if (!q || q.trim().length < 2) {
+					clearList();
+					return;
+				}
+				if (aborter) aborter.abort();
+				aborter = new AbortController();
+				const c = this._map.getCenter();
+				const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+					q
+				)}&limit=6&lat=${c.lat}&lon=${c.lng}`;
+				try {
+					const r = await fetch(url, {
+						signal: aborter.signal,
+						headers: { Accept: "application/json" },
+					});
+					if (!r.ok) return;
+					const data = await r.json();
+					renderResults((data && data.features) || []);
+				} catch (_) {
+					/* silently ignore aborts/errors */
+				}
+			};
+
+			const debouncedSearch = (q) => {
+				if (debounceId) clearTimeout(debounceId);
+				debounceId = setTimeout(() => search(q), 220);
+			};
+
+			// Global click handler to close search results when clicking outside
+			const handleGlobalClick = (e) => {
+				// Check if click is outside the search container
+				if (!this._container.contains(e.target)) {
+					clearList();
 					input.style.display = "none";
-				});
-				input.addEventListener("input", (e) => debouncedSearch(e.target.value));
-				input.addEventListener("keydown", (e) => {
-					if (e.key === "Escape") {
-						input.style.display = "none";
-					}
-					e.stopPropagation();
-				});
-				this._container.addEventListener("mousedown", (e) =>
-					e.stopPropagation()
-				);
-				this._container.addEventListener("dblclick", (e) =>
-					e.stopPropagation()
-				);
-				this._container.addEventListener("wheel", (e) => e.stopPropagation(), {
-					passive: true,
-				});
+				}
+			};
 
-				return this._container;
-			}
-			onRemove() {
-				if (this._container && this._container.parentNode)
-					this._container.parentNode.removeChild(this._container);
-				this._map = undefined;
-			}
+			btn.addEventListener("click", () => {
+				input.style.display = "block";
+				input.focus();
+			});
+
+			input.addEventListener("blur", (e) => {
+				// Only hide input if not clicking on a search result
+				// Use setTimeout to allow click events on search results to fire first
+				setTimeout(() => {
+					if (!list.contains(document.activeElement)) {
+						input.style.display = "none";
+						clearList();
+					}
+				}, 100);
+			});
+
+			input.addEventListener("input", (e) => debouncedSearch(e.target.value));
+			
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Escape") {
+					input.style.display = "none";
+					clearList();
+				}
+				e.stopPropagation();
+			});
+
+			// Prevent map interactions when interacting with search control
+			this._container.addEventListener("mousedown", (e) =>
+				e.stopPropagation()
+			);
+			this._container.addEventListener("dblclick", (e) =>
+				e.stopPropagation()
+			);
+			this._container.addEventListener("wheel", (e) => e.stopPropagation(), {
+				passive: true,
+			});
+
+			// Add global click listener
+			document.addEventListener("click", handleGlobalClick);
+
+			// Store reference to remove later
+			this._handleGlobalClick = handleGlobalClick;
+
+			return this._container;
 		}
+		
+		onRemove() {
+			// Remove global click listener
+			if (this._handleGlobalClick) {
+				document.removeEventListener("click", this._handleGlobalClick);
+			}
+			
+			if (this._container && this._container.parentNode)
+				this._container.parentNode.removeChild(this._container);
+			this._map = undefined;
+		}
+	}
 
 		// Screenshot control: downloads current map canvas as PNG
 		class ScreenshotControl {
@@ -316,10 +323,13 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				button.className = "maplibregl-ctrl-icon";
 				button.setAttribute("aria-label", "Download screenshot");
 				const cameraSVG = `
-								<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
-									<circle cx="12" cy="13" r="4"/>
-								</svg>`;
+								<div class="pl-1.25">
+									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/>
+										<circle cx="12" cy="13" r="4"/>
+									</svg>
+								</div>
+								`;
 				const spinnerSVG = `
 								<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 									<circle cx="12" cy="12" r="10" opacity="0.25"/>
@@ -495,17 +505,13 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				this._button = document.createElement("button");
 				this._button.type = "button";
 				this._button.className = "maplibregl-ctrl-icon";
+				this._button.style.display = "flex";
+				this._button.style.alignItems = "center";
+				this._button.style.justifyContent = "center";
+				this._button.style.padding = "0";
 				this._button.setAttribute("aria-label", "Measure distance");
-				this._button.innerHTML = `
-								<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M4 15h16M4 12h16M4 9h16" opacity="0.25"/>
-									<path d="M4 18h16"/>
-									<path d="M7 18v-3"/>
-									<path d="M11 18v-3"/>
-									<path d="M15 18v-3"/>
-									<path d="M19 18v-3"/>
-								</svg>`;
-				this._container.appendChild(this._button);
+				this._button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M17.143 18.957c-.49.201.13.552.473.554a.97.97 0 0 0 1.07-1.188c-.307-.865-1.757-1.213-2.887-.94c-1.629.395-2.257 1.74-1.638 2.799c.812 1.392 3.249 1.916 5.165 1.331c2.384-.727 3.266-2.762 2.2-4.357c-1.28-1.913-4.71-2.612-7.389-1.718c-3.13 1.045-4.265 3.767-2.755 5.886c1.732 2.428 6.15 3.302 9.577 2.101c3.87-1.355 5.255-4.76 3.304-7.393c-2.175-2.939-7.571-3.986-11.738-2.482c-4.602 1.661-6.235 5.741-3.85 8.886c2.613 3.444 8.98 4.662 13.88 2.858c5.327-1.963 7.207-6.714 4.39-10.364c-3.047-3.946-10.378-5.336-16.003-3.232c-6.05 2.262-8.175 7.68-4.928 11.831c2.065 2.641 5.994 4.413 10.296 4.708" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M16.31 28.237H43.5v9.043H16.24c-6.618 0-11.735-4.41-11.735-10.173v-7.912m5.086 16.163v-2.26m3.391 3.617v-4.522m3.391 5.087v-2.26m3.391 2.26v-4.522m3.39 4.522v-2.26m3.392 2.26v-4.522m3.39 4.522v-2.26m6.782 2.26v-2.26m-3.39 2.26v-4.522m6.781 4.522v-4.522m-11.868-4.634v-9.833" stroke-width="1.5"/></svg>`
+								this._container.appendChild(this._button);
 
 				this._active = false;
 				this._points = [];
@@ -701,13 +707,13 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				button.type = "button";
 				button.className = "maplibregl-ctrl-icon";
 				button.setAttribute("aria-label", "Reset view");
+				button.style.display = "flex";
+				button.style.alignItems = "center";
+				button.style.justifyContent = "center";
+				button.style.padding = "0";
 				// Simple north arrow
 				button.innerHTML = `
-								<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M12 3l3.5 7h-7L12 3z"/>
-									<path d="M12 13v8"/>
-									<path d="M9 21h6"/>
-								</svg>`;
+								<svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 24 24"><g fill="none"><path fill="currentColor" d="m6.2 20.634l5.668-10.393a.15.15 0 0 1 .264 0L17.8 20.634a.15.15 0 0 1-.187.211l-4.536-1.814a.15.15 0 0 1-.092-.113l-.837-4.606c-.03-.164-.266-.164-.296 0l-.837 4.606a.15.15 0 0 1-.092.113l-4.536 1.814a.15.15 0 0 1-.187-.21"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 9V3.12a.05.05 0 0 1 .085-.035l5.83 5.83A.05.05 0 0 0 15 8.879V3"/></g></svg>`;
 
 				button.addEventListener("click", () => {
 					// True "north up": only reset bearing; keep center, zoom and pitch
@@ -730,9 +736,10 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			"bottom-right"
 		);
 		map.current.addControl(new ResetNorthControl(), "bottom-right");
-		map.current.addControl(new PhotonSearchControl(), "bottom-left");
+		
 		map.current.addControl(new ScreenshotControl(), "bottom-left");
 		map.current.addControl(new MeasureDistanceControl(), "bottom-left");
+		map.current.addControl(new PhotonSearchControl(), "bottom-left");
 
 		return () => {
 			if (map.current) {
@@ -779,19 +786,26 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			if (bottomLeft) bottomLeft.style.bottom = "200px";
-			if (bottomRight) bottomRight.style.bottom = "200px";
+			if (bottomLeft) bottomLeft.style.bottom = "130px";
+			if (bottomRight) bottomRight.style.bottom = "130px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
 	return (
-		<div
-			ref={mapContainer}
-			style={{
-				width: "100%",
-				height: "100vh",
-				backgroundColor: "#000",
-			}}
-		/>
+		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
+			<GalaxyCanvas />
+			<div
+				ref={mapContainer}
+				style={{
+					position: "absolute",
+					top: 0,
+					left: 0,
+					width: "100%",
+					height: "100%",
+					zIndex: 1,
+					backgroundColor: "transparent",
+				}}
+			/>
+		</div>
 	);
 }
