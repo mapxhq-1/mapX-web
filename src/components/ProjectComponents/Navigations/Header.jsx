@@ -27,7 +27,7 @@ const Header = () => {
     <>
       <div className='flex items-center relative p-5 justify-between bg-[#1F1F1F] text-white border-1 border-zinc-600'>
         <Link className='flex gap-3 cursor-pointer' to="/">
-          <p className='potta-one opacity-70 text-4xl ml-5'>MAPX</p>
+          <p className='potta-one text-4xl ml-5'>MAPX</p>
         </Link>
         <div>
           <p className='text-2xl absolute left-1/4'>{heading}</p>

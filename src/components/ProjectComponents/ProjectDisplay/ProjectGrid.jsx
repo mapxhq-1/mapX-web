@@ -105,7 +105,7 @@ const ProjectGrid = () => {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <ProjectCard data={data} />
+                  <ProjectCard data={data} key={data.id}/>
                 </motion.div>
               ))}
           </AnimatePresence>

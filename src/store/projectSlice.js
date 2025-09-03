@@ -55,7 +55,7 @@ export const projectSlice = createSlice({
     errorShared: "",
     loadingMy: true,
     loadingShared: true,
-    ownerEmail: "slayer@gmail.com",
+    ownerEmail: "tttt@gmail.com",
     option: "Alphabetical",
     search: "",
     heading: "My Projects",

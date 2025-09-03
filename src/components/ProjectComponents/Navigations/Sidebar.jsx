@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react'
-import { NavLink } from "react-router-dom";
+import React, { useEffect, useState } from 'react'
+import { NavLink,useLocation } from "react-router-dom";
 import { useDispatch } from 'react-redux';
 import { setHeading } from '../../../store/projectSlice';
 import Profile from "./Profile"
@@ -22,6 +22,21 @@ import accountB from '../../../assets/icons/accountB.png';
 const Sidebar = () => {
     const [profileOpen,setProfileOpen]= useState(false);
     const dispatch = useDispatch();
+    const location = useLocation();
+    function handleClick(head){
+        dispatch(setHeading(head))
+    }
+    useEffect(()=>{
+        if(location.pathname.includes("/Projects/myprojects")){
+            dispatch(setHeading("My projects"))
+        }else if(location.pathname.includes("/Projects/recents")){
+            dispatch(setHeading("Recents"))
+        }else if(location.pathname.includes("/Projects/sharedProjects")){
+            dispatch(setHeading("Shared Projects"))
+        }else if(location.pathname.includes("/Projects/allProjects")){
+            dispatch(setHeading("All Projects"))
+        }
+    },[location.pathname,dispatch])
   return (
     <div>
         <div className='w-[300px] bg-[#1F1F1F] h-full text-white  border-1 border-t-0 border-zinc-600'>
@@ -29,7 +44,7 @@ const Sidebar = () => {
                 <div className="projectSettings">
                     <nav>
                         <NavLink
-                            onClick={() => dispatch(setHeading("My Projects"))}
+                            onClick={() => handleClick("My Projects")}
                             to="/"
                             className={({ isActive }) =>
                                 `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
@@ -52,7 +67,7 @@ const Sidebar = () => {
 
 
 
-                        <NavLink onClick={()=>dispatch(setHeading("Recents"))} to='/Projects/recents' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("Recents")} to='/Projects/recents' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
@@ -69,7 +84,7 @@ const Sidebar = () => {
                                 </>
                                 )}
                         </NavLink>
-                        <NavLink onClick={()=>(dispatch(setHeading("My Projects")))} to='/Projects/myProjects' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("My Projects")} to='/Projects/myProjects' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
@@ -86,7 +101,7 @@ const Sidebar = () => {
                                 </>
                                 )}
                         </NavLink>
-                        <NavLink onClick={()=>dispatch(setHeading("Shared Projects"))} to='/Projects/sharedProjects' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("Shared Projects")} to='/Projects/sharedProjects' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
@@ -103,7 +118,7 @@ const Sidebar = () => {
                                 </>
                             )}
                         </NavLink>
-                        <NavLink onClick={()=>dispatch(setHeading("All Projects"))} to='/Projects/allProjects' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("All Projects")} to='/Projects/allProjects' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
