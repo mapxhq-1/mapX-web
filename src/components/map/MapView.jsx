@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { useSelector } from "react-redux";
 import "maplibre-gl/dist/maplibre-gl.css";
+import GalaxyCanvas from "../common/GalaxyCanvas";
+
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
@@ -10,44 +12,10 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const polygons = useSelector((state) => state.map.polygons);
 	const year = useSelector((state) => state.map.year);
 
+
+
 	useEffect(() => {
 		if (map.current) return;
-
-		// Generate a repeating starfield background and apply to the container
-		try {
-			const createStarfieldTile = (size = 512, starCount = 240) => {
-				const c = document.createElement("canvas");
-				c.width = size;
-				c.height = size;
-				const ctx = c.getContext("2d");
-				ctx.fillStyle = "#000";
-				ctx.fillRect(0, 0, size, size);
-				for (let i = 0; i < starCount; i++) {
-					const x = Math.random() * size;
-					const y = Math.random() * size;
-					const r = 0.4 + Math.random() * 1.3;
-					const a = 0.3 + Math.random() * 0.7;
-					ctx.beginPath();
-					ctx.arc(x, y, r, 0, Math.PI * 2);
-					ctx.fillStyle = `rgba(255,255,255,${a})`;
-					ctx.fill();
-					if (Math.random() < 0.12) {
-						const hue = Math.random() < 0.5 ? 200 : 45;
-						ctx.fillStyle = `hsla(${hue},80%,80%,${a * 0.6})`;
-						ctx.fill();
-					}
-				}
-				return c.toDataURL("image/png");
-			};
-
-			const tile = createStarfieldTile(512, 260);
-			if (mapContainer.current) {
-				mapContainer.current.style.backgroundColor = "#000";
-				mapContainer.current.style.backgroundImage = `url(${tile})`;
-				mapContainer.current.style.backgroundRepeat = "repeat";
-				mapContainer.current.style.backgroundSize = "auto";
-			}
-		} catch (_) {}
 
 		map.current = new maplibregl.Map({
 			container: mapContainer.current,
@@ -61,7 +29,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 		map.current.on("load", () => {
 			map.current.setProjection({ type: "globe" });
-			// Ensure the WebGL canvas is transparent so the container background shows
+			// Ensure the WebGL canvas is transparent so the galaxy background shows
 			try {
 				const canvas = map.current.getCanvas();
 				if (canvas) canvas.style.backgroundColor = "transparent";
@@ -824,13 +792,20 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	}, [leftOffset, rightOffset]);
 
 	return (
-		<div
-			ref={mapContainer}
-			style={{
-				width: "100%",
-				height: "100vh",
-				backgroundColor: "#000",
-			}}
-		/>
+		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
+			<GalaxyCanvas />
+			<div
+				ref={mapContainer}
+				style={{
+					position: "absolute",
+					top: 0,
+					left: 0,
+					width: "100%",
+					height: "100%",
+					zIndex: 1,
+					backgroundColor: "transparent",
+				}}
+			/>
+		</div>
 	);
 }
