@@ -5,29 +5,32 @@ import { Box } from "@mui/material";
 
 export default function Timeline() {
   const dispatch = useDispatch();
-  const year = useSelector((state) => state.map.year);
+  const globalYear = useSelector((state) => state.map.year);
 
-  // Internal year range (negative for BCE, positive for CE)
-  const MIN_YEAR = -2000; // 2000 BCE
-  const MAX_YEAR = 2025; // 2025 CE
+  // Local year for smooth dragging
+  const [localYear, setLocalYear] = useState(globalYear);
+
+  // Constants
+  const MIN_YEAR = -4000;
+  const MAX_YEAR = 2025;
   const TICK_SPACING_PX = 20;
-  const INVERT_SCALE = true;
 
+
+  // Refs & State
   const containerRef = useRef(null);
   const sliderRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [buttonOffset, setButtonOffset] = useState(0);
-  const velocityRef = useRef(0); // inertia velocity
+  const dragStartX = useRef(0);
+  const buttonOffsetRef = useRef(0);
+  const velocityRef = useRef(0);
 
+  // Resize observer
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const w = entry.contentRect
-          ? entry.contentRect.width
-          : containerRef.current.clientWidth;
+        const w = entry.contentRect?.width || containerRef.current.clientWidth;
         setContainerWidth(Math.max(0, Math.floor(w)));
       }
     });
@@ -36,41 +39,71 @@ export default function Timeline() {
     return () => ro.disconnect();
   }, []);
 
-  const years = useMemo(() => {
-    const arr = [];
-    for (let y = MIN_YEAR; y <= MAX_YEAR; y++) arr.push(y);
-    return arr;
-  }, []);
+  // Sync global year into local year when redux updates externally,
+  // but NOT while dragging or during inertia (prevents snap-back).
+  useEffect(() => {
+    const animating =
+      isDragging ||
+      buttonOffsetRef.current !== 0 ||
+      Math.abs(velocityRef.current) > 0.1;
 
-  const index = Math.max(0, Math.min(MAX_YEAR - MIN_YEAR, year - MIN_YEAR));
-  const translateX = Math.floor(containerWidth / 2 - index * TICK_SPACING_PX);
+    if (!animating && globalYear !== localYear) {
+      setLocalYear(globalYear);
+    }
+  }, [globalYear, isDragging, localYear]);
 
-  const handleYearChange = (e) => {
-    const y = Number(e.target.value);
-    dispatch(setYear(Math.min(MAX_YEAR, Math.max(MIN_YEAR, y))));
-  };
+  // Precompute years
+  const years = useMemo(
+    () => Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i),
+    []
+  );
 
+  // Virtualization setup
+  const index = Math.max(0, Math.min(MAX_YEAR - MIN_YEAR, localYear - MIN_YEAR));
+  const translateX = useMemo(
+    () => Math.floor(containerWidth / 2 - index * TICK_SPACING_PX),
+    [containerWidth, index]
+  );
+
+  const visibleYears = useMemo(() => {
+    const visibleCount = Math.ceil(containerWidth / TICK_SPACING_PX) + 10;
+    const startIndex = Math.max(0, index - visibleCount);
+    const endIndex = Math.min(years.length, index + visibleCount);
+    return years
+      .slice(startIndex, endIndex)
+      .map((y, i) => ({ y, left: (startIndex + i) * TICK_SPACING_PX }));
+  }, [years, index, containerWidth]);
+
+  // Drag start
   const handleMouseDown = (e) => {
     e.preventDefault();
     setIsDragging(true);
-    setDragStartX(e.clientX);
-    velocityRef.current = 0; // reset inertia
+    dragStartX.current = e.clientX;
+    velocityRef.current = 0;
   };
 
+  // Drag move
   const handleMouseMove = (e) => {
     if (!isDragging) return;
-    const deltaX = e.clientX - dragStartX;
+    const deltaX = e.clientX - dragStartX.current;
     const maxOffset = 40;
     const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, deltaX));
-    setButtonOffset(clampedOffset);
 
-    // store velocity for inertia after release
+    buttonOffsetRef.current = clampedOffset;
+    if (sliderRef.current) {
+      sliderRef.current.style.transform = `translateX(${clampedOffset}px)`;
+    }
     velocityRef.current = clampedOffset * 0.2;
   };
 
+  // Drag end — final sync
   const handleMouseUp = () => {
     setIsDragging(false);
-    setButtonOffset(0);
+    dispatch(setYear(localYear)); // final confirm
+    buttonOffsetRef.current = 0;
+    if (sliderRef.current) {
+      sliderRef.current.style.transform = "translateX(0px)";
+    }
   };
 
   useEffect(() => {
@@ -81,100 +114,106 @@ export default function Timeline() {
       document.addEventListener("mousemove", handleGlobalMouseMove);
       document.addEventListener("mouseup", handleGlobalMouseUp);
     }
-
     return () => {
       document.removeEventListener("mousemove", handleGlobalMouseMove);
       document.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [isDragging, dragStartX]);
+  }, [isDragging]);
 
-  // 🚀 Physics Loop
-  useEffect(() => {
-  let frameId;
-  const friction = 0.95;  // 🔽 stronger friction (stops faster)
+  // Precompute easing curve
+const speedLookup = useMemo(() => {
+  const maxSpeed = 1; // Maximum scroll speed at full drag
+  return Array.from({ length: 101 }, (_, i) => {
+    const t = i / 100; // Drag percentage (0 → 1)
+    let speed;
 
-  const animate = () => {
-    if (isDragging && buttonOffset !== 0) {
-      // --- while dragging ---
-      const offset = Math.abs(buttonOffset);
-      const actualMaxOffset = 40; // Match your clamp limit
-      const t = offset / actualMaxOffset; // 0 → 1
-      const maxSpeed = 25;
-
-      // Declare speed outside the if/else blocks
-      let speed = 0;
-
-      if (t < 0.2) {
-        // Ultra slow movement from the very start
-        speed = maxSpeed * 0.005 * (t / 0.2); // 0-0.5% of max speed
-      } else if (t < 0.5) {
-        // Still slow phase
-        const adjustedT = (t - 0.2) / 0.3;
-        speed = maxSpeed * (0.005 + 0.025 * Math.pow(adjustedT, 3)); // 0.5-3% of max speed
-      } else {
-        // Normal acceleration phase
-        const adjustedT = (t - 0.5) / 0.5;
-        speed = maxSpeed * (0.03 + 0.97 * Math.pow(adjustedT, 5)); // 3-100% of max speed
-      }
-
-      if (buttonOffset > 0 && year < MAX_YEAR) {
-        dispatch(setYear(Math.min(MAX_YEAR, Math.round(year + speed))));
-      } else if (buttonOffset < 0 && year > MIN_YEAR) {
-        dispatch(setYear(Math.max(MIN_YEAR, Math.round(year - speed))));
-      }
-
-      // update velocity reference for inertia
-      velocityRef.current = buttonOffset * 0.12;
-    } else if (!isDragging && Math.abs(velocityRef.current) > 0.1) {
-      // --- inertia after release ---
-      const inertiaSpeed = velocityRef.current * 0.15;
-
-      if (velocityRef.current > 0 && year < MAX_YEAR) {
-        dispatch(setYear(Math.min(MAX_YEAR, Math.round(year + inertiaSpeed))));
-      } else if (velocityRef.current < 0 && year > MIN_YEAR) {
-        dispatch(setYear(Math.max(MIN_YEAR, Math.round(year + inertiaSpeed))));
-      }
-
-      // 🔽 stronger damping for quick stop
-      velocityRef.current *= friction;
+    if (t < 0.4) {
+      // First 20% → EXTREMELY slow start using cubic easing
+      // At 10% drag, speed is only ~0.1% of maxSpeed
+      speed = maxSpeed * Math.pow(t / 0.2, 3) * 0.05;
+    } else if (t < 0.4) {
+      // 20% → 40% → begin smoother ramp-up
+      const normalized = (t - 0.2) / 0.2; // Scale 0 → 1
+      speed = maxSpeed * (0.05 + Math.pow(normalized, 2) * 0.25);
+    } else {
+      // 40% → 100% → accelerate fully but controlled
+      const normalized = (t - 0.4) / 0.6;
+      speed = maxSpeed * (0.3 + normalized * 0.7);
     }
 
+    return speed;
+  });
+}, []);
+
+
+  // Physics + inertia loop
+  useEffect(() => {
+    let frameId;
+    const friction = 0.95;
+
+    const animate = () => {
+      const offset = buttonOffsetRef.current;
+
+      if (isDragging && offset !== 0) {
+        const t = Math.abs(offset) / 40;
+        const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
+
+        let next = localYear;
+
+        if (offset > 0 && localYear < MAX_YEAR) {
+          next = Math.min(MAX_YEAR, Math.round(localYear + speed));
+          if (next !== localYear) setLocalYear(next);
+        } else if (offset < 0 && localYear > MIN_YEAR) {
+          next = Math.max(MIN_YEAR, Math.round(localYear - speed));
+          if (next !== localYear) setLocalYear(next);
+        }
+
+        // 🔴 LIVE Redux sync during drag (only when year actually changes)
+        if (next !== globalYear) {
+          dispatch(setYear(next));
+        }
+
+        velocityRef.current = offset * 0.12;
+      } else if (!isDragging && Math.abs(velocityRef.current) > 0.1) {
+        const inertiaSpeed = velocityRef.current * 0.15;
+        const next =
+          velocityRef.current > 0
+            ? Math.min(MAX_YEAR, Math.round(localYear + inertiaSpeed))
+            : Math.max(MIN_YEAR, Math.round(localYear + inertiaSpeed));
+
+        if (next !== localYear) {
+          setLocalYear(next);
+
+          // 🔴 LIVE Redux sync during inertia as well
+          if (next !== globalYear) {
+            dispatch(setYear(next));
+          }
+        }
+
+        velocityRef.current *= friction;
+      }
+
+      frameId = requestAnimationFrame(animate);
+    };
+
     frameId = requestAnimationFrame(animate);
-  };
-
-  frameId = requestAnimationFrame(animate);
-  return () => cancelAnimationFrame(frameId);
-}, [isDragging, buttonOffset, year, dispatch]);
-
+    return () => cancelAnimationFrame(frameId);
+  }, [isDragging, localYear, globalYear, speedLookup, dispatch]);
+function PassNumber(n){
+  if(isNaN(Number(n)))return n;
+  return Number(n);
+}
   return (
-    <Box
-      sx={{
-        position: "fixed",
-        bottom: "20px",
-        left: 0,
-        right: 0,
-        width: "100vw",
-        zIndex: 1,
-        p: 0,
-        flexShrink: 0,
-        color: "#fff",
-        pointerEvents: "auto",
-      }}
-    >
+    <Box sx={{ position: "fixed", bottom: "20px", left: 0, right: 0, width: "100vw", zIndex: 1, color: "#fff" }}>
       {/* Year input */}
-      <Box
-        sx={{
-          textAlign: "center",
-          mb: 2,
-          fontSize: "24px",
-          fontWeight: "bold",
-          color: "#000",
-          position: "relative",
-        }}
-      >
+      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative" }}>
         <input
-          value={year}
-          onChange={handleYearChange}
+          value={localYear}
+          onChange={(e) => {
+            const v = PassNumber(e.target.value);
+            setLocalYear(v);
+            dispatch(setYear(v)); // keep Redux in sync when typing
+          }}
           style={{
             backgroundColor: "#fff",
             padding: "2px 8px",
@@ -185,36 +224,28 @@ export default function Timeline() {
             textAlign: "center",
             color: "#000",
             outline: "none",
-            width: `${String(year).length + 3}ch`,
+            width: `${String(localYear).length + 3}ch`,
             minWidth: "3ch",
           }}
         />
         <Box
-        sx={{
-          position: "absolute",
-          left: "50%",
-          transform: "translateX(-50%)",
-          top: "95%",
-          width: 0,
-          height: 0,
-          borderLeft: "8px solid transparent",
-          borderRight: "8px solid transparent",
-          borderTop: "8px solid #fff",
-          marginTop: "2px",
-        }}
+          sx={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            top: "95%",
+            width: 0,
+            height: 0,
+            borderLeft: "8px solid transparent",
+            borderRight: "8px solid transparent",
+            borderTop: "8px solid #fff",
+            marginTop: "2px",
+          }}
         />
       </Box>
 
       {/* Ruler */}
-      <Box
-        ref={containerRef}
-        sx={{
-          position: "relative",
-          height: 56,
-          overflow: "hidden",
-          mb: 0.25,
-        }}
-      >
+      <Box ref={containerRef} sx={{ position: "relative", height: 56, overflow: "hidden", mb: 0.25 }}>
         <Box
           component="span"
           sx={{
@@ -228,7 +259,7 @@ export default function Timeline() {
             background: "#fff",
           }}
         >
-          {year}
+          {localYear}
         </Box>
 
         <Box
@@ -241,25 +272,12 @@ export default function Timeline() {
             transform: `translateX(${translateX}px)`,
           }}
         >
-          {years.map((y, i) => {
+          {visibleYears.map(({ y, left }) => {
             const isDecade = y % 5 === 0;
             const tickHeight = isDecade ? 30 : 15;
             return (
-              <Box
-                key={y}
-                sx={{
-                  position: "absolute",
-                  left: i * TICK_SPACING_PX,
-                  ...(INVERT_SCALE ? { top: 0 } : { bottom: 0 }),
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 2,
-                    height: tickHeight,
-                    background: "#fff",
-                  }}
-                />
+              <Box key={y} sx={{ position: "absolute", left }}>
+                <Box sx={{ width: 2, height: tickHeight, background: "#fff" }} />
               </Box>
             );
           })}
@@ -273,8 +291,8 @@ export default function Timeline() {
           justifyContent: "center",
           alignItems: "center",
           position: "relative",
-          height: 40,
-          width: 140,
+          height: 44,
+          width: 109,
           border: "2px solid rgba(255,255,255,0.2)",
           borderRadius: "20px",
           padding: "6px",
@@ -284,12 +302,11 @@ export default function Timeline() {
         <Box
           sx={{
             position: "absolute",
-            left: "20px",
-            top: "50%",
-            transform: "translateY(-50%)",
+            left: "7px",
             color: "rgba(255,255,255,0.6)",
             fontSize: "24px",
             fontWeight: "bold",
+            top : "0"
           }}
         >
           ‹
@@ -298,12 +315,11 @@ export default function Timeline() {
         <Box
           sx={{
             position: "absolute",
-            right: "20px",
-            top: "50%",
-            transform: "translateY(-50%)",
+            right: "7px",
             color: "rgba(255,255,255,0.6)",
             fontSize: "24px",
             fontWeight: "bold",
+            top : "0.4px"
           }}
         >
           ›
@@ -313,14 +329,13 @@ export default function Timeline() {
           ref={sliderRef}
           sx={{
             position: "absolute",
-            width: 65,
-            height: 18,
+            width: 62,
+            height: 27,
             background: "#fff",
             borderRadius: "16px",
             border: "2px solid rgba(255,255,255,0.3)",
             boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
             cursor: "grab",
-            transform: `translateX(${buttonOffset}px)`,
             transition: isDragging ? "none" : "transform 100ms ease-out",
             "&:active": {
               cursor: "grabbing",

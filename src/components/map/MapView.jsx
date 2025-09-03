@@ -134,8 +134,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				const bottomRight = container.querySelector(
 					".maplibregl-ctrl-bottom-right"
 				);
-				if (bottomLeft) bottomLeft.style.bottom = "200px";
-				if (bottomRight) bottomRight.style.bottom = "200px";
+				if (bottomLeft) bottomLeft.style.bottom = "130px";
+				if (bottomRight) bottomRight.style.bottom = "130px";
 			} catch (_) {}
 		});
 
@@ -537,6 +537,10 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				this._button = document.createElement("button");
 				this._button.type = "button";
 				this._button.className = "maplibregl-ctrl-icon";
+				this._button.style.display = "flex";
+				this._button.style.alignItems = "center";
+				this._button.style.justifyContent = "center";
+				this._button.style.padding = "0";
 				this._button.setAttribute("aria-label", "Measure distance");
 				this._button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M17.143 18.957c-.49.201.13.552.473.554a.97.97 0 0 0 1.07-1.188c-.307-.865-1.757-1.213-2.887-.94c-1.629.395-2.257 1.74-1.638 2.799c.812 1.392 3.249 1.916 5.165 1.331c2.384-.727 3.266-2.762 2.2-4.357c-1.28-1.913-4.71-2.612-7.389-1.718c-3.13 1.045-4.265 3.767-2.755 5.886c1.732 2.428 6.15 3.302 9.577 2.101c3.87-1.355 5.255-4.76 3.304-7.393c-2.175-2.939-7.571-3.986-11.738-2.482c-4.602 1.661-6.235 5.741-3.85 8.886c2.613 3.444 8.98 4.662 13.88 2.858c5.327-1.963 7.207-6.714 4.39-10.364c-3.047-3.946-10.378-5.336-16.003-3.232c-6.05 2.262-8.175 7.68-4.928 11.831c2.065 2.641 5.994 4.413 10.296 4.708" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M16.31 28.237H43.5v9.043H16.24c-6.618 0-11.735-4.41-11.735-10.173v-7.912m5.086 16.163v-2.26m3.391 3.617v-4.522m3.391 5.087v-2.26m3.391 2.26v-4.522m3.39 4.522v-2.26m3.392 2.26v-4.522m3.39 4.522v-2.26m6.782 2.26v-2.26m-3.39 2.26v-4.522m6.781 4.522v-4.522m-11.868-4.634v-9.833" stroke-width="1.5"/></svg>`
 								this._container.appendChild(this._button);
@@ -735,9 +739,13 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				button.type = "button";
 				button.className = "maplibregl-ctrl-icon";
 				button.setAttribute("aria-label", "Reset view");
+				button.style.display = "flex";
+				button.style.alignItems = "center";
+				button.style.justifyContent = "center";
+				button.style.padding = "0";
 				// Simple north arrow
 				button.innerHTML = `
-								<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><g fill="none"><path fill="currentColor" d="m6.2 20.634l5.668-10.393a.15.15 0 0 1 .264 0L17.8 20.634a.15.15 0 0 1-.187.211l-4.536-1.814a.15.15 0 0 1-.092-.113l-.837-4.606c-.03-.164-.266-.164-.296 0l-.837 4.606a.15.15 0 0 1-.092.113l-4.536 1.814a.15.15 0 0 1-.187-.21"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 9V3.12a.05.05 0 0 1 .085-.035l5.83 5.83A.05.05 0 0 0 15 8.879V3"/></g></svg>`;
+								<svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 24 24"><g fill="none"><path fill="currentColor" d="m6.2 20.634l5.668-10.393a.15.15 0 0 1 .264 0L17.8 20.634a.15.15 0 0 1-.187.211l-4.536-1.814a.15.15 0 0 1-.092-.113l-.837-4.606c-.03-.164-.266-.164-.296 0l-.837 4.606a.15.15 0 0 1-.092.113l-4.536 1.814a.15.15 0 0 1-.187-.21"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 9V3.12a.05.05 0 0 1 .085-.035l5.83 5.83A.05.05 0 0 0 15 8.879V3"/></g></svg>`;
 
 				button.addEventListener("click", () => {
 					// True "north up": only reset bearing; keep center, zoom and pitch
@@ -810,8 +818,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			if (bottomLeft) bottomLeft.style.bottom = "200px";
-			if (bottomRight) bottomRight.style.bottom = "200px";
+			if (bottomLeft) bottomLeft.style.bottom = "130px";
+			if (bottomRight) bottomRight.style.bottom = "130px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
