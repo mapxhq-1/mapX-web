@@ -206,7 +206,7 @@ function PassNumber(n){
   return (
     <Box sx={{ position: "fixed", bottom: "20px", left: 0, right: 0, width: "100vw", zIndex: 1, color: "#fff", pointerEvents: "none" }}>
       {/* Year input */}
-      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative" }}>
+      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "auto" }}>
         <input
           value={localYear}
           onChange={(e) => {
@@ -226,6 +226,7 @@ function PassNumber(n){
             outline: "none",
             width: `${String(localYear).length + 3}ch`,
             minWidth: "3ch",
+            pointerEvents: "auto",
           }}
         />
         <Box
