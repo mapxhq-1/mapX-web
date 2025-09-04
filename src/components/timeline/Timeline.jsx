@@ -24,6 +24,14 @@ export default function Timeline() {
   const dragStartX = useRef(0);
   const buttonOffsetRef = useRef(0);
   const velocityRef = useRef(0);
+  const maxDragAbsRef = useRef(0);
+  const dragAccumulatorRef = useRef(0);
+
+  // Arrow hold/acceleration state
+  const holdDirRef = useRef(0); // -1 left, +1 right
+  const holdStartTsRef = useRef(0);
+  const holdRafRef = useRef(0);
+  const stepAccumulatorRef = useRef(0);
 
   // Resize observer
   useEffect(() => {
@@ -80,6 +88,8 @@ export default function Timeline() {
     setIsDragging(true);
     dragStartX.current = e.clientX;
     velocityRef.current = 0;
+    maxDragAbsRef.current = 0;
+    dragAccumulatorRef.current = 0;
   };
 
   // Drag move
@@ -91,9 +101,10 @@ export default function Timeline() {
 
     buttonOffsetRef.current = clampedOffset;
     if (sliderRef.current) {
-      sliderRef.current.style.transform = `translateX(${clampedOffset}px)`;
+      sliderRef.current.style.transform = `translateX(calc(-50% + ${clampedOffset}px))`;
     }
     velocityRef.current = clampedOffset * 0.2;
+    maxDragAbsRef.current = Math.max(maxDragAbsRef.current, Math.abs(clampedOffset));
   };
 
   // Drag end — final sync
@@ -102,7 +113,23 @@ export default function Timeline() {
     dispatch(setYear(localYear)); // final confirm
     buttonOffsetRef.current = 0;
     if (sliderRef.current) {
-      sliderRef.current.style.transform = "translateX(0px)";
+      sliderRef.current.style.transform = "translateX(-50%)";
+    }
+    dragAccumulatorRef.current = 0;
+
+    // If the drag was tiny, interpret as a single step year
+    if (maxDragAbsRef.current <= 6) {
+      const dir = Math.sign(velocityRef.current || 0);
+      if (dir !== 0) {
+        const next = Math.max(
+          MIN_YEAR,
+          Math.min(MAX_YEAR, localYear + dir)
+        );
+        if (next !== localYear) {
+          setLocalYear(next);
+          dispatch(setYear(next));
+        }
+      }
     }
   };
 
@@ -122,25 +149,23 @@ export default function Timeline() {
 
   // Precompute easing curve
 const speedLookup = useMemo(() => {
-  const maxSpeed = 1; // Maximum scroll speed at full drag
+  // Speed expressed in years per frame to accumulate (60 FPS assumed)
+  const maxSpeed = 1.2; // upper bound when fully dragged
   return Array.from({ length: 101 }, (_, i) => {
-    const t = i / 100; // Drag percentage (0 → 1)
+    const t = i / 100; // 0 → 1
     let speed;
-
-    if (t < 0.4) {
-      // First 20% → EXTREMELY slow start using cubic easing
-      // At 10% drag, speed is only ~0.1% of maxSpeed
-      speed = maxSpeed * Math.pow(t / 0.2, 3) * 0.05;
-    } else if (t < 0.4) {
-      // 20% → 40% → begin smoother ramp-up
-      const normalized = (t - 0.2) / 0.2; // Scale 0 → 1
-      speed = maxSpeed * (0.05 + Math.pow(normalized, 2) * 0.25);
+    if (t < 0.2) {
+      // very slow start
+      speed = maxSpeed * Math.pow(t / 0.2, 3) * 0.05; // up to ~0.05*max
+    } else if (t < 0.5) {
+      // gradual ramp
+      const n = (t - 0.2) / 0.3; // 0 → 1
+      speed = maxSpeed * (0.05 + 0.25 * Math.pow(n, 2));
     } else {
-      // 40% → 100% → accelerate fully but controlled
-      const normalized = (t - 0.4) / 0.6;
-      speed = maxSpeed * (0.3 + normalized * 0.7);
+      // accelerate to max
+      const n = (t - 0.5) / 0.5; // 0 → 1
+      speed = maxSpeed * (0.3 + 0.7 * n);
     }
-
     return speed;
   });
 }, []);
@@ -158,19 +183,20 @@ const speedLookup = useMemo(() => {
         const t = Math.abs(offset) / 40;
         const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
 
-        let next = localYear;
-
-        if (offset > 0 && localYear < MAX_YEAR) {
-          next = Math.min(MAX_YEAR, Math.round(localYear + speed));
-          if (next !== localYear) setLocalYear(next);
-        } else if (offset < 0 && localYear > MIN_YEAR) {
-          next = Math.max(MIN_YEAR, Math.round(localYear - speed));
-          if (next !== localYear) setLocalYear(next);
-        }
-
-        // 🔴 LIVE Redux sync during drag (only when year actually changes)
-        if (next !== globalYear) {
-          dispatch(setYear(next));
+        // accumulate fractional movement for smooth, slow start
+        dragAccumulatorRef.current += speed;
+        const step = Math.floor(dragAccumulatorRef.current);
+        if (step > 0) {
+          const dir = offset > 0 ? 1 : -1;
+          const target = Math.max(
+            MIN_YEAR,
+            Math.min(MAX_YEAR, localYear + dir * step)
+          );
+          if (target !== localYear) {
+            setLocalYear(target);
+            dispatch(setYear(target));
+          }
+          dragAccumulatorRef.current -= step;
         }
 
         velocityRef.current = offset * 0.12;
@@ -199,14 +225,65 @@ const speedLookup = useMemo(() => {
     frameId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameId);
   }, [isDragging, localYear, globalYear, speedLookup, dispatch]);
+
+  // ----- Arrow hold with highway-like acceleration -----
+  const stopHold = () => {
+    holdDirRef.current = 0;
+    stepAccumulatorRef.current = 0;
+    if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current);
+    holdRafRef.current = 0;
+  };
+
+  const startHold = (dir) => {
+    if (dir === 0) return;
+    holdDirRef.current = dir;
+    holdStartTsRef.current = performance.now();
+    stepAccumulatorRef.current = 0;
+
+    let lastTs = performance.now();
+    const loop = (ts) => {
+      if (holdDirRef.current === 0) return;
+      const elapsed = Math.max(0, ts - holdStartTsRef.current);
+      const dt = Math.max(0.001, (ts - lastTs) / 1000); // seconds
+      lastTs = ts;
+
+      // Acceleration profile: starts slow, ramps to fast over ~1200ms
+      // Compute steps per second between 4 and 40
+      const t = Math.min(1, elapsed / 1200);
+      const stepsPerSec = 4 + Math.pow(t, 1.8) * (40 - 4);
+      const stepsThisFrame = stepsPerSec * dt;
+      stepAccumulatorRef.current += stepsThisFrame;
+      const wholeSteps = Math.floor(stepAccumulatorRef.current);
+      if (wholeSteps > 0) {
+        stepAccumulatorRef.current -= wholeSteps;
+        const delta = holdDirRef.current * wholeSteps;
+        const next = Math.max(MIN_YEAR, Math.min(MAX_YEAR, localYear + delta));
+        if (next !== localYear) {
+          setLocalYear(next);
+          dispatch(setYear(next));
+        }
+      }
+
+      holdRafRef.current = requestAnimationFrame(loop);
+    };
+    holdRafRef.current = requestAnimationFrame(loop);
+  };
+
+  const handleArrowClick = (dir) => {
+    const next = Math.max(MIN_YEAR, Math.min(MAX_YEAR, localYear + dir));
+    if (next !== localYear) {
+      setLocalYear(next);
+      dispatch(setYear(next));
+    }
+  };
 function PassNumber(n){
   if(isNaN(Number(n)))return n;
   return Number(n);
 }
   return (
-    <Box sx={{ position: "fixed", bottom: "20px", left: 0, right: 0, width: "100vw", zIndex: 1, color: "#fff", pointerEvents: "none" }}>
+    <Box sx={{ position: "fixed", left: 0, right: 0, width: "100vw", zIndex: 15, color: "#fff", pointerEvents: "none", bottom: 8 }}>
       {/* Year input */}
-      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "auto" }}>
+      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "none" }}>
         <input
           value={localYear}
           onChange={(e) => {
@@ -241,12 +318,13 @@ function PassNumber(n){
             borderRight: "8px solid transparent",
             borderTop: "8px solid #fff",
             marginTop: "2px",
+            pointerEvents: "none",
           }}
         />
       </Box>
 
       {/* Ruler */}
-      <Box ref={containerRef} sx={{ position: "relative", height: 56, overflow: "hidden", mb: 0.25, pointerEvents: "auto" }}>
+      <Box ref={containerRef} sx={{ position: "relative", height: 48, overflow: "hidden", mb: 0, pointerEvents: "none" }}>
         <Box
           component="span"
           sx={{
@@ -271,13 +349,14 @@ function PassNumber(n){
             height: "100%",
             width: (MAX_YEAR - MIN_YEAR + 1) * TICK_SPACING_PX,
             transform: `translateX(${translateX}px)`,
+            pointerEvents: "none",
           }}
         >
           {visibleYears.map(({ y, left }) => {
             const isDecade = y % 5 === 0;
             const tickHeight = isDecade ? 30 : 15;
             return (
-              <Box key={y} sx={{ position: "absolute", left }}>
+              <Box key={y} sx={{ position: "absolute", left, pointerEvents: "none" }}>
                 <Box sx={{ width: 2, height: tickHeight, background: "#fff" }} />
               </Box>
             );
@@ -298,6 +377,9 @@ function PassNumber(n){
           borderRadius: "20px",
           padding: "6px",
           margin: "0 auto",
+          marginTop: "-10px",
+          background: "rgba(0,0,0,0.28)",
+          backdropFilter: "blur(2px)",
           pointerEvents: "auto",
         }}
       >
@@ -310,6 +392,10 @@ function PassNumber(n){
             fontWeight: "bold",
             top : "0"
           }}
+          onMouseDown={(e)=>{ e.preventDefault(); startHold(-1); }}
+          onMouseUp={()=> stopHold()}
+          onMouseLeave={()=> stopHold()}
+          onClick={()=> handleArrowClick(-1)}
         >
           ‹
         </Box>
@@ -323,6 +409,10 @@ function PassNumber(n){
             fontWeight: "bold",
             top : "0.4px"
           }}
+          onMouseDown={(e)=>{ e.preventDefault(); startHold(1); }}
+          onMouseUp={()=> stopHold()}
+          onMouseLeave={()=> stopHold()}
+          onClick={()=> handleArrowClick(1)}
         >
           ›
         </Box>
@@ -343,6 +433,8 @@ function PassNumber(n){
               cursor: "grabbing",
               boxShadow: "0 6px 12px rgba(0,0,0,0.4)",
             },
+            left: "50%",
+            transform: "translateX(-50%)",
           }}
           onMouseDown={handleMouseDown}
         />

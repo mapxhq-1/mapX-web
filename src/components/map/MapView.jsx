@@ -336,6 +336,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 									<path d="M22 12a10 10 0 0 0-10-10"/>
 								</svg>`;
 				button.innerHTML = cameraSVG;
+				// Keep default button styling (no overrides)
 
 				const showToast = (text) => {
 					const host = this._map.getContainer();
@@ -358,7 +359,11 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					}, 1000);
 				};
 
+				// No flash; keep behavior simple
+				const flashButton = () => {};
+
 				const downloadPng = () => {
+					// No extra visual effects
 					button.disabled = true;
 					button.innerHTML = spinnerSVG;
 
@@ -397,6 +402,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 							}
 
 							const finalizeDownload = (blobOrDataUrl) => {
+								flashButton();
 								const link = document.createElement("a");
 								const ts = new Date().toISOString().replace(/[:.]/g, "-");
 								let href = "";
@@ -428,7 +434,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 							if (!allWhite) {
 								finalize();
-								showToast("Screenshot saved");
 							} else {
 								// Fallback: request a static image of the current view (base map only)
 								const center = this._map.getCenter();
@@ -786,8 +791,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			if (bottomLeft) bottomLeft.style.bottom = "160px";
-			if (bottomRight) bottomRight.style.bottom = "160px";
+			if (bottomLeft) bottomLeft.style.bottom = "130px";
+			if (bottomRight) bottomRight.style.bottom = "130px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 

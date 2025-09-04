@@ -1,7 +1,7 @@
 import React,{useState} from 'react'
 function Open({setIsOpen}){
 	return(<>
-  <div className='h-screen w-[300px] bg-[#2A2929] text-white '>
+  <div className=' w-[300px] bg-[#2A2929] text-white ' style={{height:'112vh'}}>
     <div className='flex justify-between items-center pt-[30px] px-5'>
       <div
           className="cursor-pointer pt-1 pr-5"
@@ -36,7 +36,7 @@ function Open({setIsOpen}){
 }
 function Closed({setIsOpen}){
 	return (
-    <div className=" z-50  h-screen w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
+    <div className=" z-50   w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased" style={{height:'110vh'}}>
       <div className=" cursor-pointer" onClick={() => setIsOpen(true)}>
         <svg
           xmlns="http://www.w3.org/2000/svg"
