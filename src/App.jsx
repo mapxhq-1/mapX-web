@@ -1,9 +1,10 @@
 import MainLayout from "./components/layout/MainLayout";
 import Projects from "./components/ProjectComponents/Projects";
 import { Routes,Route } from "react-router-dom";
-import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-import './app.css'
+import './App.css'
 export default function App() {
   return (
     <>

@@ -34,7 +34,7 @@ export default function MainLayout() {
 						right: rightWidth + 8,
 						bottom: 8,
 						zIndex: 15,
-						pointerEvents: "auto",
+						pointerEvents: "none",
 					}}
 				>
 					<Timeline />

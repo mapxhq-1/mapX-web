@@ -204,7 +204,7 @@ function PassNumber(n){
   return Number(n);
 }
   return (
-    <Box sx={{ position: "fixed", bottom: "20px", left: 0, right: 0, width: "100vw", zIndex: 1, color: "#fff" }}>
+    <Box sx={{ position: "fixed", bottom: "20px", left: 0, right: 0, width: "100vw", zIndex: 1, color: "#fff", pointerEvents: "none" }}>
       {/* Year input */}
       <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative" }}>
         <input
@@ -245,7 +245,7 @@ function PassNumber(n){
       </Box>
 
       {/* Ruler */}
-      <Box ref={containerRef} sx={{ position: "relative", height: 56, overflow: "hidden", mb: 0.25 }}>
+      <Box ref={containerRef} sx={{ position: "relative", height: 56, overflow: "hidden", mb: 0.25, pointerEvents: "auto" }}>
         <Box
           component="span"
           sx={{
@@ -297,6 +297,7 @@ function PassNumber(n){
           borderRadius: "20px",
           padding: "6px",
           margin: "0 auto",
+          pointerEvents: "auto",
         }}
       >
         <Box

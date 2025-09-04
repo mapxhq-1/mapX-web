@@ -786,8 +786,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			const bottomRight = container.querySelector(
 				".maplibregl-ctrl-bottom-right"
 			);
-			if (bottomLeft) bottomLeft.style.bottom = "130px";
-			if (bottomRight) bottomRight.style.bottom = "130px";
+			if (bottomLeft) bottomLeft.style.bottom = "160px";
+			if (bottomRight) bottomRight.style.bottom = "160px";
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
