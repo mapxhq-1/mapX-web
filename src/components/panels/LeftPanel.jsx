@@ -37,16 +37,16 @@ const MenuButton = ({ menuText, Tag }) => {
                                 after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30"
     >
       <Tag />
-      <p className="text-[15px] ml-4">{menuText}</p>
+      <p className="text-[15px] ml-5">{menuText}</p>
     </div>
   );
 };
 const Open = ({ setIsOpen }) => {
 	const navigate=useNavigate();
   return (
-    <div className="z-50 w-[320px] bg-[#2A2929] text-white " style={{height: '112vh'}}>
-      <div className="py-[20px] flex items-end justify-between">
-        <p className=" potta-one  text-white text-4xl ml-5">MAPX</p>
+    <div className="z-50 w-[300px] bg-[#2A2929] text-white " style={{height: '112vh'}}>
+      <div className="py-[20px] px-5 flex items-center justify-between">
+        <p className=" potta-one  text-white text-2xl tracking-[0.05em] ml-5">MAPX</p>
         <div
           className="cursor-pointer pt-1 pr-5"
           onClick={() => setIsOpen(false)}
@@ -76,7 +76,7 @@ const Open = ({ setIsOpen }) => {
         onClick={()=>navigate("/Projects")}
 		>
           <HomeSvg />
-          <p className="text-[20px] ml-4">Home</p>
+          <p className="text-[20px] ml-5">Home</p>
         </div>
       </div>
       <div className="w-full h-0.5 bg-black/10"></div>

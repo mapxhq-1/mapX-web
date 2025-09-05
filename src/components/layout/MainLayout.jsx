@@ -10,7 +10,7 @@ export default function MainLayout() {
 	const [rightExpanded, setRightExpanded] = useState(false);
 
 	const leftWidth = leftExpanded ? 250 : 50;
-	const rightWidth = rightExpanded ? 200 : 50;
+	const rightWidth = rightExpanded ? 300 : 50;
 
 	return (
 		<Box
@@ -73,7 +73,7 @@ export default function MainLayout() {
 						expanded={rightExpanded}
 						onToggle={() => setRightExpanded((v) => !v)}
 						position="right"
-						widthExpanded={200}
+						widthExpanded={300}
 						widthCollapsed={50}
 					/>
 				</Box>
