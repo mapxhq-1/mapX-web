@@ -19,13 +19,20 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 		map.current = new maplibregl.Map({
 			container: mapContainer.current,
-			style:
-				"https://api.maptiler.com/maps/basic/style.json?key=gPyUCoMWoyIFqw1UjoFI",
-			center: [-5, 45],
+			style: "https://tiles.openfreemap.org/styles/liberty",
+			center: [78.9629, 20.5937],
 			zoom: 2,
 			projection: { type: "globe" },
 			attributionControl: false,
 		});
+
+		// Add attribution control in compact mode (collapsed by default)
+		try {
+			map.current.addControl(
+				new maplibregl.AttributionControl({ compact: true }),
+				"bottom-right"
+			);
+		} catch (_) {}
 
 		map.current.on("load", () => {
 			map.current.setProjection({ type: "globe" });
@@ -104,6 +111,18 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				);
 				if (bottomLeft) bottomLeft.style.bottom = "130px";
 				if (bottomRight) bottomRight.style.bottom = "130px";
+
+				// Place attribution as compact "i" at bottom-right below timeline
+				const attrib = container.querySelector(".maplibregl-ctrl-attrib");
+				if (attrib) {
+					attrib.classList.add("maplibregl-compact");
+					attrib.style.position = "absolute";
+					attrib.style.bottom = "8px";
+					attrib.style.right = `${rightOffset + 8}px`;
+					attrib.style.left = "auto";
+					attrib.style.zIndex = "14"; // under timeline (z-index 15)
+					if (attrib.parentElement !== container) container.appendChild(attrib);
+				}
 			} catch (_) {}
 		});
 
@@ -742,6 +761,104 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		);
 		map.current.addControl(new ResetNorthControl(), "bottom-right");
 		
+		// --- Style switcher control for OpenFreeMap styles ---
+		// Ensure custom data layers survive style changes
+		const ensurePolygonLayers = () => {
+			try {
+				if (!map.current.getSource("polygons-source")) {
+					map.current.addSource("polygons-source", {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					});
+				}
+				if (!map.current.getLayer("polygon-fill")) {
+					map.current.addLayer({
+						id: "polygon-fill",
+						type: "fill",
+						source: "polygons-source",
+						paint: { "fill-color": "#0080ff", "fill-opacity": 0.5 },
+					});
+				}
+				if (!map.current.getLayer("polygon-border")) {
+					map.current.addLayer({
+						id: "polygon-border",
+						type: "line",
+						source: "polygons-source",
+						paint: { "line-color": "#0000ff", "line-width": 2 },
+					});
+				}
+				// refresh data if present
+				if (polygons && map.current.getSource("polygons-source")) {
+					map.current.getSource("polygons-source").setData({
+						type: "FeatureCollection",
+						features: polygons,
+					});
+				}
+			} catch (_) {}
+		};
+
+		// Keep globe projection and fog when styles change
+		const enforceGlobe = () => {
+			try {
+				map.current.setProjection && map.current.setProjection({ type: "globe" });
+				if (map.current.setFog) {
+					map.current.setFog({
+						color: "#d6e7ff",
+						"high-color": "#add3ff",
+						"space-color": "rgba(0,0,0,0)",
+						"horizon-blend": 0.02,
+					});
+				}
+				const canvas = map.current.getCanvas && map.current.getCanvas();
+				if (canvas) canvas.style.backgroundColor = "transparent";
+			} catch (_) {}
+		};
+
+		// Recreate layers and globe when a new style is applied
+		map.current.on("styledata", () => {
+			try { enforceGlobe(); } catch (_) {}
+			try { ensurePolygonLayers(); } catch (_) {}
+		});
+
+		// Expose a small API for external UI to switch styles
+		try {
+			// Build a cloudless global satellite style (EOX Sentinel-2 cloudless, no auth)
+			const buildCloudlessStyle = () => {
+				return {
+					version: 8,
+					sources: {
+						"eox-s2cloudless": {
+							type: "raster",
+							tiles: [
+								"https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg",
+							],
+							scheme: "xyz",
+							tileSize: 256,
+							attribution: "Sentinel-2 cloudless © EOX IT Services GmbH",
+							minzoom: 0,
+							maxzoom: 12,
+						},
+					},
+					layers: [
+						{ id: "eox-s2cloudless-layer", type: "raster", source: "eox-s2cloudless" },
+					],
+					glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+				};
+			};
+
+			window.mapxSetStyle = (styleUrl) => {
+				if (map.current && typeof styleUrl === "string" && styleUrl) {
+					map.current.setStyle(styleUrl);
+				}
+			};
+
+			window.mapxSetSatellite = () => {
+				if (!map.current) return;
+				const style = buildCloudlessStyle();
+				map.current.setStyle(style);
+			};
+		} catch (_) {}
+
 		map.current.addControl(new ScreenshotControl(), "bottom-left");
 		map.current.addControl(new MeasureDistanceControl(), "bottom-left");
 		map.current.addControl(new PhotonSearchControl(), "bottom-left");
@@ -793,6 +910,18 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			);
 			if (bottomLeft) bottomLeft.style.bottom = "130px";
 			if (bottomRight) bottomRight.style.bottom = "130px";
+
+			// Ensure attribution stays as compact "i" at bottom-right below timeline
+			const attrib = container.querySelector(".maplibregl-ctrl-attrib");
+			if (attrib) {
+				attrib.classList.add("maplibregl-compact");
+				attrib.style.position = "absolute";
+				attrib.style.bottom = "8px";
+				attrib.style.right = `${rightOffset + 8}px`;
+				attrib.style.left = "auto";
+				attrib.style.zIndex = "14";
+				if (attrib.parentElement !== container) container.appendChild(attrib);
+			}
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
