@@ -9,8 +9,8 @@ export default function App() {
   return (
     <>
       <Routes>
-        <Route path="/Projects/*" element={<Projects />}></Route>
-        <Route path="/" element={<MainLayout />}></Route>
+        <Route path="/*" element={<Projects />}></Route>
+        <Route path="/map/:id" element={<MainLayout />}></Route>
       </Routes>
       <ToastContainer />
     </>

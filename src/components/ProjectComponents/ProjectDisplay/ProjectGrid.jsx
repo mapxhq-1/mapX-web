@@ -80,7 +80,7 @@ const ProjectGrid = () => {
     );
   }
   return (
-    <div className="relative w-full h-vh overflow-hidden">
+    <div className="relative w-full h-full overflow-y-auto">
       {/* Galaxy background */}
       <GalaxyCanvas />
 

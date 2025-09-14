@@ -7,10 +7,10 @@ const Projects = () => {
 
   return (
     <>
-    <div>
+    <div className='h-screen flex flex-col'>
       <Header/>
 
-      <div className='flex'>
+      <div className='flex flex-1 overflow-hidden'>
 
         <Sidebar />
 

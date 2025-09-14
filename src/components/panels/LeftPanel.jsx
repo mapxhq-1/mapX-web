@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-// Import actual filenames from src/assets/icons
 import satelliteIcon from "../../assets/icons/satellite_icon.png";
 import basicIcon from "../../assets/icons/basic_icon.png";
 import lightIcon from "../../assets/icons/light_icon.png";
@@ -53,7 +52,7 @@ const MenuButton = ({ menuText, Tag }) => {
     </div>
   );
 };
-const Open = ({ setIsOpen }) => {
+const Open = ({ setIsOpen,setShowExcalidraw }) => {
 	const navigate=useNavigate();
   const [showMapMenu, setShowMapMenu] = useState(false);
   const panelRef = useRef(null);
@@ -88,7 +87,7 @@ const Open = ({ setIsOpen }) => {
         <div
           className="px-[45px] py-[15px] flex transition-all items-center duration-500 ease-in-out select-none rounded-lg cursor-pointer relative
                                 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/10 before:via-transparent before:to-transparent before:opacity-10 before:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/20 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased"
-        onClick={()=>navigate("/Projects")}
+        onClick={()=>navigate("/")}
 		>
           <HomeSvg />
           <p className="text-[20px] ml-5">Home</p>
@@ -98,7 +97,9 @@ const Open = ({ setIsOpen }) => {
       <div>
         <MenuButton menuText="Select" Tag={SelectSvg} />
         <MenuButton menuText="Hand" Tag={HandSvg} />
+        <div onClick={() => {setIsOpen(false);setShowExcalidraw(true)}}>
         <MenuButton menuText="Pencil" Tag={PencilSvg} />
+        </div>
         <MenuButton menuText="Highlight" Tag={HighlighterSvg} />
         <MenuButton menuText="Notes" Tag={NoteSvg} />
         <MenuButton menuText="Text" Tag={TextSvg} />
@@ -207,11 +208,11 @@ const Closed = ({ setIsOpen }) => {
     </div>
   );
 };
-const LeftPanel = () => {
+const LeftPanel = ({setShowExcalidraw}) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <>
-      {isOpen && <Open setIsOpen={setIsOpen} />}
+      {isOpen && <Open setIsOpen={setIsOpen} setShowExcalidraw={setShowExcalidraw}/>}
       {!isOpen && <Closed setIsOpen={setIsOpen} />}
     </>
   );

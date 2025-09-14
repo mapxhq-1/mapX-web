@@ -3,6 +3,10 @@ import { NavLink,useLocation } from "react-router-dom";
 import { useDispatch } from 'react-redux';
 import { setHeading } from '../../../store/projectSlice';
 import Profile from "./Profile"
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 
 import plus from '../../../assets/icons/plus.png';
 import time from '../../../assets/icons/time.png';
@@ -20,6 +24,21 @@ import folderB from '../../../assets/icons/folderB.png';
 import accountB from '../../../assets/icons/accountB.png';
 
 const Sidebar = () => {
+    const {ownerEmail} = useSelector((state)=>state.project);
+    const navigate = useNavigate();
+    async function createNewProj(){
+    try{
+      const res = await axios.post('project-management-service/create-new-project',{
+        ownerEmail : ownerEmail,
+        projectName : "New project"
+      })
+      toast.success('New project created!!')
+      navigate("/map/"+res.data.projectId )
+    }catch(err){
+      toast.error(err.response.data.message)
+    }
+  }
+  
     const [profileOpen,setProfileOpen]= useState(false);
     const dispatch = useDispatch();
     const location = useLocation();
@@ -27,13 +46,13 @@ const Sidebar = () => {
         dispatch(setHeading(head))
     }
     useEffect(()=>{
-        if(location.pathname.includes("/Projects/myprojects")){
+        if(location.pathname.includes("/myprojects")){
             dispatch(setHeading("My projects"))
-        }else if(location.pathname.includes("/Projects/recents")){
+        }else if(location.pathname.includes("/recents")){
             dispatch(setHeading("Recents"))
-        }else if(location.pathname.includes("/Projects/sharedProjects")){
+        }else if(location.pathname.includes("/sharedProjects")){
             dispatch(setHeading("Shared Projects"))
-        }else if(location.pathname.includes("/Projects/allProjects")){
+        }else if(location.pathname.includes("/allProjects")){
             dispatch(setHeading("All Projects"))
         }
     },[location.pathname,dispatch])
@@ -43,31 +62,24 @@ const Sidebar = () => {
             <div className="project pt-5">
                 <div className="projectSettings">
                     <nav>
-                        <NavLink
-                            onClick={() => handleClick("My Projects")}
-                            to="/"
-                            className={({ isActive }) =>
-                                `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
-                                transition-all duration-500 ease-in-out select-none
-                                ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
-
-                                ${!isActive && !profileOpen && "hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]"} 
-
+                        <div
+                            onClick={createNewProj}
+                            className={
+                                `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg cursor-pointer
+                                transition-all duration-500 ease-in-out select-none text-white hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]
                                 before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
                                 after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`
                             }
                             >
-                            {({isActive})=>(
                             <>
                                 <img className="max-h-[20px] max-w-[20px]" src={plus} alt="" />
                                 <p className="pl-[15px]">New Project</p>
                             </>
-                            )}
-                        </NavLink>
+                        </div>
 
 
 
-                        <NavLink onClick={()=>handleClick("Recents")} to='/Projects/recents' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("Recents")} to='/recents' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
@@ -84,7 +96,7 @@ const Sidebar = () => {
                                 </>
                                 )}
                         </NavLink>
-                        <NavLink onClick={()=>handleClick("My Projects")} to='/Projects/myProjects' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("My Projects")} to='/myProjects' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
@@ -101,7 +113,7 @@ const Sidebar = () => {
                                 </>
                                 )}
                         </NavLink>
-                        <NavLink onClick={()=>handleClick("Shared Projects")} to='/Projects/sharedProjects' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("Shared Projects")} to='/sharedProjects' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
@@ -118,7 +130,7 @@ const Sidebar = () => {
                                 </>
                             )}
                         </NavLink>
-                        <NavLink onClick={()=>handleClick("All Projects")} to='/Projects/allProjects' className={({ isActive }) =>
+                        <NavLink onClick={()=>handleClick("All Projects")} to='/allProjects' className={({ isActive }) =>
                                     `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
                                     transition-all duration-500 ease-in-out select-none
                                     ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
