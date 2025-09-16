@@ -6,14 +6,12 @@ import MapView from "../map/MapView";
 import Timeline from "../timeline/Timeline";
 import LeftPanel from "../panels/LeftPanel";
 import RightPanel from "../panels/RightPanel";
-import ExcalidrawOverlay from "../tools/ExcalidrawOverlay"; // 👈 import overlay
 import { toast } from "react-toastify";
 
 export default function MainLayout() {
   
   const [leftExpanded, setLeftExpanded] = useState(false);
   const [rightExpanded, setRightExpanded] = useState(false);
-  const [showExcalidraw, setShowExcalidraw] = useState(false); // 👈 excalidraw state
   const {id} = useParams();
   const [project,setProject] = useState({});
   const leftWidth = leftExpanded ? 250 : 50;
@@ -22,7 +20,11 @@ export default function MainLayout() {
   useEffect(()=>{
     async function getProjectDetails(){
       try{
-        const res = await axios.get('/project-management-service/get-project-by-id/'+id);
+        const res = await axios.get('/project-management-service/get-project-by-id/'+id, {
+          headers: {
+            'client_name': 'mapx'
+          }
+        });
         setProject(res.data.data);
       }
       catch(err){
@@ -78,7 +80,6 @@ export default function MainLayout() {
             position="left"
             widthExpanded={250}
             widthCollapsed={50}
-            setShowExcalidraw={setShowExcalidraw}
           />
         </Box>
 
@@ -103,10 +104,6 @@ export default function MainLayout() {
           />
         </Box>
 
-        {/* Excalidraw overlay */}
-        {showExcalidraw && (
-          <ExcalidrawOverlay onClose={() => setShowExcalidraw(false)} />
-        )}
       </Box>
     </Box>
   );
