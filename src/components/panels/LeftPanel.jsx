@@ -222,6 +222,22 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
           <p className="text-[15px] ml-5">Text</p>
         </div>
         </div>
+        <div onClick={() => { 
+          console.log("Notes button clicked"); 
+          setSelectedMode('note');
+          try { 
+            window.mapxDrawSetMode && window.mapxDrawSetMode('note'); 
+          } catch(e){console.error("Error:", e)} 
+        }}>
+        <div className={`px-[45px] py-[15px] flex items-center transition-all duration-500 ease-in-out select-none rounded-lg cursor-pointer relative
+          ${selectedMode === 'note' ? 'bg-[#D5EDFF] text-[#1403FF]' : 'text-white hover:bg-white/10 hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]'}
+          before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
+          after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`}>
+          <NoteSvg />
+          <p className="text-[15px] ml-5">Notes</p>
+        </div>
+        </div>
+        <MenuButton menuText="Text" Tag={TextSvg} />
         <MenuButton menuText="Hyperlink" Tag={HyperlinkSvg} />
         <MenuButton menuText="Image" Tag={ImageSvg} />
       </div>
@@ -332,6 +348,13 @@ const LeftPanel = () => {
   const [selectedMode, setSelectedMode] = useState(null);
   const [eraserMode, setEraserMode] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState(null);
+  useEffect(() => {
+    // Sync UI when mode changes programmatically
+    window.mapxOnModeChanged = (mode) => {
+      try { setSelectedMode(mode); } catch (_) {}
+    };
+    return () => { try { delete window.mapxOnModeChanged; } catch (_) {} };
+  }, []);
   return (
     <>
       {isOpen && <Open setIsOpen={setIsOpen} selectedMode={selectedMode} setSelectedMode={setSelectedMode} selectedFeature={selectedFeature} setSelectedFeature={setSelectedFeature} eraserMode={eraserMode} setEraserMode={setEraserMode}/>}

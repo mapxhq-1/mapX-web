@@ -616,6 +616,220 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
                 };
 
 				// Expose a minimal mode switch bridge for LeftPanel
+				// --- Note tool manager: cursor-follow + click-to-place textbox ---
+				const noteManager = (() => {
+					let active = false;
+					let cursorEl = null;
+					let onMove = null;
+					let onClick = null;
+					const textMarkers = [];
+					const NOTE_ZOOM_THRESHOLD = 9;
+					const stopEvt = (ev) => ev.stopPropagation();
+
+					const styleBaseBox = (box) => {
+						box.style.background = "linear-gradient(180deg, #FFD034 0%, #FFC107 100%)";
+						box.style.border = "1px solid rgba(0,0,0,0.15)";
+						box.style.boxShadow = "0 8px 20px rgba(0,0,0,0.18)";
+						box.style.color = "#111827";
+						box.style.fontSize = "13px";
+						box.style.lineHeight = "1.35";
+						box.style.borderRadius = "0"; // no rounded corners
+						box.style.padding = "8px 10px 10px 10px";
+						box.style.backdropFilter = "blur(3px)";
+						box.style.position = "relative";
+						box.style.cursor = "text";
+						box.style.userSelect = "text";
+						box.style.overflow = "visible";
+					
+						// cut out bottom-right corner
+						const foldSize = 20; // size of cut (same as fold triangle size)
+						const clip = `polygon(0 0, 100% 0, 100% calc(100% - ${foldSize}px), calc(100% - ${foldSize}px) 100%, 0 100%)`;
+						box.style.clipPath = clip;
+						box.style.webkitClipPath = clip;
+					};
+					
+					const addFoldedCorner = (box) => {
+						let fold = box.querySelector('.mx-note-fold');
+						if (!fold) {
+							const size = 20; // same size as cut
+							fold = document.createElement('div');
+							fold.className = 'mx-note-fold';
+							fold.style.position = 'absolute';
+							fold.style.right = '0';
+							fold.style.bottom = '0';
+							fold.style.width = '0';
+							fold.style.height = '0';
+					
+							// triangle to simulate folded paper
+							fold.style.borderLeft = `${size}px solid transparent`;
+							fold.style.borderTop = `${size}px solid #FFD034`; // back side of the fold
+							fold.style.boxShadow = '-2px -2px 6px rgba(0,0,0,0.18)';
+							fold.style.zIndex = '5';
+							fold.style.pointerEvents = 'none';
+					
+							box.appendChild(fold);
+						}
+					};
+					
+
+					const renderNote = (state, expanded) => {
+						const { rootEl } = state;
+						rootEl.innerHTML = '';
+						styleBaseBox(rootEl);
+						addFoldedCorner(rootEl);
+						rootEl.addEventListener('mousedown', (ev) => { ev.stopPropagation(); ev.preventDefault(); });
+						rootEl.addEventListener('dblclick', stopEvt);
+						rootEl.addEventListener('click', stopEvt);
+						rootEl.addEventListener('wheel', stopEvt, { passive: true });
+
+						if (expanded) {
+							rootEl.style.minWidth = '240px';
+							rootEl.style.maxWidth = '320px';
+							rootEl.style.minHeight = '120px';
+							const title = document.createElement('div');
+							title.style.fontWeight = '700';
+							title.style.fontSize = '14px';
+							title.style.marginBottom = '6px';
+							title.style.outline = 'none';
+							title.style.whiteSpace = 'nowrap';
+							title.style.overflow = 'hidden';
+							title.style.textOverflow = 'ellipsis';
+							title.style.background = '#d9d9d9';
+							title.style.borderRadius = '2px';
+							title.style.padding = '2px 4px';
+							const body = document.createElement('div');
+							body.style.outline = 'none';
+							body.style.minHeight = '80px';
+							body.style.whiteSpace = 'pre-wrap';
+							body.style.wordBreak = 'break-word';
+							body.style.paddingRight = '8px';
+
+							// Values or placeholders (display-only)
+							title.textContent = (state.title && state.title.trim().length>0) ? state.title : 'Title';
+							body.textContent = (state.body && state.body.trim().length>0) ? state.body : '';
+
+							// display-only (no editing or focus handlers)
+
+							rootEl.appendChild(title);
+							rootEl.appendChild(body);
+							state.expanded = true;
+							state.titleEl = title;
+							state.bodyEl = body;
+						} else {
+							rootEl.style.minWidth = '180px';
+							rootEl.style.maxWidth = '240px';
+							rootEl.style.minHeight = '30px';
+							const line = document.createElement('div');
+							line.style.outline = 'none';
+							line.style.whiteSpace = 'nowrap';
+							line.style.overflow = 'hidden';
+							line.style.textOverflow = 'ellipsis';
+							line.textContent = (state.title && state.title.trim().length>0) ? state.title : 'Starting few words';
+							rootEl.appendChild(line);
+							state.expanded = false;
+							state.titleEl = line;
+							state.bodyEl = null;
+						}
+					};
+
+					const ensureCursorEl = () => {
+						if (cursorEl) return cursorEl;
+						const el = document.createElement("div");
+						el.style.position = "absolute";
+						el.style.pointerEvents = "none";
+						el.style.zIndex = "24";
+						el.style.transform = "translate(-50%, -50%)";
+						el.style.fontSize = "18px";
+						el.style.lineHeight = "1";
+						el.textContent = "📝";
+						map.current.getContainer().appendChild(el);
+						cursorEl = el;
+						return el;
+					};
+
+					const createTextboxMarker = (lngLat, initialTitle = '', initialBody = '') => {
+						const root = document.createElement("div");
+						root.className = 'mx-note-root';
+						root.spellcheck = true;
+						const state = { rootEl: root, title: initialTitle, body: initialBody, expanded: false, titleEl: null, bodyEl: null };
+						const expanded = (map.current.getZoom() >= NOTE_ZOOM_THRESHOLD);
+						renderNote(state, expanded);
+
+						const marker = new maplibregl.Marker({ element: root, draggable: true })
+							.setLngLat(lngLat)
+							.addTo(map.current);
+
+						const entry = { marker, state };
+						textMarkers.push(entry);
+						return entry;
+					};
+
+					const syncNotesWithZoom = () => {
+						const isExpanded = map.current.getZoom() >= NOTE_ZOOM_THRESHOLD;
+						textMarkers.forEach((entry) => {
+							if (entry.state.expanded !== isExpanded) {
+								renderNote(entry.state, isExpanded);
+							}
+						});
+					};
+
+					const activate = () => {
+						if (active) return;
+						active = true;
+						const el = ensureCursorEl();
+						el.style.display = "block";
+						onMove = (e) => {
+							if (!cursorEl) return;
+							cursorEl.style.left = `${e.point.x}px`;
+							cursorEl.style.top = `${e.point.y}px`;
+						};
+						onClick = (e) => {
+						createTextboxMarker(e.lngLat, '', '');
+							// After placing a single note, switch back to select mode
+							deactivate();
+							try { window.mapxDrawSetMode && window.mapxDrawSetMode('select'); } catch (_) {}
+						};
+					map.current.getCanvas().style.cursor = "none";
+						map.current.on("mousemove", onMove);
+						map.current.on("click", onClick);
+					};
+
+					const deactivate = () => {
+						if (!active) return;
+						active = false;
+						map.current.getCanvas().style.cursor = "";
+						try { map.current.off("mousemove", onMove); } catch (_) {}
+						try { map.current.off("click", onClick); } catch (_) {}
+						onMove = null; onClick = null;
+						if (cursorEl) { cursorEl.style.display = "none"; }
+					};
+
+					try { map.current.on('zoom', syncNotesWithZoom); } catch (_) {}
+					const loadFromUrl = async (url) => {
+						try {
+							const r = await fetch(url, { headers: { Accept: 'application/json' } });
+							if (!r.ok) return false;
+							const items = await r.json();
+							if (!Array.isArray(items)) return false;
+							items.forEach((it) => {
+								if (!it) return;
+								const lng = Number(it.lng);
+								const lat = Number(it.lat);
+								if (Number.isFinite(lng) && Number.isFinite(lat)) {
+									createTextboxMarker({ lng, lat }, String(it.title || ''), String(it.body || ''));
+								}
+							});
+							return true;
+						} catch (_) {
+							return false;
+						}
+					};
+					// Expose loader globally and attempt default endpoint
+					try { window.mapxNotesLoadFromUrl = loadFromUrl; } catch (_) {}
+					loadFromUrl('/api/notes').catch(() => {});
+					return { activate, deactivate };
+				})();
+
 				window.mapxDrawSetMode = (mode) => {
 					// pencil mode
 					if (mode === "pencil") {
@@ -635,6 +849,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						highlight.setActive(false);
 						// disable selection handler when drawing
 						try { map.current.off("click", onSelectClick); } catch (_) {}
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('pencil'); } catch (_) {}
 						return;
 					}
 					if (mode === "highlight") {
@@ -651,6 +866,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						arrow.setActive(false);
 						highlight.setActive(true);
 						try { map.current.off("click", onSelectClick); } catch (_) {}
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('highlight'); } catch (_) {}
 						return;
 					}
 					if (mode === "line") {
@@ -663,6 +879,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						highlight.setActive(false);
 						line.setActive(true);
 						try { map.current.off("click", onSelectClick); } catch (_) {}
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('line'); } catch (_) {}
 						return;
 					}
 					if (mode === "polygon") {
@@ -675,6 +892,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						highlight.setActive(false);
 						polygon.setActive(true);
 						try { map.current.off("click", onSelectClick); } catch (_) {}
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('polygon'); } catch (_) {}
 						return;
 					}
 					if (mode === "circle") {
@@ -687,6 +905,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						highlight.setActive(false);
 						circle.setActive(true);
 						try { map.current.off("click", onSelectClick); } catch (_) {}
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('circle'); } catch (_) {}
 						return;
 					}
 					if (mode === "arrow") {
@@ -876,6 +1095,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						textModeActiveRef.current = false;
 						try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
 						try { hideTextToolbar(); } catch(_){}
+						noteManager.deactivate();
 						freehand.setActive(false);
 						line.setActive(false);
 						polygon.setActive(false);
@@ -884,9 +1104,11 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						highlight.setActive(false);
 						// In select mode: when clicking a text feature, show ONLY the text toolbar (not selection overlay)
 						try { map.current.on("click", onSelectClick); } catch (_) {}
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('select'); } catch (_) {}
 						return;
 					}
 					// any other mode disables drawing and selection binding
+					noteManager.deactivate();
 					freehand.setActive(false);
 					line.setActive(false);
 					polygon.setActive(false);
@@ -897,6 +1119,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
 					try { map.current.off("click", onSelectClick); } catch (_) {}
 					try { hideTextToolbar(); } catch(_){}
+					try { window.mapxOnModeChanged && window.mapxOnModeChanged(null); } catch (_) {}
 				};
 
 				// Build selection overlay (Save / Delete / Cancel)

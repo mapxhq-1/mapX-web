@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 
-import plus from '../../../assets/icons/plus.png';
+import plus from '../../../assets/icons/Plus.png';
 import time from '../../../assets/icons/time.png';
 import presentation from '../../../assets/icons/presentation.png';
 import map from '../../../assets/icons/map.png';
