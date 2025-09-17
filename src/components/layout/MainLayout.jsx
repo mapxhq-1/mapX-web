@@ -22,7 +22,9 @@ export default function MainLayout() {
   useEffect(()=>{
     async function getProjectDetails(){
       try{
-        const res = await axios.get('/project-management-service/get-project-by-id/'+id);
+        const res = await axios.get('/project-management-service/get-project-by-id/'+id,{
+          headers:{client_name : "mapx"}
+        });
         setProject(res.data.data);
       }
       catch(err){
