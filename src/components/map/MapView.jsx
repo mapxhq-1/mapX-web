@@ -1,12 +1,25 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
+import FreehandController from "../../draw/freehandController";
+import LineController from "../../draw/lineController";
+import PolygonController from "../../draw/polygonController";
+import CircleController from "../../draw/circleController";
+import ArrowController from "../../draw/arrowController";
 import { useSelector } from "react-redux";
 import "maplibre-gl/dist/maplibre-gl.css";
 import GalaxyCanvas from "../common/GalaxyCanvas";
+import saveIcon from "../../assets/icons/save_icon.png";
+import deleteIcon from "../../assets/icons/delete_icon.png";
+import cancelIcon from "../../assets/icons/cancel_icon.png";
 
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
+	const finalFeaturesRef = useRef([]);
+	const selectedFeatureIdRef = useRef(null);
+	const featureSeqRef = useRef(1);
+	const selectionOverlayElRef = useRef(null);
+	const selectionOverlayLngLatRef = useRef(null);
 
 	// ✅ Get polygons from Redux
 	const polygons = useSelector((state) => state.map.polygons);
@@ -51,7 +64,9 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				});
 			}
 
-			// Add empty source for dynamic polygons
+
+			// Add empty source for dynamic polygons (only if it doesn't exist)
+			if (!map.current.getSource("polygons-source")) {
 			map.current.addSource("polygons-source", {
 				type: "geojson",
 				data: {
@@ -59,28 +74,99 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					features: [],
 				},
 			});
+			}
+
+			// Freehand drawing sources and layers (live preview + finalized)
+			const liveSourceId = "draw-live-src";
+			const finalSourceId = "draw-final-src";
+			if (!map.current.getSource(liveSourceId)) {
+				map.current.addSource(liveSourceId, {
+					type: "geojson",
+					data: { type: "FeatureCollection", features: [] },
+				});
+			}
+			if (!map.current.getSource(finalSourceId)) {
+				map.current.addSource(finalSourceId, {
+					type: "geojson",
+					data: { type: "FeatureCollection", features: [] },
+				});
+			}
+			if (!map.current.getLayer("draw-live-line")) {
+				map.current.addLayer({ id: "draw-live-line", type: "line", source: liveSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 0.9] } });
+			}
+			if (!map.current.getLayer("draw-live-shadow")) {
+				map.current.addLayer({ id: "draw-live-shadow", type: "line", source: liveSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 20, 6], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.12, 0.2] } }, "draw-live-line");
+			}
+			if (!map.current.getLayer("draw-final-line")) {
+				map.current.addLayer({ id: "draw-final-line", type: "line", source: finalSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 1] } });
+			}
+			// Final polygon/circle fill and selection fill (exclude pencil/arrow)
+			if (!map.current.getLayer("draw-final-fill")) {
+				map.current.addLayer({
+					id: "draw-final-fill",
+					type: "fill",
+					source: finalSourceId,
+					paint: { "fill-color": "#000000", "fill-opacity": 0.1 },
+					filter: [
+						"any",
+						["==", ["get", "tool"], "polygon"],
+						["==", ["get", "tool"], "circle"],
+					],
+				});
+			}
+			if (!map.current.getLayer("draw-final-fill-selected")) {
+				map.current.addLayer({
+					id: "draw-final-fill-selected",
+					type: "fill",
+					source: finalSourceId,
+					paint: { "fill-color": "#1e90ff", "fill-opacity": 0.15 },
+					filter: [
+						"all",
+						["any",
+							["==", ["get", "tool"], "polygon"],
+							["==", ["get", "tool"], "circle"],
+						],
+						["==", ["get", "id"], "__none__"],
+					],
+				});
+			}
+			// Selection highlight layer on top
+			if (!map.current.getLayer("draw-final-line-selected")) {
+				map.current.addLayer({
+					id: "draw-final-line-selected",
+					type: "line",
+					source: finalSourceId,
+					layout: { "line-join": "round", "line-cap": "round" },
+					paint: { "line-color": "#1e90ff", "line-width": 5, "line-opacity": 0.9 },
+					filter: ["==", ["get", "id"], "__none__"],
+				});
+			}
 
 			// Fill layer
-			map.current.addLayer({
-				id: "polygon-fill",
-				type: "fill",
-				source: "polygons-source",
-				paint: {
-					"fill-color": "#0080ff",
-					"fill-opacity": 0.5,
-				},
-			});
+			if (!map.current.getLayer("polygon-fill")) {
+				map.current.addLayer({
+					id: "polygon-fill",
+					type: "fill",
+					source: "polygons-source",
+					paint: {
+						"fill-color": "#0080ff",
+						"fill-opacity": 0.5,
+					},
+				});
+			}
 
 			// Border layer
-			map.current.addLayer({
-				id: "polygon-border",
-				type: "line",
-				source: "polygons-source",
-				paint: {
-					"line-color": "#0000ff",
-					"line-width": 2,
-				},
-			});
+			if (!map.current.getLayer("polygon-border")) {
+				map.current.addLayer({
+					id: "polygon-border",
+					type: "line",
+					source: "polygons-source",
+					paint: {
+						"line-color": "#0000ff",
+						"line-width": 2,
+					},
+				});
+			}
 
 			// Offset builtin control groups so they don't sit under side panels
 			try {
@@ -123,6 +209,348 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					attrib.style.zIndex = "14"; // under timeline (z-index 15)
 					if (attrib.parentElement !== container) container.appendChild(attrib);
 				}
+			} catch (_) {}
+
+
+			// Initialize geometry worker and freehand controller
+			try {
+				const worker = new Worker(new URL("../../draw/workers/geometry.worker.js", import.meta.url), { type: "module" });
+				const freehand = new FreehandController({
+					map: map.current,
+					liveSourceId,
+					worker,
+					baseToleranceMeters: 0.75,
+					minPixelDelta: 2,
+					maxTimeDeltaMs: 40,
+					tool: "freehand",
+					onFinalize: (coords) => {
+						const id = `fh_${Date.now()}_${featureSeqRef.current++}`;
+						const feature = {
+							type: "Feature",
+							properties: { id, tool: "freehand", created_at: new Date().toISOString() },
+							geometry: { type: "LineString", coordinates: coords },
+						};
+						finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+					}
+				});
+
+				const highlight = new FreehandController({
+					map: map.current,
+					liveSourceId,
+					worker,
+					baseToleranceMeters: 0.75,
+					minPixelDelta: 2,
+					maxTimeDeltaMs: 40,
+					tool: "highlight",
+					onFinalize: (coords) => {
+						const id = `hl_${Date.now()}_${featureSeqRef.current++}`;
+						const feature = { type: "Feature", properties: { id, tool: "highlight", created_at: new Date().toISOString() }, geometry: { type: "LineString", coordinates: coords } };
+						finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+					}
+				});
+
+				const line = new LineController({
+					map: map.current,
+					liveSourceId,
+					onFinalize: (coords) => {
+						const id = `ln_${Date.now()}_${featureSeqRef.current++}`;
+						const feature = { type: "Feature", properties: { id, tool: "line", created_at: new Date().toISOString() }, geometry: { type: "LineString", coordinates: coords } };
+						finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+					}
+				});
+
+				const polygon = new PolygonController({
+					map: map.current,
+					liveSourceId,
+					onFinalize: (ring) => {
+						const id = `pg_${Date.now()}_${featureSeqRef.current++}`;
+						const feature = { type: "Feature", properties: { id, tool: "polygon", created_at: new Date().toISOString() }, geometry: { type: "Polygon", coordinates: [ring] } };
+						finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+					}
+				});
+
+				const circle = new CircleController({
+					map: map.current,
+					liveSourceId,
+					onFinalize: (ring) => {
+						const id = `cr_${Date.now()}_${featureSeqRef.current++}`;
+						const feature = { type: "Feature", properties: { id, tool: "circle", created_at: new Date().toISOString() }, geometry: { type: "Polygon", coordinates: [ring] } };
+						finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+					}
+				});
+
+				const arrow = new ArrowController({
+					map: map.current,
+					liveSourceId,
+					onFinalize: ({ shaft, head }) => {
+						const id = `ar_${Date.now()}_${featureSeqRef.current++}`;
+						const lineF = { type: "Feature", properties: { id, tool: "arrow", created_at: new Date().toISOString() }, geometry: { type: "LineString", coordinates: shaft } };
+						const headF = { type: "Feature", properties: { id, tool: "arrow", created_at: new Date().toISOString() }, geometry: { type: "Polygon", coordinates: [head] } };
+						finalFeaturesRef.current = [...finalFeaturesRef.current, lineF, headF];
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+					}
+				});
+
+				// Expose a minimal mode switch bridge for LeftPanel
+				window.mapxDrawSetMode = (mode) => {
+					// pencil mode
+					if (mode === "pencil") {
+						freehand.setActive(true);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						// disable selection handler when drawing
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					if (mode === "highlight") {
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(true);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					if (mode === "line") {
+						freehand.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						line.setActive(true);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					if (mode === "polygon") {
+						freehand.setActive(false);
+						line.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						polygon.setActive(true);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					if (mode === "circle") {
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						circle.setActive(true);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					if (mode === "arrow") {
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						highlight.setActive(false);
+						arrow.setActive(true);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					// selection mode
+					if (mode === "select") {
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						try { map.current.on("click", onSelectClick); } catch (_) {}
+						return;
+					}
+					// any other mode disables drawing and selection binding
+					freehand.setActive(false);
+					line.setActive(false);
+					polygon.setActive(false);
+					circle.setActive(false);
+					arrow.setActive(false);
+					highlight.setActive(false);
+					try { map.current.off("click", onSelectClick); } catch (_) {}
+				};
+
+				// Build selection overlay (Save / Delete / Cancel)
+				const buildSelectionOverlay = () => {
+					try {
+						const host = map.current.getContainer();
+						if (selectionOverlayElRef.current) return;
+						const el = document.createElement("div");
+						el.style.position = "absolute";
+						el.style.transform = "translate(-50%, -100%)";
+						el.style.display = "none";
+						el.style.zIndex = "25";
+						el.style.pointerEvents = "auto";
+						el.style.whiteSpace = "nowrap";
+						el.className = "rounded-lg bg-white/2 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.45),0_3px_8px_rgba(0,0,0,0.15)] p-2 flex items-center gap-2";
+
+						const mkBtn = (title, imgSrc, onClick) => {
+							const b = document.createElement("button");
+							b.type = "button";
+							b.title = title;
+							b.className = "rounded-lg p-2 bg-white/2 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_0_6px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 inline-flex items-center justify-center";
+							const img = document.createElement("img");
+							img.src = imgSrc;
+							img.alt = title;
+							img.style.width = "20px";
+							img.style.height = "20px";
+							img.style.objectFit = "contain";
+							b.appendChild(img);
+							b.style.cursor = "pointer";
+							b.addEventListener("click", (ev) => { ev.stopPropagation(); onClick && onClick(); });
+							return b;
+						};
+
+						const onSave = () => {
+							try {
+								window.mapxDrawExportAll && window.mapxDrawExportAll();
+								window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal();
+							} catch (_) {}
+						};
+						const onDelete = () => { try { window.mapxDrawDeleteSelected && window.mapxDrawDeleteSelected(); hideSelectionOverlay(); } catch (_) {} };
+						const onCancel = () => { hideSelectionOverlay(); try { selectedFeatureIdRef.current = null; map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch (_) {} };
+
+						// Order: Delete (left), Save (center), Cancel (right)
+						el.appendChild(mkBtn("Delete", deleteIcon, onDelete));
+						el.appendChild(mkBtn("Save", saveIcon, onSave));
+						el.appendChild(mkBtn("Cancel", cancelIcon, onCancel));
+						host.appendChild(el);
+						selectionOverlayElRef.current = el;
+					} catch (_) {}
+				};
+
+				const positionSelectionOverlay = (lngLat) => {
+					try {
+						const el = selectionOverlayElRef.current;
+						if (!el || !lngLat) return;
+						const p = map.current.project(lngLat);
+						el.style.left = `${p.x}px`;
+						el.style.top = `${p.y - 10}px`;
+					} catch (_) {}
+				};
+
+				const showSelectionOverlay = (lngLat) => {
+					buildSelectionOverlay();
+					selectionOverlayLngLatRef.current = lngLat;
+					positionSelectionOverlay(lngLat);
+					try { selectionOverlayElRef.current.style.display = "flex"; } catch (_) {}
+				};
+
+				const hideSelectionOverlay = () => {
+					try { if (selectionOverlayElRef.current) selectionOverlayElRef.current.style.display = "none"; } catch (_) {}
+					selectionOverlayLngLatRef.current = null;
+				};
+
+				// Keep overlay anchored while moving
+				map.current.on("move", () => {
+					const ll = selectionOverlayLngLatRef.current;
+					if (ll) positionSelectionOverlay(ll);
+				});
+
+				// Selection logic: click on final line to select
+				const onSelectClick = (e) => {
+					if (!e) return;
+					try {
+						const features = map.current.queryRenderedFeatures(e.point, { layers: ["draw-final-line", "draw-final-fill"] });
+						if (features && features.length > 0) {
+							const f = features[0];
+							const id = (f.properties && f.properties.id) || null;
+							selectedFeatureIdRef.current = id;
+							map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], id || "__none__"]);
+							map.current.setFilter("draw-final-fill-selected", ["==", ["get", "id"], id || "__none__"]);
+							// position overlay near feature midpoint
+							let anchor = null;
+							try {
+								const coords = (f.geometry && f.geometry.coordinates) || [];
+								if (f.geometry && f.geometry.type === "LineString" && coords && coords.length > 1) anchor = coords[Math.floor(coords.length / 2)];
+								if (f.geometry && f.geometry.type === "Polygon" && coords && coords[0] && coords[0].length > 2) anchor = coords[0][Math.floor(coords[0].length / 2)];
+							} catch (_) {}
+							if (!anchor && f.geometry && f.geometry.type === "LineString") anchor = f.geometry.coordinates[0];
+							if (anchor) showSelectionOverlay({ lng: anchor[0], lat: anchor[1] });
+							// callback for UI
+							if (window.mapxDrawOnFeatureSelect && id) {
+								const full = finalFeaturesRef.current.find((ff) => ff.properties && ff.properties.id === id);
+								try { window.mapxDrawOnFeatureSelect(full || f); } catch (_) {}
+							}
+						} else {
+							selectedFeatureIdRef.current = null;
+							map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]);
+							map.current.setFilter("draw-final-fill-selected", ["==", ["get", "id"], "__none__"]);
+							hideSelectionOverlay();
+						}
+					} catch (_) {}
+				};
+
+				// Export/delete/save APIs
+				window.mapxDrawGetAll = () => ({ type: "FeatureCollection", features: finalFeaturesRef.current.slice() });
+				window.mapxDrawExportAll = () => {
+					try {
+						const data = JSON.stringify(window.mapxDrawGetAll());
+						const blob = new Blob([data], { type: "application/geo+json" });
+						const url = URL.createObjectURL(blob);
+						const a = document.createElement("a");
+						a.href = url;
+						a.download = `mapx-draw-${new Date().toISOString().replace(/[:.]/g, "-")}.geojson`;
+						document.body.appendChild(a);
+						a.click();
+						document.body.removeChild(a);
+						URL.revokeObjectURL(url);
+					} catch (_) {}
+				};
+				window.mapxDrawDeleteSelected = () => {
+					const id = selectedFeatureIdRef.current;
+					if (!id) return false;
+					finalFeaturesRef.current = finalFeaturesRef.current.filter((f) => (f.properties && f.properties.id) !== id);
+					selectedFeatureIdRef.current = null;
+					try {
+						map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]);
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+						// Persist deletion so it does not reappear on refresh
+						if (window.mapxDrawSaveAllToLocal) window.mapxDrawSaveAllToLocal();
+					} catch (_) {}
+					return true;
+				};
+				window.mapxDrawSaveAllToLocal = () => {
+					try { localStorage.setItem("mapx.draw.features", JSON.stringify(window.mapxDrawGetAll())); } catch (_) {}
+				};
+				window.mapxDrawLoadAllFromLocal = () => {
+					try {
+						const raw = localStorage.getItem("mapx.draw.features");
+						if (!raw) return false;
+						const fc = JSON.parse(raw);
+						if (!fc || !Array.isArray(fc.features)) return false;
+						finalFeaturesRef.current = fc.features;
+						const src = map.current.getSource(finalSourceId);
+						src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+						return true;
+					} catch (_) { return false; }
+				};
+
+				// Auto-load from local storage if present
+				try { window.mapxDrawLoadAllFromLocal(); } catch (_) {}
+				// Clean up on unmount/style reload
+				map.current.on("remove", () => {
+					try { controller.setActive(false); } catch (_) {}
+					try { worker.terminate(); } catch (_) {}
+				});
 			} catch (_) {}
 		});
 
@@ -818,6 +1246,40 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		map.current.on("styledata", () => {
 			try { enforceGlobe(); } catch (_) {}
 			try { ensurePolygonLayers(); } catch (_) {}
+			// Ensure drawing layers and their data persist across style changes
+			try {
+				const liveSourceId = "draw-live-src";
+				const finalSourceId = "draw-final-src";
+				if (!map.current.getSource(liveSourceId)) {
+					map.current.addSource(liveSourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+				}
+				if (!map.current.getSource(finalSourceId)) {
+					map.current.addSource(finalSourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+				}
+				if (!map.current.getLayer("draw-live-line")) {
+					map.current.addLayer({ id: "draw-live-line", type: "line", source: liveSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 0.9] } });
+				}
+				if (!map.current.getLayer("draw-live-shadow")) {
+					map.current.addLayer({ id: "draw-live-shadow", type: "line", source: liveSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 20, 6], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.12, 0.2] } }, "draw-live-line");
+				}
+				if (!map.current.getLayer("draw-final-line")) {
+					map.current.addLayer({ id: "draw-final-line", type: "line", source: finalSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 1] } });
+				}
+				if (!map.current.getLayer("draw-final-line-selected")) {
+					map.current.addLayer({ id: "draw-final-line-selected", type: "line", source: finalSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#1e90ff", "line-width": 5, "line-opacity": 0.9 }, filter: ["==", ["get", "id"], "__none__"] });
+				}
+				// --- added: ensure polygon fill layers exist ---
+				if (!map.current.getLayer("draw-final-fill")) {
+					map.current.addLayer({ id: "draw-final-fill", type: "fill", source: finalSourceId, paint: { "fill-color": "#000000", "fill-opacity": 0.1 }, filter: ["any", ["==", ["get", "tool"], "polygon"], ["==", ["get", "tool"], "circle"]] });
+				}
+				if (!map.current.getLayer("draw-final-fill-selected")) {
+					map.current.addLayer({ id: "draw-final-fill-selected", type: "fill", source: finalSourceId, paint: { "fill-color": "#1e90ff", "fill-opacity": 0.15 }, filter: ["all", ["any", ["==", ["get", "tool"], "polygon"], ["==", ["get", "tool"], "circle"]], ["==", ["get", "id"], "__none__"]] });
+				}
+				const finalSrc = map.current.getSource(finalSourceId);
+				finalSrc && finalSrc.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+				map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], selectedFeatureIdRef.current || "__none__"]);
+				map.current.setFilter("draw-final-fill-selected", ["all", ["any", ["==", ["get", "tool"], "polygon"], ["==", ["get", "tool"], "circle"]], ["==", ["get", "id"], selectedFeatureIdRef.current || "__none__"]]);
+			} catch (_) {}
 		});
 
 		// Expose a small API for external UI to switch styles
@@ -940,6 +1402,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					backgroundColor: "transparent",
 				}}
 			/>
+			
 		</div>
 	);
 }

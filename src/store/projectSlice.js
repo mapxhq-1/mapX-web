@@ -12,8 +12,8 @@ export const myProjApiCall = createAsyncThunk(
           params: {
             ownerEmail: getState().project.ownerEmail,
           },
-          headers:{
-            client_name : "mapx",
+          headers: {
+            'client_name': 'mapx'
           }
         }
       );
@@ -38,8 +38,8 @@ export const sharedProjApiCall = createAsyncThunk(
           params: {
             email: getState().project.ownerEmail,
           },
-          headers:{
-            client_name : "mapx",
+          headers: {
+            'client_name': 'mapx'
           }
         }
       );

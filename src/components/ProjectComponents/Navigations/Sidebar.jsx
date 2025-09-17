@@ -31,6 +31,10 @@ const Sidebar = () => {
       const res = await axios.post('project-management-service/create-new-project',{
         ownerEmail : ownerEmail,
         projectName : "New project"
+      }, {
+        headers: {
+          'client_name': 'mapx'
+        }
       })
       toast.success('New project created!!')
       navigate("/map/"+res.data.projectId )

@@ -52,7 +52,7 @@ const MenuButton = ({ menuText, Tag }) => {
     </div>
   );
 };
-const Open = ({ setIsOpen,setShowExcalidraw }) => {
+const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSelectedFeature }) => {
 	const navigate=useNavigate();
   const [showMapMenu, setShowMapMenu] = useState(false);
   const panelRef = useRef(null);
@@ -95,12 +95,59 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
       </div>
       <div className="w-full h-0.5 bg-black/10"></div>
       <div>
-        <MenuButton menuText="Select" Tag={SelectSvg} />
-        <MenuButton menuText="Hand" Tag={HandSvg} />
-        <div onClick={() => {setIsOpen(false);setShowExcalidraw(true)}}>
-        <MenuButton menuText="Pencil" Tag={PencilSvg} />
+        <div onClick={() => { 
+          console.log("Select button clicked"); 
+          setSelectedMode('select');
+          try { 
+            window.mapxDrawSetMode && window.mapxDrawSetMode('select'); 
+            // Listen for feature selection
+            if (window.mapxDrawOnFeatureSelect) {
+              window.mapxDrawOnFeatureSelect = (feature) => {
+                setSelectedFeature(feature);
+                console.log("Feature selected:", feature);
+              };
+            }
+          } catch(e){console.error("Error:", e)} 
+        }}>
+        <div className={`px-[45px] py-[15px] flex items-center transition-all duration-500 ease-in-out select-none rounded-lg cursor-pointer relative
+          ${selectedMode === 'select' ? 'bg-[#D5EDFF] text-[#1403FF]' : 'text-white hover:bg-white/10 hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]'}
+          before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
+          after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`}>
+          <SelectSvg />
+          <p className="text-[15px] ml-5">Select</p>
         </div>
-        <MenuButton menuText="Highlight" Tag={HighlighterSvg} />
+        </div>
+        <MenuButton menuText="Hand" Tag={HandSvg} />
+        <div onClick={() => { 
+          console.log("Pencil button clicked"); 
+          setSelectedMode('pencil');
+          try { 
+            window.mapxDrawSetMode && window.mapxDrawSetMode('pencil'); 
+          } catch(e){console.error("Error:", e)} 
+        }}>
+        <div className={`px-[45px] py-[15px] flex items-center transition-all duration-500 ease-in-out select-none rounded-lg cursor-pointer relative
+          ${selectedMode === 'pencil' ? 'bg-[#D5EDFF] text-[#1403FF]' : 'text-white hover:bg-white/10 hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]'}
+          before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
+          after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`}>
+          <PencilSvg />
+          <p className="text-[15px] ml-5">Pencil</p>
+        </div>
+        </div>
+        <div onClick={() => { 
+          console.log("Highlight button clicked"); 
+          setSelectedMode('highlight');
+          try { 
+            window.mapxDrawSetMode && window.mapxDrawSetMode('highlight'); 
+          } catch(e){console.error("Error:", e)} 
+        }}>
+        <div className={`px-[45px] py-[15px] flex items-center transition-all duration-500 ease-in-out select-none rounded-lg cursor-pointer relative
+          ${selectedMode === 'highlight' ? 'bg-[#D5EDFF] text-[#1403FF]' : 'text-white hover:bg-white/10 hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]'}
+          before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
+          after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`}>
+          <HighlighterSvg />
+          <p className="text-[15px] ml-5">Highlight</p>
+        </div>
+        </div>
         <MenuButton menuText="Notes" Tag={NoteSvg} />
         <MenuButton menuText="Text" Tag={TextSvg} />
         <MenuButton menuText="Hyperlink" Tag={HyperlinkSvg} />
@@ -110,7 +157,7 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
       <div>
         <p className="text-[20px] pl-[45px] my-[10px]">Shapes</p>
         <div className="grid-cols-2 grid gap-3 m-5">
-          <div className="rounded-lg flex py-[5px] px-[10px]  text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
+          <div onClick={() => { console.log("Line button clicked"); try { window.mapxDrawSetMode && window.mapxDrawSetMode('line'); } catch(e){console.error("Error:", e)} }} className="rounded-lg flex py-[5px] px-[10px]  text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
   shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] 
   hover:bg-white/30 transition-all duration-300 
   before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
@@ -118,7 +165,7 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" d="m21.25 2.75l-18.5 18.5"/></svg>
             <p className="text-[18px] ml-2">Line</p>
           </div>
-          <div className="rounded-lg flex py-[5px] px-[10px]  text-white items-center hover:scale-105  cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
+          <div onClick={() => { console.log("Arrow button clicked"); try { window.mapxDrawSetMode && window.mapxDrawSetMode('arrow'); } catch(e){console.error("Error:", e)} }} className="rounded-lg flex py-[5px] px-[10px]  text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
   shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] 
   hover:bg-white/30 transition-all duration-300 
   before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
@@ -126,7 +173,7 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 15 15"><path fill="#fff" d="M8.293 2.293a1 1 0 0 1 1.414 0l4.5 4.5a1 1 0 0 1 0 1.414l-4.5 4.5a1 1 0 0 1-1.414-1.414L11 8.5H1.5a1 1 0 0 1 0-2H11L8.293 3.707a1 1 0 0 1 0-1.414"/></svg>
             <p className="text-[18px] ml-2">Arrow</p>
           </div>
-          <div className="rounded-lg flex py-[5px] px-[10px] text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
+          <div onClick={() => { console.log("Circle button clicked"); try { window.mapxDrawSetMode && window.mapxDrawSetMode('circle'); } catch(e){console.error("Error:", e)} }} className="rounded-lg flex py-[5px] px-[10px] text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
   shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] 
   hover:bg-white/30 transition-all duration-300 
   before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
@@ -134,7 +181,7 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="#fff" d="M12 22q-2.075 0-3.9-.788t-3.175-2.137T2.788 15.9T2 12t.788-3.9t2.137-3.175T8.1 2.788T12 2t3.9.788t3.175 2.137T21.213 8.1T22 12t-.788 3.9t-2.137 3.175t-3.175 2.138T12 22m0-2q3.35 0 5.675-2.325T20 12t-2.325-5.675T12 4T6.325 6.325T4 12t2.325 5.675T12 20m0-8"/></svg>
             <p className="text-[18px] ml-2">Circle</p>
           </div>
-          <div className="rounded-lg flex py-[5px] px-[10px] text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
+          <div onClick={() => { console.log("Polygon button clicked"); try { window.mapxDrawSetMode && window.mapxDrawSetMode('polygon'); } catch(e){console.error("Error:", e)} }} className="rounded-lg flex py-[5px] px-[10px] text-white items-center hover:scale-105 cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm 
   shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] 
   hover:bg-white/30 transition-all duration-300 
   before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
@@ -143,7 +190,6 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
             <p className="text-[18px] ml-2">Polygon</p>
           </div>
         </div>
-      </div>
       </div>
       <div>
         <div
@@ -195,6 +241,7 @@ const Open = ({ setIsOpen,setShowExcalidraw }) => {
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 };
@@ -208,11 +255,13 @@ const Closed = ({ setIsOpen }) => {
     </div>
   );
 };
-const LeftPanel = ({setShowExcalidraw}) => {
+const LeftPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState(null);
+  const [selectedFeature, setSelectedFeature] = useState(null);
   return (
     <>
-      {isOpen && <Open setIsOpen={setIsOpen} setShowExcalidraw={setShowExcalidraw}/>}
+      {isOpen && <Open setIsOpen={setIsOpen} selectedMode={selectedMode} setSelectedMode={setSelectedMode} selectedFeature={selectedFeature} setSelectedFeature={setSelectedFeature}/>}
       {!isOpen && <Closed setIsOpen={setIsOpen} />}
     </>
   );

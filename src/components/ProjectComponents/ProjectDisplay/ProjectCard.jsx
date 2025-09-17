@@ -33,6 +33,10 @@ const ProjectCard = ({data}) => {
         projectName : projname,
         ownerEmail : ownerEmail,
         projectId : data.id,
+      }, {
+        headers: {
+          'client_name': 'mapx'
+        }
       })
       toast.success("Renamed successfully!!")
     }catch(err){
@@ -49,6 +53,10 @@ const ProjectCard = ({data}) => {
         accessorList : [],
         ownerEmail : ownerEmail,
         projectId : data.id,
+      }, {
+        headers: {
+          'client_name': 'mapx'
+        }
       })
       toast.success("Your project is now private!!");
     }catch(err){
@@ -63,6 +71,9 @@ const ProjectCard = ({data}) => {
       const res = await axios.delete('/project-management-service/delete-project/'+data.id,{
         params:{
           ownerEmail:ownerEmail
+        },
+        headers: {
+          'client_name': 'mapx'
         }
       })
       toast.success("Project deleted!!");
