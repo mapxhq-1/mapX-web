@@ -3,16 +3,40 @@ import { useDispatch, useSelector } from "react-redux";
 import { setYear } from "../../store/mapSlice";
 import { Box } from "@mui/material";
 
+// Format year with CE/BCE suffix
+const formatYear = (year) => {
+  if (year > 0) {
+    return `${year} CE`;
+  } else if (year < 0) {
+    return `${Math.abs(year)} BCE`;
+  } else {
+    return '1 CE'; // Skip year 0, go to 1 CE
+  }
+};
+
+// Helper function to get next valid year (skipping year 0)
+const getNextValidYear = (year, direction) => {
+  const next = year + direction;
+  if (next === 0) {
+    // Skip year 0, go directly to 1 CE or -1 BCE
+    return direction > 0 ? 1 : -1;
+  }
+  return next;
+};
+
 export default function Timeline() {
   const dispatch = useDispatch();
   const globalYear = useSelector((state) => state.map.year);
 
   // Local year for smooth dragging
   const [localYear, setLocalYear] = useState(globalYear);
+  const [inputValue, setInputValue] = useState(formatYear(globalYear));
+  const [showGoButton, setShowGoButton] = useState(false);
 
   // Constants
-  const MIN_YEAR = -4000;
+  const MIN_YEAR = 0;
   const MAX_YEAR = 2025;
+  const BCE_MAX_YEAR = 4500; // For BCE years (0 to 4500 BCE)
   const TICK_SPACING_PX = 20;
 
 
@@ -57,17 +81,35 @@ export default function Timeline() {
 
     if (!animating && globalYear !== localYear) {
       setLocalYear(globalYear);
+      setInputValue(formatYear(globalYear));
     }
   }, [globalYear, isDragging, localYear]);
 
-  // Precompute years
-  const years = useMemo(
-    () => Array.from({ length: MAX_YEAR - MIN_YEAR + 1 }, (_, i) => MIN_YEAR + i),
-    []
-  );
+  // Update inputValue whenever localYear changes
+  useEffect(() => {
+    setInputValue(formatYear(localYear));
+  }, [localYear]);
+
+
+  // Precompute years (BCE years from -4500 to -1, then CE years from 1 to 2025)
+  const years = useMemo(() => {
+    const bceYears = Array.from({ length: BCE_MAX_YEAR }, (_, i) => -(BCE_MAX_YEAR - i)); // -4500, -4499, ..., -1
+    const ceYears = Array.from({ length: MAX_YEAR }, (_, i) => i + 1); // 1, 2, ..., 2025
+    return [...bceYears, ...ceYears];
+  }, []);
 
   // Virtualization setup
-  const index = Math.max(0, Math.min(MAX_YEAR - MIN_YEAR, localYear - MIN_YEAR));
+  const getYearIndex = (year) => {
+    if (year > 0) {
+      // CE years: index = BCE_MAX_YEAR + year - 1 (since we start from 1 CE, not 0)
+      return BCE_MAX_YEAR + year - 1;
+    } else {
+      // BCE years: index = BCE_MAX_YEAR + year (year is negative)
+      return BCE_MAX_YEAR + year;
+    }
+  };
+  
+  const index = Math.max(0, Math.min(years.length - 1, getYearIndex(localYear)));
   const translateX = useMemo(
     () => Math.floor(containerWidth / 2 - index * TICK_SPACING_PX),
     [containerWidth, index]
@@ -122,8 +164,8 @@ export default function Timeline() {
       const dir = Math.sign(velocityRef.current || 0);
       if (dir !== 0) {
         const next = Math.max(
-          MIN_YEAR,
-          Math.min(MAX_YEAR, localYear + dir)
+          -BCE_MAX_YEAR,
+          Math.min(MAX_YEAR, getNextValidYear(localYear, dir))
         );
         if (next !== localYear) {
           setLocalYear(next);
@@ -189,8 +231,8 @@ const speedLookup = useMemo(() => {
         if (step > 0) {
           const dir = offset > 0 ? 1 : -1;
           const target = Math.max(
-            MIN_YEAR,
-            Math.min(MAX_YEAR, localYear + dir * step)
+            -BCE_MAX_YEAR,
+            Math.min(MAX_YEAR, getNextValidYear(localYear, dir * step))
           );
           if (target !== localYear) {
             setLocalYear(target);
@@ -204,8 +246,8 @@ const speedLookup = useMemo(() => {
         const inertiaSpeed = velocityRef.current * 0.15;
         const next =
           velocityRef.current > 0
-            ? Math.min(MAX_YEAR, Math.round(localYear + inertiaSpeed))
-            : Math.max(MIN_YEAR, Math.round(localYear + inertiaSpeed));
+            ? Math.min(MAX_YEAR, Math.round(getNextValidYear(localYear, inertiaSpeed)))
+            : Math.max(-BCE_MAX_YEAR, Math.round(getNextValidYear(localYear, inertiaSpeed)));
 
         if (next !== localYear) {
           setLocalYear(next);
@@ -257,7 +299,7 @@ const speedLookup = useMemo(() => {
       if (wholeSteps > 0) {
         stepAccumulatorRef.current -= wholeSteps;
         const delta = holdDirRef.current * wholeSteps;
-        const next = Math.max(MIN_YEAR, Math.min(MAX_YEAR, localYear + delta));
+        const next = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, getNextValidYear(localYear, delta)));
         if (next !== localYear) {
           setLocalYear(next);
           dispatch(setYear(next));
@@ -270,42 +312,131 @@ const speedLookup = useMemo(() => {
   };
 
   const handleArrowClick = (dir) => {
-    const next = Math.max(MIN_YEAR, Math.min(MAX_YEAR, localYear + dir));
+    const next = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, getNextValidYear(localYear, dir)));
     if (next !== localYear) {
       setLocalYear(next);
       dispatch(setYear(next));
     }
   };
-function PassNumber(n){
-  if(isNaN(Number(n)))return n;
-  return Number(n);
-}
+
+  // Parse input and set year
+  const parseAndSetYear = (inputValue) => {
+    const trimmedValue = inputValue.trim();
+    
+    // Match patterns like "400 BCE", "2023 CE", "400", "-400", etc.
+    const bceMatch = trimmedValue.match(/(\d+)\s*BCE/i);
+    const ceMatch = trimmedValue.match(/(\d+)\s*CE/i);
+    const numberMatch = trimmedValue.match(/-?\d+/);
+    
+    let parsedYear = null;
+    
+    if (bceMatch) {
+      // Parse BCE year (e.g., "400 BCE" -> -400)
+      parsedYear = -parseInt(bceMatch[1]);
+    } else if (ceMatch) {
+      // Parse CE year (e.g., "2023 CE" -> 2023)
+      parsedYear = parseInt(ceMatch[1]);
+    } else if (numberMatch) {
+      // Parse direct number (e.g., "400", "-400")
+      parsedYear = parseInt(numberMatch[0]);
+    }
+    
+    if (parsedYear !== null && !isNaN(parsedYear)) {
+      // Skip year 0 - convert to 1 CE
+      if (parsedYear === 0) {
+        parsedYear = 1;
+      }
+      // Clamp to valid range
+      const clampedYear = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, parsedYear));
+      setLocalYear(clampedYear);
+      dispatch(setYear(clampedYear));
+      setInputValue(formatYear(clampedYear));
+      setShowGoButton(false); // Hide Go button after successful navigation
+    } else {
+      // Reset to current year if parsing fails
+      setInputValue(formatYear(localYear));
+      setShowGoButton(false); // Hide Go button on parse failure
+    }
+  };
+
+
   return (
     <Box sx={{ position: "fixed", left: 0, right: 0, width: "100vw", zIndex: 15, color: "#fff", pointerEvents: "none", bottom: 8 }}>
       {/* Year input */}
-      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "none" }}>
-        <input
-          value={localYear}
-          onChange={(e) => {
-            const v = PassNumber(e.target.value);
-            setLocalYear(v);
-            dispatch(setYear(v)); // keep Redux in sync when typing
-          }}
-          style={{
-            backgroundColor: "#fff",
-            padding: "2px 8px",
-            borderRadius: "6px",
-            border: "none",
-            fontWeight: "bold",
-            fontSize: "24px",
-            textAlign: "center",
-            color: "#000",
-            outline: "none",
-            width: `${String(localYear).length + 3}ch`,
-            minWidth: "3ch",
-            pointerEvents: "auto",
-          }}
-        />
+      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "auto" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => {
+              // Allow free text input
+              const newValue = e.target.value;
+              setInputValue(newValue);
+              
+              // Show Go button when user is typing (different from current formatted year)
+              const isTyping = newValue !== formatYear(localYear);
+              setShowGoButton(isTyping);
+            }}
+            onBlur={() => {
+              parseAndSetYear(inputValue);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                parseAndSetYear(inputValue);
+              }
+            }}
+            style={{
+              backgroundColor: "#fff",
+              padding: "8px 12px",
+              borderRadius: "8px",
+              border: "2px solid #ddd",
+              fontWeight: "bold",
+              fontSize: "24px",
+              textAlign: "center",
+              color: "#000",
+              outline: "none",
+              width: `${Math.max(formatYear(localYear).length + 3, 8)}ch`,
+              minWidth: "8ch",
+              pointerEvents: "auto",
+              placeholder: "e.g. 400 BCE or 2023 CE",
+              transition: "border-color 0.2s ease",
+            }}
+          />
+          
+          {/* Go Button - appears when typing */}
+          {showGoButton && (
+            <Box
+              sx={{
+                backgroundColor: "#4CAF50",
+                color: "#fff",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "18px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                userSelect: "none",
+                transition: "all 0.2s ease",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                "&:hover": {
+                  backgroundColor: "#45a049",
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                },
+                "&:active": {
+                  transform: "translateY(0)",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                }
+              }}
+              onClick={() => {
+                parseAndSetYear(inputValue);
+              }}
+            >
+              Go
+            </Box>
+          )}
+        </Box>
+        
         <Box
           sx={{
             position: "absolute",
@@ -338,7 +469,7 @@ function PassNumber(n){
             background: "#fff",
           }}
         >
-          {localYear}
+          {formatYear(localYear)}
         </Box>
 
         <Box
@@ -347,7 +478,7 @@ function PassNumber(n){
             top: 0,
             left: 0,
             height: "100%",
-            width: (MAX_YEAR - MIN_YEAR + 1) * TICK_SPACING_PX,
+            width: (BCE_MAX_YEAR + MAX_YEAR) * TICK_SPACING_PX,
             transform: `translateX(${translateX}px)`,
             pointerEvents: "none",
           }}

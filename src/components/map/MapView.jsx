@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
+import DOMPurify from "dompurify";
 import maplibregl from "maplibre-gl";
 import FreehandController from "../../draw/freehandController";
 import LineController from "../../draw/lineController";
@@ -20,6 +22,66 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const featureSeqRef = useRef(1);
 	const selectionOverlayElRef = useRef(null);
 	const selectionOverlayLngLatRef = useRef(null);
+
+	// Text tool state
+	const textToolbarElRef = useRef(null);
+	const textToolbarLngLatRef = useRef(null);
+	const textToolbarFeatureIdRef = useRef(null);
+	const textModeActiveRef = useRef(false);
+	const textClickHandlerRef = useRef(null);
+	const clickedCoordsRef = useRef(null);
+
+	// Text helpers
+	const sanitizeText = (raw) => {
+		try {
+			return DOMPurify.sanitize(String(raw || ""), { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).slice(0, 2000);
+		} catch (_) {
+			return String(raw || "").slice(0, 2000);
+		}
+	};
+	const isValidCoordinate = (coords) => {
+		return (
+			Array.isArray(coords) &&
+			coords.length === 2 &&
+			typeof coords[0] === "number" &&
+			typeof coords[1] === "number" &&
+			coords[0] >= -180 && coords[0] <= 180 && coords[1] >= -90 && coords[1] <= 90
+		);
+	};
+	const isVisibleOnGlobe = (center, point) => {
+		try {
+			const latLonToUnit = ([lon, lat]) => {
+				const phi = (lat * Math.PI) / 180;
+				const lam = (lon * Math.PI) / 180;
+				return [Math.cos(phi) * Math.cos(lam), Math.cos(phi) * Math.sin(lam), Math.sin(phi)];
+			};
+			const a = latLonToUnit([center.lng, center.lat]);
+			const b = latLonToUnit([point[0], point[1]]);
+			const dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+			return dot > 0;
+		} catch (_) { return true; }
+	};
+
+	const finalizeTextFeature = (coords, textValue, sizePx, colorHex) => {
+		if (!isValidCoordinate(coords)) throw new Error("Invalid coordinates");
+		const id = `tx_${uuidv4()}`;
+		const feature = {
+			type: "Feature",
+			properties: {
+				id,
+				tool: "text",
+				text: sanitizeText(textValue),
+				fontSize: Math.max(8, Math.min(72, Number(sizePx) || 16)),
+				color: colorHex || "#ffffff",
+				created_at: new Date().toISOString(),
+			},
+			geometry: { type: "Point", coordinates: [Number(coords[0].toFixed(6)), Number(coords[1].toFixed(6))] },
+		};
+		finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+		const src = map.current && map.current.getSource("draw-final-src");
+		src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+		return feature;
+	};
 
 	// ✅ Get polygons from Redux
 	const polygons = useSelector((state) => state.map.polygons);
@@ -99,6 +161,34 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			}
 			if (!map.current.getLayer("draw-final-line")) {
 				map.current.addLayer({ id: "draw-final-line", type: "line", source: finalSourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"], "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3], "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 1] } });
+			}
+
+			// Text layer for finalized features with tool === 'text'
+			if (!map.current.getLayer("draw-final-text")) {
+				map.current.addLayer({
+					id: "draw-final-text",
+					type: "symbol",
+					source: finalSourceId,
+					filter: ["==", ["get", "tool"], "text"],
+					layout: {
+						"text-field": ["get", "text"],
+						"text-font": ["Noto Sans Regular"],
+						"text-size": ["coalesce", ["get", "fontSize"], 16],
+						"text-anchor": "center",
+						"text-allow-overlap": false,
+						"text-ignore-placement": false,
+						"text-pitch-alignment": "map",
+						"text-rotation-alignment": "auto",
+						"text-max-width": 16,
+						"symbol-placement": "point"
+					},
+					paint: {
+						"text-color": ["coalesce", ["get", "color"], "#ffffff"],
+						"text-halo-color": "#000000",
+						"text-halo-width": 1,
+						"text-opacity": ["interpolate", ["linear"], ["zoom"], 3, 0.7, 8, 1]
+					}
+				});
 			}
 			// Final polygon/circle fill and selection fill (exclude pencil/arrow)
 			if (!map.current.getLayer("draw-final-fill")) {
@@ -302,10 +392,241 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					}
 				});
 
+
+				// --- Floating Text Toolbar ---
+				const buildTextToolbar = () => {
+					try {
+						if (textToolbarElRef.current) return;
+						const host = map.current.getContainer();
+						const el = document.createElement("div");
+						el.style.position = "absolute";
+						el.style.transform = "translate(-50%, -100%)";
+						el.style.display = "none";
+						el.style.zIndex = "26";
+						el.style.pointerEvents = "auto";
+						el.className = "rounded-lg bg-white/1 border border-white/30 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.3),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] p-3 flex flex-col gap-3";
+						el.style.width = "fit-content";
+						el.style.maxWidth = "400px";
+
+						// Text input container with cancel button
+						const textContainer = document.createElement("div");
+						textContainer.style.display = "flex";
+						textContainer.style.alignItems = "center";
+						textContainer.style.gap = "8px";
+						textContainer.style.position = "relative";
+
+						const txt = document.createElement("input");
+						txt.type = "text";
+						txt.placeholder = "Enter text...";
+						txt.value = "";
+						txt.style.width = "300px";
+						txt.style.padding = "8px 12px";
+						txt.style.borderRadius = "6px";
+						txt.style.border = "1px solid rgba(255,255,255,0.3)";
+						txt.style.backgroundColor = "rgba(255,255,255,0.05)";
+						txt.addEventListener("keydown", (ev) => {
+							if (ev.key === "Enter") { ev.preventDefault(); onSave(); }
+							if (ev.key === "Escape") { ev.preventDefault(); onCancel(); }
+						});
+
+						const cancelBtn = document.createElement("button");
+						cancelBtn.type = "button";
+						cancelBtn.setAttribute("aria-label", "Cancel");
+						cancelBtn.innerHTML = "&#10005;";
+						cancelBtn.className = "rounded-full w-6 h-6 flex items-center justify-center bg-white/40 hover:bg-white/60 text-black shadow transition";
+						cancelBtn.style.position = "absolute";
+						cancelBtn.style.right = "8px";
+						cancelBtn.style.top = "50%";
+						cancelBtn.style.transform = "translateY(-50%)";
+						cancelBtn.addEventListener("click", () => onCancel());
+
+						// Controls row (color, size, save, delete) - positioned below text
+						const controlsRow = document.createElement("div");
+						controlsRow.style.display = "flex";
+						controlsRow.style.alignItems = "center";
+						controlsRow.style.gap = "8px";
+						controlsRow.style.justifyContent = "flex-start";
+						controlsRow.style.marginTop = "8px";
+
+						const color = document.createElement("input");
+						color.type = "color";
+						color.value = "#ffffff";
+						color.setAttribute("aria-label", "Text color");
+						color.style.width = "32px";
+						color.style.height = "32px";
+						color.style.border = "1px solid rgba(255,255,255,0.3)";
+						color.style.borderRadius = "6px";
+						color.style.backgroundColor = "rgba(255,255,255,0.8)";
+
+						const size = document.createElement("input");
+						size.type = "number";
+						size.min = "8";
+						size.max = "72";
+						size.value = "16";
+						size.setAttribute("aria-label", "Font size");
+						size.style.width = "60px";
+						size.style.padding = "6px 8px";
+						size.style.borderRadius = "6px";
+						size.style.border = "1px solid rgba(255,255,255,0.3)";
+						size.style.backgroundColor = "rgba(255,255,255,0.05)";
+
+						const saveBtn = document.createElement("button");
+						saveBtn.type = "button";
+						saveBtn.textContent = "Save";
+						saveBtn.className = "rounded-lg px-4 py-2 bg-[#007cba] text-white shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_0_6px_rgba(0,0,0,0.15)] hover:bg-[#005a8b] transition-all duration-300";
+						saveBtn.addEventListener("click", () => onSave());
+
+						const delBtn = document.createElement("button");
+						delBtn.type = "button";
+						delBtn.textContent = "Delete";
+						delBtn.className = "rounded-lg px-4 py-2 bg-[#ef4444] text-white shadow hover:bg-[#b91c1c] transition-all duration-300";
+						delBtn.addEventListener("click", () => onDelete());
+
+						// Prevent map interaction while using toolbar
+						["mousedown", "dblclick", "wheel"].forEach((evt) => {
+							el.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
+						});
+
+						textContainer.appendChild(txt);
+						textContainer.appendChild(cancelBtn);
+						
+						controlsRow.appendChild(color);
+						controlsRow.appendChild(size);
+						controlsRow.appendChild(saveBtn);
+						controlsRow.appendChild(delBtn);
+						
+						el.appendChild(textContainer);
+						el.appendChild(controlsRow);
+						host.appendChild(el);
+						textToolbarElRef.current = el;
+
+						function onSave() {
+							const vText = txt.value || "";
+							if (!vText.trim()) return;
+						const vSize = Math.max(8, Math.min(72, Number(size.value) || 16));
+						const elMode = el.getAttribute("data-mode") || "create";
+						if (elMode === "edit" && textToolbarFeatureIdRef.current) {
+							const id = textToolbarFeatureIdRef.current;
+							const idx = finalFeaturesRef.current.findIndex((f) => f.properties && f.properties.id === id);
+							if (idx >= 0) {
+								const f = { ...finalFeaturesRef.current[idx] };
+								f.properties = { ...f.properties, text: sanitizeText(vText.trim()), fontSize: vSize, color: color.value || "#ffffff" };
+								finalFeaturesRef.current[idx] = f;
+								const src = map.current.getSource("draw-final-src");
+								src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+							}
+							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
+						} else {
+							finalizeTextFeature([textToolbarLngLatRef.current.lng, textToolbarLngLatRef.current.lat], vText.trim(), vSize, color.value || "#ffffff");
+							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
+						}
+						
+						// Download GeoJSON file
+						try {
+							const geoJsonData = {
+								type: "FeatureCollection",
+								features: finalFeaturesRef.current,
+								metadata: {
+									exportedAt: new Date().toISOString(),
+									totalFeatures: finalFeaturesRef.current.length,
+									textFeatures: finalFeaturesRef.current.filter(f => f.properties && f.properties.tool === 'text').length,
+									drawingFeatures: finalFeaturesRef.current.filter(f => f.properties && f.properties.tool !== 'text').length
+								}
+							};
+							
+							const blob = new Blob([JSON.stringify(geoJsonData, null, 2)], { type: 'application/json' });
+							const url = URL.createObjectURL(blob);
+							const a = document.createElement('a');
+							a.href = url;
+							a.download = `mapx-drawing-${new Date().toISOString().split('T')[0]}.geojson`;
+							document.body.appendChild(a);
+							a.click();
+							document.body.removeChild(a);
+							URL.revokeObjectURL(url);
+						} catch (error) {
+							console.error('Failed to download GeoJSON:', error);
+						}
+						
+						hideTextToolbar();
+						}
+
+						function onCancel() { hideTextToolbar(); }
+
+						function onDelete() {
+							const id = textToolbarFeatureIdRef.current;
+							if (!id) { hideTextToolbar(); return; }
+							finalFeaturesRef.current = finalFeaturesRef.current.filter((f) => (f.properties && f.properties.id) !== id);
+							const src = map.current.getSource("draw-final-src");
+							src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+							selectedFeatureIdRef.current = null;
+							try { map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch(_){}
+							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
+							hideTextToolbar();
+						}
+
+						// focus after mount
+						setTimeout(() => { try { txt.focus(); txt.select(); } catch(_){} }, 50);
+					} catch (_) {}
+				};
+
+				const positionTextToolbar = (lngLat) => {
+					try {
+						const el = textToolbarElRef.current;
+						if (!el || !lngLat) return;
+						const p = map.current.project(lngLat);
+						el.style.left = `${p.x}px`;
+						el.style.top = `${p.y - 10}px`;
+					} catch (_) {}
+				};
+
+                const showTextToolbar = (lngLat) => {
+					buildTextToolbar();
+					textToolbarLngLatRef.current = lngLat;
+					positionTextToolbar(lngLat);
+                    try { textToolbarElRef.current.style.display = "flex"; } catch (_) {}
+                    try { textToolbarElRef.current.setAttribute("data-mode", "create"); } catch(_){}
+                    textToolbarFeatureIdRef.current = null;
+					try { map.current.boxZoom.disable(); map.current.dragPan.disable(); map.current.dragRotate.disable(); map.current.keyboard.disable(); } catch(_){}
+				};
+
+				const hideTextToolbar = () => {
+					try { if (textToolbarElRef.current) textToolbarElRef.current.style.display = "none"; } catch(_){}
+					textToolbarLngLatRef.current = null;
+					try { map.current.boxZoom.enable(); map.current.dragPan.enable(); map.current.dragRotate.enable(); map.current.keyboard.enable(); } catch(_){}
+				};
+
+                const showTextToolbarEdit = (feature, lngLat) => {
+                    buildTextToolbar();
+                    textToolbarLngLatRef.current = lngLat;
+                    positionTextToolbar(lngLat);
+                    try { textToolbarElRef.current.style.display = "flex"; } catch (_) {}
+                    try { textToolbarElRef.current.setAttribute("data-mode", "edit"); } catch(_){}
+                    textToolbarFeatureIdRef.current = feature && feature.properties ? feature.properties.id : null;
+                    try {
+                        const el = textToolbarElRef.current;
+                        const text = el.querySelector('input[type="text"]');
+                        const inputs = el.querySelectorAll('input');
+                        let color = null, size = null;
+                        inputs.forEach((i) => { if (i.type === 'color') color = i; if (i.type === 'number') size = i; });
+                        if (color) color.value = (feature.properties && feature.properties.color) || '#ffffff';
+                        if (size) size.value = String((feature.properties && feature.properties.fontSize) ? feature.properties.fontSize : 16);
+                        if (text) text.value = (feature.properties && feature.properties.text) || '';
+                    } catch(_){}
+                    try { map.current.boxZoom.disable(); map.current.dragPan.disable(); map.current.dragRotate.disable(); map.current.keyboard.disable(); } catch(_){}
+                };
+
 				// Expose a minimal mode switch bridge for LeftPanel
 				window.mapxDrawSetMode = (mode) => {
 					// pencil mode
 					if (mode === "pencil") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
+						// Clean up hand mode if active
+						try { window.mapxHandCleanup && window.mapxHandCleanup(); } catch(_){}
+						// Disable text mode
+						textModeActiveRef.current = false;
+						try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
+						try { hideTextToolbar(); } catch(_){}
 						freehand.setActive(true);
 						line.setActive(false);
 						polygon.setActive(false);
@@ -317,6 +638,12 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						return;
 					}
 					if (mode === "highlight") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
+						// Disable text mode
+						textModeActiveRef.current = false;
+						try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
+						try { hideTextToolbar(); } catch(_){}
 						freehand.setActive(false);
 						line.setActive(false);
 						polygon.setActive(false);
@@ -327,6 +654,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						return;
 					}
 					if (mode === "line") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
 						freehand.setActive(false);
 						polygon.setActive(false);
 						circle.setActive(false);
@@ -337,6 +666,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						return;
 					}
 					if (mode === "polygon") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
 						freehand.setActive(false);
 						line.setActive(false);
 						circle.setActive(false);
@@ -347,6 +678,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						return;
 					}
 					if (mode === "circle") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
 						freehand.setActive(false);
 						line.setActive(false);
 						polygon.setActive(false);
@@ -357,6 +690,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						return;
 					}
 					if (mode === "arrow") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
 						freehand.setActive(false);
 						line.setActive(false);
 						polygon.setActive(false);
@@ -366,14 +701,188 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						try { map.current.off("click", onSelectClick); } catch (_) {}
 						return;
 					}
-					// selection mode
-					if (mode === "select") {
+					if (mode === "text") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
+						// Clean up hand mode if active
+						try { window.mapxHandCleanup && window.mapxHandCleanup(); } catch(_){}
 						freehand.setActive(false);
 						line.setActive(false);
 						polygon.setActive(false);
 						circle.setActive(false);
 						arrow.setActive(false);
 						highlight.setActive(false);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						// Activate text mode: click opens modal to enter text
+						textModeActiveRef.current = true;
+						if (!textClickHandlerRef.current) {
+							textClickHandlerRef.current = (e) => {
+								if (!textModeActiveRef.current) return;
+								clickedCoordsRef.current = [e.lngLat.lng, e.lngLat.lat];
+								showTextToolbar({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+							};
+						}
+						try { map.current.on("click", textClickHandlerRef.current); } catch (_) {}
+						map.current.getCanvas().style.cursor = "crosshair";
+						return;
+					}
+					if (mode === "hand") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
+						// Disable text mode
+						textModeActiveRef.current = false;
+						try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
+						try { hideTextToolbar(); } catch(_){}
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						// Enable pan/globe control - this is the default behavior
+						try { 
+							map.current.dragPan.enable(); 
+							map.current.dragRotate.enable();
+							map.current.boxZoom.enable();
+							map.current.keyboard.enable();
+						} catch(_){}
+						map.current.getCanvas().style.cursor = "grab";
+						
+						// Add visual feedback for dragging
+						const onMouseDown = () => {
+							map.current.getCanvas().style.cursor = "grabbing";
+						};
+						const onMouseUp = () => {
+							map.current.getCanvas().style.cursor = "grab";
+						};
+						
+						map.current.on("mousedown", onMouseDown);
+						map.current.on("mouseup", onMouseUp);
+						map.current.on("mouseleave", onMouseUp);
+						
+						// Store cleanup function
+						window.mapxHandCleanup = () => {
+							try {
+								map.current.off("mousedown", onMouseDown);
+								map.current.off("mouseup", onMouseUp);
+								map.current.off("mouseleave", onMouseUp);
+								map.current.getCanvas().style.cursor = "";
+							} catch (_) {}
+						};
+						return;
+					}
+					if (mode === "eraser") {
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						
+						// Disable map controls for eraser mode
+						try { 
+							map.current.boxZoom.disable(); 
+							map.current.dragPan.disable(); 
+							map.current.dragRotate.disable(); 
+							map.current.keyboard.disable(); 
+						} catch(_){}
+						
+						// Activate eraser mode: hover to erase
+						map.current.getCanvas().style.cursor = "crosshair";
+						
+						// Eraser functionality - hover to delete
+						let erasedIds = new Set(); // Track what we've already erased
+						
+						const eraseOnHover = (e) => {
+							try {
+								// Find pencil/highlighter strokes at mouse position
+								const features = map.current.queryRenderedFeatures(e.point, { 
+									layers: ["draw-final-line"] 
+								});
+								
+                    // Filter for all drawing tools (pencil, highlighter, line, arrow, polygon, circle)
+                    const strokesToErase = features.filter(f => 
+                        f.properties && 
+                        (f.properties.tool === 'freehand' || 
+                         f.properties.tool === 'highlight' || 
+                         f.properties.tool === 'line' || 
+                         f.properties.tool === 'arrow' || 
+                         f.properties.tool === 'polygon' || 
+                         f.properties.tool === 'circle') &&
+                        !erasedIds.has(f.properties.id) // Don't erase the same stroke multiple times
+                    );
+								
+								if (strokesToErase.length > 0) {
+									
+									// Track erased IDs
+									strokesToErase.forEach(f => erasedIds.add(f.properties.id));
+									
+									// Remove the strokes from the data
+									const strokeIds = strokesToErase.map(f => f.properties.id);
+									finalFeaturesRef.current = finalFeaturesRef.current.filter(f => 
+										!strokeIds.includes(f.properties?.id)
+									);
+									
+									// Update the map source
+									const src = map.current.getSource("draw-final-src");
+									if (src) {
+										src.setData({ 
+											type: "FeatureCollection", 
+											features: finalFeaturesRef.current 
+										});
+									}
+									
+									// Save changes
+									try { 
+										window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); 
+									} catch(_){}
+								}
+							} catch (error) {
+								console.error("Erase error:", error);
+							}
+						};
+						
+						// Add hover listener for erasing
+						map.current.on("mousemove", eraseOnHover);
+						
+						// Store cleanup function
+						window.mapxEraserCleanup = () => {
+							try {
+								map.current.off("mousemove", eraseOnHover);
+								// Clear the erasedIds Set to prevent memory leak
+								erasedIds.clear();
+								// Re-enable map controls
+								map.current.boxZoom.enable(); 
+								map.current.dragPan.enable(); 
+								map.current.dragRotate.enable(); 
+								map.current.keyboard.enable(); 
+								// Reset cursor to default
+								map.current.getCanvas().style.cursor = "";
+							} catch (_) {}
+						};
+						
+            // Eraser mode activated - hover over any drawing to erase
+						return;
+					}
+					// selection mode
+					if (mode === "select") {
+						// Clean up eraser if active
+						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
+						// Clean up hand mode if active
+						try { window.mapxHandCleanup && window.mapxHandCleanup(); } catch(_){}
+						// Disable text mode
+						textModeActiveRef.current = false;
+						try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
+						try { hideTextToolbar(); } catch(_){}
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						// In select mode: when clicking a text feature, show ONLY the text toolbar (not selection overlay)
 						try { map.current.on("click", onSelectClick); } catch (_) {}
 						return;
 					}
@@ -384,7 +893,10 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					circle.setActive(false);
 					arrow.setActive(false);
 					highlight.setActive(false);
+					textModeActiveRef.current = false;
+					try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch (_) {}
 					try { map.current.off("click", onSelectClick); } catch (_) {}
+					try { hideTextToolbar(); } catch(_){}
 				};
 
 				// Build selection overlay (Save / Delete / Cancel)
@@ -420,6 +932,23 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 						const onSave = () => {
 							try {
+								// If selected feature is text, persist any palette changes before saving
+								const id = selectedFeatureIdRef.current;
+								if (id) {
+									const idx = finalFeaturesRef.current.findIndex((f) => f.properties && f.properties.id === id);
+									if (idx >= 0) {
+										const f = { ...finalFeaturesRef.current[idx] };
+										if (f.properties && f.properties.tool === 'text') {
+											const size = el.querySelector('input[data-role="text-size"]');
+											const color = el.querySelector('input[data-role="text-color"]');
+											if (size) f.properties.fontSize = Math.max(8, Math.min(72, Number(size.value)||16));
+											if (color) f.properties.color = color.value || '#000000';
+											finalFeaturesRef.current[idx] = f;
+											const src = map.current.getSource(finalSourceId);
+											src && src.setData({ type: 'FeatureCollection', features: finalFeaturesRef.current });
+										}
+									}
+								}
 								window.mapxDrawExportAll && window.mapxDrawExportAll();
 								window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal();
 							} catch (_) {}
@@ -462,19 +991,41 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				map.current.on("move", () => {
 					const ll = selectionOverlayLngLatRef.current;
 					if (ll) positionSelectionOverlay(ll);
+					const tll = textToolbarLngLatRef.current;
+					if (tll) positionTextToolbar(tll);
 				});
 
 				// Selection logic: click on final line to select
 				const onSelectClick = (e) => {
 					if (!e) return;
 					try {
-						const features = map.current.queryRenderedFeatures(e.point, { layers: ["draw-final-line", "draw-final-fill"] });
+						const features = map.current.queryRenderedFeatures(e.point, { layers: ["draw-final-line", "draw-final-fill", "draw-final-text"] });
 						if (features && features.length > 0) {
 							const f = features[0];
 							const id = (f.properties && f.properties.id) || null;
 							selectedFeatureIdRef.current = id;
-							map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], id || "__none__"]);
-							map.current.setFilter("draw-final-fill-selected", ["==", ["get", "id"], id || "__none__"]);
+                            // If selected is text, open text toolbar instead of selection overlay
+								const isText = (f.properties && f.properties.tool === 'text');
+								if (isText) {
+                                let anchor = null;
+                                try {
+                                    const coords = (f.geometry && f.geometry.coordinates) || [];
+                                    if (f.geometry && f.geometry.type === "Point" && coords && coords.length === 2) anchor = coords;
+							} catch (_) {}
+                                if (anchor) {
+                                    showTextToolbarEdit(f, { lng: anchor[0], lat: anchor[1] });
+                                }
+                                // Do NOT show selection overlay for text
+                                map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]);
+                                map.current.setFilter("draw-final-fill-selected", ["==", ["get", "id"], "__none__"]);
+                                hideSelectionOverlay();
+                                return;
+                            }
+                            
+                            // For non-text features, hide text toolbar and show selection overlay
+                            try { hideTextToolbar(); } catch(_){}
+                            map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], id || "__none__"]);
+                            map.current.setFilter("draw-final-fill-selected", ["==", ["get", "id"], id || "__none__"]);
 							// position overlay near feature midpoint
 							let anchor = null;
 							try {
@@ -494,6 +1045,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 							map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]);
 							map.current.setFilter("draw-final-fill-selected", ["==", ["get", "id"], "__none__"]);
 							hideSelectionOverlay();
+                            try { if (textToolbarElRef.current) textToolbarElRef.current.style.display = 'none'; } catch(_){}
 						}
 					} catch (_) {}
 				};
@@ -1275,6 +1827,33 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				if (!map.current.getLayer("draw-final-fill-selected")) {
 					map.current.addLayer({ id: "draw-final-fill-selected", type: "fill", source: finalSourceId, paint: { "fill-color": "#1e90ff", "fill-opacity": 0.15 }, filter: ["all", ["any", ["==", ["get", "tool"], "polygon"], ["==", ["get", "tool"], "circle"]], ["==", ["get", "id"], "__none__"]] });
 				}
+				// ensure text layer exists
+				if (!map.current.getLayer("draw-final-text")) {
+					map.current.addLayer({
+						id: "draw-final-text",
+						type: "symbol",
+						source: finalSourceId,
+						filter: ["==", ["get", "tool"], "text"],
+						layout: {
+							"text-field": ["get", "text"],
+							"text-font": ["Noto Sans Regular"],
+							"text-size": ["coalesce", ["get", "fontSize"], 16],
+							"text-anchor": "center",
+							"text-allow-overlap": false,
+							"text-ignore-placement": false,
+							"text-pitch-alignment": "map",
+							"text-rotation-alignment": "auto",
+							"text-max-width": 16,
+							"symbol-placement": "point"
+						},
+						paint: {
+							"text-color": ["coalesce", ["get", "color"], "#ffffff"],
+							"text-halo-color": "#000000",
+							"text-halo-width": 1,
+							"text-opacity": ["interpolate", ["linear"], ["zoom"], 3, 0.7, 8, 1]
+						}
+					});
+				}
 				const finalSrc = map.current.getSource(finalSourceId);
 				finalSrc && finalSrc.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
 				map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], selectedFeatureIdRef.current || "__none__"]);
@@ -1387,6 +1966,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
+
 	return (
 		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
 			<GalaxyCanvas />
@@ -1402,7 +1982,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					backgroundColor: "transparent",
 				}}
 			/>
-			
+        {/* Replaced modal with floating toolbar near click. */}
 		</div>
 	);
 }

@@ -13,7 +13,9 @@ const mapSlice = createSlice({
   reducers: {
     setYear: (state, action) => {
       state.year = action.payload;
-      state.polygons = state.allPolygons[action.payload] || [];
+      // Handle both string and number keys, and provide fallback for missing years
+      const yearKey = action.payload.toString();
+      state.polygons = state.allPolygons[yearKey] || [];
     }
   }
 });
