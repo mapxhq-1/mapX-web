@@ -1119,6 +1119,18 @@ rootEl.style.whiteSpace = 'nowrap';
 						try { map.current.off("click", onSelectClick); } catch (_) {}
 						return;
 					}
+					if (mode === "note") {
+						freehand.setActive(false);
+						line.setActive(false);
+						polygon.setActive(false);
+						circle.setActive(false);
+						arrow.setActive(false);
+						highlight.setActive(false);
+						try { map.current.off("click", onSelectClick); } catch (_) {}
+						noteManager.activate();
+						try { window.mapxOnModeChanged && window.mapxOnModeChanged('note'); } catch (_) {}
+						return;
+					}
 					if (mode === "text") {
 						// Clean up eraser if active
 						try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}

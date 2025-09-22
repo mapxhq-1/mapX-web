@@ -206,7 +206,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
           </div>
         </div>
         </div>
-        <MenuButton menuText="Notes" Tag={NoteSvg} />
         <div onClick={() => { 
           setSelectedMode('text');
           setEraserMode(false);
