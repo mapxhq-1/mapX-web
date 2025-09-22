@@ -7,12 +7,17 @@ import LineController from "../../draw/lineController";
 import PolygonController from "../../draw/polygonController";
 import CircleController from "../../draw/circleController";
 import ArrowController from "../../draw/arrowController";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { useParams } from "react-router-dom";
+import { openNotes } from "../../store/mapSlice";
 import "maplibre-gl/dist/maplibre-gl.css";
 import GalaxyCanvas from "../common/GalaxyCanvas";
 import saveIcon from "../../assets/icons/save_icon.png";
 import deleteIcon from "../../assets/icons/delete_icon.png";
 import cancelIcon from "../../assets/icons/cancel_icon.png";
+import noteIcon from "../../assets/icons/note_icon.png"
+import { fetchAllNotes } from "../api/note";
+import { store as reduxStore } from "../../store/store";
 
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
@@ -22,6 +27,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const featureSeqRef = useRef(1);
 	const selectionOverlayElRef = useRef(null);
 	const selectionOverlayLngLatRef = useRef(null);
+	const dispatch = useDispatch();
 
 	// Text tool state
 	const textToolbarElRef = useRef(null);
@@ -86,6 +92,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	// ✅ Get polygons from Redux
 	const polygons = useSelector((state) => state.map.polygons);
 	const year = useSelector((state) => state.map.year);
+	const { id: projectIdParam } = useParams?.() || {};
 
 
 
@@ -623,18 +630,17 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					let onMove = null;
 					let onClick = null;
 					const textMarkers = [];
-					const NOTE_ZOOM_THRESHOLD = 9;
+					const NOTE_EXPAND_ZOOM = 12; // full box with content
 					const stopEvt = (ev) => ev.stopPropagation();
 
-					const styleBaseBox = (box) => {
-						box.style.background = "linear-gradient(180deg, #FFD034 0%, #FFC107 100%)";
-						box.style.border = "1px solid rgba(0,0,0,0.15)";
+					const styleBaseBox = (box,foldSize) => {
+						box.style.background = "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)";
 						box.style.boxShadow = "0 8px 20px rgba(0,0,0,0.18)";
 						box.style.color = "#111827";
 						box.style.fontSize = "13px";
 						box.style.lineHeight = "1.35";
 						box.style.borderRadius = "0"; // no rounded corners
-						box.style.padding = "8px 10px 10px 10px";
+						box.style.padding = "0px";
 						box.style.backdropFilter = "blur(3px)";
 						box.style.position = "relative";
 						box.style.cursor = "text";
@@ -642,16 +648,69 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						box.style.overflow = "visible";
 					
 						// cut out bottom-right corner
-						const foldSize = 20; // size of cut (same as fold triangle size)
 						const clip = `polygon(0 0, 100% 0, 100% calc(100% - ${foldSize}px), calc(100% - ${foldSize}px) 100%, 0 100%)`;
 						box.style.clipPath = clip;
 						box.style.webkitClipPath = clip;
 					};
 					
-					const addFoldedCorner = (box) => {
+					const noteSvgInner = '<svg xmlns="http://www.w3.org/2000/svg" width="37" height="37" viewBox="0 0 512 512"><path fill="#ffd469" d="M450.812 462.658H74.759a8.8 8.8 0 0 1-8.802-8.802V77.802A8.8 8.8 0 0 1 74.759 69H290.76l168.854 168.854v216.001a8.8 8.8 0 0 1-8.802 8.803"/><path fill="#597b91" d="M242.863 168.403H126.007c-6.613 0-11.974-5.361-11.974-11.974s5.361-11.974 11.974-11.974h116.856c6.613 0 11.974 5.361 11.974 11.974s-5.361 11.974-11.974 11.974m11.974 66.401c0-6.613-5.361-11.974-11.974-11.974H126.007c-6.613 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h116.856c6.613-.001 11.974-5.361 11.974-11.974m0 78.374c0-6.612-5.361-11.974-11.974-11.974H126.007c-6.613 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h116.856c6.613-.001 11.974-5.362 11.974-11.974m101.165 78.374c0-6.612-5.361-11.974-11.974-11.974H126.007c-6.613 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h218.021c6.613-.001 11.974-5.362 11.974-11.974m40.334-78.374c0-6.612-5.361-11.974-11.974-11.974h-80.668c-6.612 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h80.668c6.613-.001 11.974-5.362 11.974-11.974"/><path fill="#ffb636" d="m290.76 69l168.854 168.854H326.651c-19.822 0-35.891-16.069-35.891-35.891z"/></svg>';
+					const renderMini = (rootEl) => {
+						rootEl.style.background = 'transparent';
+						rootEl.style.border = 'none';
+						rootEl.style.boxShadow = 'none';
+						rootEl.style.padding = '0';
+						rootEl.style.borderRadius = '0';
+						rootEl.style.minWidth = '0';
+						rootEl.style.minHeight = '0';
+						rootEl.style.width = 'auto';
+						rootEl.style.height = 'auto';
+						rootEl.style.maxWidth = 'none';
+						rootEl.style.maxHeight = 'none';
+
+						const row = document.createElement('div');
+						row.style.display = 'inline-flex';
+						row.style.alignItems = 'center';
+						row.style.gap = '4px';
+						row.style.width = 'fit-content';
+						row.style.height = 'fit-content';
+
+						// Create the image element
+						const img = document.createElement('img');
+						img.src = noteIcon; // path to your image
+						img.alt = 'Note Icon';
+						img.style.width = '24px';  // adjust as needed
+						img.style.height = '24px'; // adjust as needed
+
+						row.appendChild(img);
+						rootEl.appendChild(row);
+					};
+
+					const renderLabel = (rootEl, idText) => {
+						// small pill with icon + id
+						rootEl.style.background = 'rgba(255,208,52,0.95)';
+						rootEl.style.border = '1px solid rgba(0,0,0,0.15)';
+						rootEl.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+						rootEl.style.padding = '4px 6px';
+						rootEl.style.borderRadius = '6px';
+						rootEl.style.minWidth = '0';
+						rootEl.style.minHeight = '0';
+						const row = document.createElement('div');
+						row.style.display = 'inline-flex';
+						row.style.alignItems = 'center';
+						row.style.gap = '6px';
+						row.innerHTML = noteSvgInner;
+						const idSpan = document.createElement('span');
+						idSpan.textContent = idText || 'Note';
+						idSpan.style.fontSize = '12px';
+						idSpan.style.color = '#111827';
+						idSpan.style.fontWeight = '600';
+						row.appendChild(idSpan);
+						rootEl.appendChild(row);
+					};
+
+					const addFoldedCorner = (box,size) => {
 						let fold = box.querySelector('.mx-note-fold');
 						if (!fold) {
-							const size = 20; // same size as cut
 							fold = document.createElement('div');
 							fold.className = 'mx-note-fold';
 							fold.style.position = 'absolute';
@@ -670,67 +729,142 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 							box.appendChild(fold);
 						}
 					};
-					
-
+			
+const NOTE_ICON_ZOOM = 5;    
 					const renderNote = (state, expanded) => {
-						const { rootEl } = state;
-						rootEl.innerHTML = '';
-						styleBaseBox(rootEl);
-						addFoldedCorner(rootEl);
-						rootEl.addEventListener('mousedown', (ev) => { ev.stopPropagation(); ev.preventDefault(); });
-						rootEl.addEventListener('dblclick', stopEvt);
-						rootEl.addEventListener('click', stopEvt);
-						rootEl.addEventListener('wheel', stopEvt, { passive: true });
+						
+    const { rootEl } = state;
+    rootEl.innerHTML = '';
+    // reset ALL inline styles to avoid layout drift
+rootEl.style.background = 'transparent';
+rootEl.style.border = 'none';
+rootEl.style.boxShadow = 'none';
+rootEl.style.padding = '0';
+rootEl.style.borderRadius = '0';
+rootEl.style.minWidth = '0';
+rootEl.style.minHeight = '0';
+rootEl.style.maxWidth = 'none';
+rootEl.style.maxHeight = 'none';
+rootEl.style.width = 'auto';
+rootEl.style.height = 'auto';
+rootEl.style.clipPath = 'none';
+rootEl.style.webkitClipPath = 'none';
+rootEl.style.display = 'inline-block';
+rootEl.style.position = 'relative';
+rootEl.style.whiteSpace = 'nowrap';
+    rootEl.style.pointerEvents = 'auto';
+    rootEl.addEventListener('mousedown', (ev) => { ev.stopPropagation(); ev.preventDefault(); });
+    rootEl.addEventListener('dblclick', stopEvt);
+    rootEl.addEventListener('click', stopEvt);
+    rootEl.addEventListener('wheel', stopEvt, { passive: true });
 
-						if (expanded) {
-							rootEl.style.minWidth = '240px';
-							rootEl.style.maxWidth = '320px';
-							rootEl.style.minHeight = '120px';
-							const title = document.createElement('div');
-							title.style.fontWeight = '700';
-							title.style.fontSize = '14px';
-							title.style.marginBottom = '6px';
-							title.style.outline = 'none';
-							title.style.whiteSpace = 'nowrap';
-							title.style.overflow = 'hidden';
-							title.style.textOverflow = 'ellipsis';
-							title.style.background = '#d9d9d9';
-							title.style.borderRadius = '2px';
-							title.style.padding = '2px 4px';
-							const body = document.createElement('div');
-							body.style.outline = 'none';
-							body.style.minHeight = '80px';
-							body.style.whiteSpace = 'pre-wrap';
-							body.style.wordBreak = 'break-word';
-							body.style.paddingRight = '8px';
+    const z = map.current.getZoom();
+    
+    // Anchor handling: center for icon/label, bottom for full box
+    try {
+        if (state.marker && state.marker.setAnchor) {
+            state.marker.setAnchor(z >= NOTE_EXPAND_ZOOM ? 'bottom' : 'center');
+        }
+    } catch (_) {}
 
-							// Values or placeholders (display-only)
-							title.textContent = (state.title && state.title.trim().length>0) ? state.title : 'Title';
-							body.textContent = (state.body && state.body.trim().length>0) ? state.body : '';
+    // CHANGE THIS PART - update the zoom level conditions:
+    
+    if (z < NOTE_ICON_ZOOM) {
+        // icon only (zoomed out)
+        renderMini(rootEl);
+        state.expanded = false;
+        state.titleEl = null;
+        state.bodyEl = null;
+        return;
+    }
 
-							// display-only (no editing or focus handlers)
 
-							rootEl.appendChild(title);
-							rootEl.appendChild(body);
-							state.expanded = true;
-							state.titleEl = title;
-							state.bodyEl = body;
-						} else {
-							rootEl.style.minWidth = '180px';
-							rootEl.style.maxWidth = '240px';
-							rootEl.style.minHeight = '30px';
-							const line = document.createElement('div');
-							line.style.outline = 'none';
-							line.style.whiteSpace = 'nowrap';
-							line.style.overflow = 'hidden';
-							line.style.textOverflow = 'ellipsis';
-							line.textContent = (state.title && state.title.trim().length>0) ? state.title : 'Starting few words';
-							rootEl.appendChild(line);
-							state.expanded = false;
-							state.titleEl = line;
-							state.bodyEl = null;
-						}
-					};
+	if (z >= NOTE_ICON_ZOOM && z < NOTE_EXPAND_ZOOM) {
+	// medium rectangle (higher zoom)
+	styleBaseBox(rootEl,10);
+	addFoldedCorner(rootEl,10);
+	rootEl.style.minWidth = '222px';
+	rootEl.style.maxWidth = '222px';
+	rootEl.style.minHeight = '37px';
+	rootEl.style.maxHeight = '37px';
+	
+	// Add centering styles
+	rootEl.style.display = 'flex';
+	rootEl.style.flexDirection = "column";
+	rootEl.style.alignItems = 'center';
+	
+	const newD = document.createElement('div');
+	newD.style.height = "5px";
+	newD.style.width = "100%";
+	newD.style.background = "#D9D9D9";
+	newD.style.opacity = "54%";
+	newD.style.marginBottom = "5px";
+
+	const header = document.createElement('div');
+	header.style.display = 'flex';
+	header.style.alignItems = 'center';
+	header.style.gap = '4px';
+	header.style.marginBottom = '0'; // Remove bottom margin since we're centering
+	
+	const titleSpan = document.createElement('span');
+	titleSpan.textContent = (state.title && state.title.trim().length>0) ? state.title : 'Note';
+	titleSpan.style.marginLeft = '4px';
+	titleSpan.style.fontSize = '12px';
+	titleSpan.style.fontWeight = '600';
+	titleSpan.style.whiteSpace = 'nowrap';
+	titleSpan.style.overflow = 'hidden';
+	titleSpan.style.textOverflow = 'ellipsis';
+	
+	header.appendChild(titleSpan);
+	rootEl.appendChild(newD);
+	rootEl.appendChild(header);
+	
+	state.expanded = false;
+	state.titleEl = null;
+	state.bodyEl = null;
+	return;
+}
+
+    // full mode (very zoomed in) - keep existing full rectangle logic
+    styleBaseBox(rootEl,20);
+    addFoldedCorner(rootEl,20);
+    rootEl.style.minWidth = '222px';
+	rootEl.style.maxWidth = '222px';
+	rootEl.style.minHeight = '222px';
+	rootEl.style.maxHeight = '222px';
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.gap = '6px';
+    
+    const title = document.createElement('div');
+	title.style.width = '100%';
+    title.style.fontWeight = '700';
+    title.style.fontSize = '14px';
+    title.style.marginBottom = '6px';
+    title.style.outline = 'none';
+    title.style.whiteSpace = 'nowrap';
+    title.style.overflow = 'hidden';
+    title.style.textOverflow = 'ellipsis';
+	title.style.background = "rgba(217, 217, 217, 0.60)"
+	title.style.padding = "5px 10px"
+    title.textContent = (state.title && state.title.trim().length>0) ? state.title : 'Title';
+
+    const body = document.createElement('div');
+    body.style.outline = 'none';
+    body.style.minHeight = '80px';
+    body.style.whiteSpace = 'pre-wrap';
+    body.style.wordBreak = 'break-word';
+    body.style.padding = '5px';
+    body.innerHTML = (state.body && state.body.trim().length>0) ? state.body : '';
+
+    header.appendChild(title);
+    rootEl.appendChild(header);
+    rootEl.appendChild(body);
+    state.expanded = true;
+    state.titleEl = title;
+    state.bodyEl = body;
+};
 
 					const ensureCursorEl = () => {
 						if (cursorEl) return cursorEl;
@@ -741,37 +875,54 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						el.style.transform = "translate(-50%, -50%)";
 						el.style.fontSize = "18px";
 						el.style.lineHeight = "1";
-						el.textContent = "📝";
+						el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 512 512"><path fill="#ffd469" d="M450.812 462.658H74.759a8.8 8.8 0 0 1-8.802-8.802V77.802A8.8 8.8 0 0 1 74.759 69H290.76l168.854 168.854v216.001a8.8 8.8 0 0 1-8.802 8.803"/><path fill="#597b91" d="M242.863 168.403H126.007c-6.613 0-11.974-5.361-11.974-11.974s5.361-11.974 11.974-11.974h116.856c6.613 0 11.974 5.361 11.974 11.974s-5.361 11.974-11.974 11.974m11.974 66.401c0-6.613-5.361-11.974-11.974-11.974H126.007c-6.613 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h116.856c6.613-.001 11.974-5.361 11.974-11.974m0 78.374c0-6.612-5.361-11.974-11.974-11.974H126.007c-6.613 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h116.856c6.613-.001 11.974-5.362 11.974-11.974m101.165 78.374c0-6.612-5.361-11.974-11.974-11.974H126.007c-6.613 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h218.021c6.613-.001 11.974-5.362 11.974-11.974m40.334-78.374c0-6.612-5.361-11.974-11.974-11.974h-80.668c-6.612 0-11.974 5.361-11.974 11.974s5.361 11.974 11.974 11.974h80.668c6.613-.001 11.974-5.362 11.974-11.974"/><path fill="#ffb636" d="m290.76 69l168.854 168.854H326.651c-19.822 0-35.891-16.069-35.891-35.891z"/></svg>';
 						map.current.getContainer().appendChild(el);
 						cursorEl = el;
 						return el;
 					};
 
-					const createTextboxMarker = (lngLat, initialTitle = '', initialBody = '') => {
+					const createTextboxMarker = (lngLat, initialTitle = '', initialBody = '', noteId = null, backgroundColor = "") => {
 						const root = document.createElement("div");
 						root.className = 'mx-note-root';
 						root.spellcheck = true;
-						const state = { rootEl: root, title: initialTitle, body: initialBody, expanded: false, titleEl: null, bodyEl: null };
-						const expanded = (map.current.getZoom() >= NOTE_ZOOM_THRESHOLD);
+						const state = { rootEl: root, title: initialTitle, body: initialBody, expanded: false, titleEl: null, bodyEl: null, noteId ,backgroundColor};
+						const expanded = (map.current.getZoom() >= NOTE_EXPAND_ZOOM);
 						renderNote(state, expanded);
 
-						const marker = new maplibregl.Marker({ element: root, draggable: true })
+						// Add click handler to open notes
+						root.addEventListener('click', (e) => {
+							e.stopPropagation();
+							dispatch(openNotes({
+								id: noteId,
+								title: initialTitle,
+								content: initialBody,
+								coordinates: lngLat,
+								backgroundColor
+							}));
+						});
+
+						const marker = new maplibregl.Marker({ element: root, draggable: true, anchor: 'center' })
 							.setLngLat(lngLat)
 							.addTo(map.current);
 
 						const entry = { marker, state };
+						state.marker = marker;
 						textMarkers.push(entry);
 						return entry;
 					};
 
-					const syncNotesWithZoom = () => {
-						const isExpanded = map.current.getZoom() >= NOTE_ZOOM_THRESHOLD;
-						textMarkers.forEach((entry) => {
-							if (entry.state.expanded !== isExpanded) {
-								renderNote(entry.state, isExpanded);
-							}
-						});
+					const clearAllNotes = () => {
+						while (textMarkers.length) {
+							const entry = textMarkers.pop();
+							try { entry.marker.remove(); } catch (_) {}
+						}
 					};
+
+					const syncNotesWithZoom = () => {
+    textMarkers.forEach((entry) => {
+        renderNote(entry.state, false);
+    });
+};
 
 					const activate = () => {
 						if (active) return;
@@ -784,7 +935,14 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 							cursorEl.style.top = `${e.point.y}px`;
 						};
 						onClick = (e) => {
-						createTextboxMarker(e.lngLat, '', '');
+							const entry = createTextboxMarker(e.lngLat, '', '','');
+							// Open notes component for the new note
+							dispatch(openNotes({
+								id: `new`,
+								title: '',
+								content: 'Enter the content here!!',
+								coordinates: e.lngLat,
+							}));
 							// After placing a single note, switch back to select mode
 							deactivate();
 							try { window.mapxDrawSetMode && window.mapxDrawSetMode('select'); } catch (_) {}
@@ -816,7 +974,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 								const lng = Number(it.lng);
 								const lat = Number(it.lat);
 								if (Number.isFinite(lng) && Number.isFinite(lat)) {
-									createTextboxMarker({ lng, lat }, String(it.title || ''), String(it.body || ''));
+									createTextboxMarker({ lng, lat }, String(it.noteTitle || ''), String(it.body || ''),String(it.backgroundColor||''));
 								}
 							});
 							return true;
@@ -824,9 +982,50 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 							return false;
 						}
 					};
-					// Expose loader globally and attempt default endpoint
+					// Expose loader globally and also a typed loader using project/year/era
 					try { window.mapxNotesLoadFromUrl = loadFromUrl; } catch (_) {}
-					loadFromUrl('/api/notes').catch(() => {});
+					let lastLoaded = { projectId: null, year: null, era: null };
+					let loading = false;
+					const loadByContext = async (opts) => {
+						try {
+							const projectId = projectIdParam || null;
+							// Always read the freshest year at call time (avoid stale closure)
+							const latestYearFromStore = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year);
+							const yearValRaw = (opts && typeof opts.year !== 'undefined') ? opts.year : (latestYearFromStore ?? year);
+							const yearVal = Number(yearValRaw);
+							// era from timeline if present on year shape, else default 'CE'
+							const eraVal = (opts && opts.era) || 'CE';
+							if (projectId && (yearVal !== undefined)) {
+								// Prevent unnecessary API calls (but allow re-fetch if markers are cleared)
+								if (loading) return;
+								loading = true;
+								try {
+									// Clear existing markers before re-rendering
+									clearAllNotes();
+									const response = await fetchAllNotes(projectId, yearVal, eraVal);
+									const notes = response?.note || response || [];
+									if (Array.isArray(notes)) {
+										//try { console.log('Loaded notes:', notes.length, notes); } catch (_) {}
+										notes.forEach((n) => {
+											if (!n) return;
+											const lng = Number(n.longitude);
+											const lat = Number(n.latitude);
+											if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+											const title = n.noteTitle;
+											const body = n.noteContent;
+											createTextboxMarker({ lng, lat }, title, body, n.noteId, n.backgroundColor);
+										});
+									lastLoaded = { projectId, year: yearVal, era: eraVal };
+									}
+								} finally {
+									loading = false;
+								}
+							}
+						} catch (_) { /* ignore */ }
+					};
+					try { window.mapxNotesLoadByContext = loadByContext; } catch (_) {}
+					// Initial load
+					loadByContext({ year });
 					return { activate, deactivate };
 				})();
 
@@ -2189,6 +2388,18 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
+
+	// Refetch notes whenever year changes (Redux timeline)
+useEffect(() => {
+    let t = null;
+    try {
+        if (window.mapxNotesLoadByContext) {
+            const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
+            t = setTimeout(() => window.mapxNotesLoadByContext({ year: latestYear }), 1000);
+        }
+    } catch (_) {}
+    return () => { if (t) clearTimeout(t); };
+}, [year]);
 
 	return (
 		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
