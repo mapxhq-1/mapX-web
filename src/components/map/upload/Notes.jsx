@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Color,FontFamily, TextStyle, FontSize, BackgroundColor } from '@tiptap/extension-text-style'
 import 'prosemirror-view/style/prosemirror.css';
-import {createNote, updateNote} from '../api/note';
+import {createNote, updateNote} from '../../api/note';
 import { toast } from 'react-toastify'
 import { useParams } from 'react-router-dom'
 

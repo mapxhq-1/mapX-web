@@ -5,7 +5,7 @@ export async function fetchAllNotes(projectId, year, era) {
             year: year, era: era
         }
     });
-    return res.data.note;
+    return res.data.notes;
 }
 
 export async function updateNote(noteId, year, era, email, htmlText) {

@@ -7,9 +7,11 @@ import MapView from "../map/MapView";
 import Timeline from "../timeline/Timeline";
 import LeftPanel from "../panels/LeftPanel";
 import RightPanel from "../panels/RightPanel";
-import Notes from "../map/Notes";
-import { closeNotes } from "../../store/mapSlice";
+import Notes from "../map/upload/Notes";
+import ImageModel from "../map/upload/ImageModel"
+import { closeNotes,closeImages, closeHyperlink } from "../../store/mapSlice";
 import { toast } from "react-toastify";
+import HyperlinkModel from "../map/upload/HyperlinkModel";
 
 export default function MainLayout() {
   const [leftExpanded, setLeftExpanded] = useState(false);
@@ -24,6 +26,8 @@ export default function MainLayout() {
   // Get notes state from Redux
   const notesOpen = useSelector((state) => state.map.notesOpen);
   const currentNote = useSelector((state) => state.map.currentNote);
+  const imageOpen = useSelector((state) => state.map.imageOpen);
+  const hyperlinkOpen = useSelector((state) => state.map.hyperlinkOpen);
   
   useEffect(() => {
     async function getProjectDetails() {
@@ -113,24 +117,63 @@ export default function MainLayout() {
       </Box>
       
       {/* Notes Modal - rendered at top level with highest z-index */}
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 1000, // Very high z-index to ensure it's above everything
-          pointerEvents: notesOpen ? "auto" : "none", // Only allow interactions when open
-          display: notesOpen ? "block" : "none", // Hide when closed
-        }}
-      >
-        <Notes 
-          noteData={currentNote} 
-          isOpen={notesOpen} 
-          onClose={() => dispatch(closeNotes())} 
-        />
-      </Box>
+      {/* Notes Modal - separate container */}
+{notesOpen && (
+  <Box
+    sx={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1000,
+      pointerEvents: "auto",
+    }}
+  >
+    <Notes 
+      noteData={currentNote} 
+      isOpen={notesOpen} 
+      onClose={() => dispatch(closeNotes())} 
+    />
+  </Box>
+)}
+
+{/* Image Modal - separate container */}
+{imageOpen && (
+  <Box
+    sx={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1001, // Higher than Notes modal
+      pointerEvents: "auto",
+    }}
+  >
+    <ImageModel 
+      onClose={() => dispatch(closeImages())} 
+    />
+  </Box>
+)}
+
+{hyperlinkOpen && (
+  <Box
+    sx={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1001, // Higher than Notes modal
+      pointerEvents: "auto",
+    }}
+  >
+    <HyperlinkModel
+      onClose={() => dispatch(closeHyperlink())} 
+    />
+  </Box>
+)}
     </Box>
   );
 }
