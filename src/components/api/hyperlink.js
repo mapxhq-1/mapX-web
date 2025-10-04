@@ -4,7 +4,6 @@ export async function fetchAllHyperlinks(projectId,year,era) {
         headers:{client_name:"mapx"},
         params:{year,era}
     })
-    console.log(res);
     return res.data.hyperlinks;
 }
 
@@ -23,5 +22,10 @@ export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era) 
 
 export async function createHyperlink(projectId,email,hyperlinkTitle,year,era,latitude,longitude,hyperlink) {
     const res = await axios.post(`/project-management-service/create-new-hyperlink`,{projectId,email,hyperlinkTitle,yearInTimeline:{year,era},latitude,longitude,hyperlink},{headers:{client_name:"mapx"}})
-    console.log(res);
+    return res;
+}
+
+export async function deleteHyperlink(hyperlinkId,email){
+    const res = await axios.delete('/project-management-service/delete-hyperlink/'+hyperlinkId,{params:{email},headers:{client_name:"mapx"}})
+    return res;
 }

@@ -2,6 +2,8 @@ import { fetchAllImages, fetchImageById } from "../api/image";
 import maplibregl from "maplibre-gl";
 import { useDispatch } from "react-redux";
 import {openImages} from '../../store/mapSlice';
+import image_icon from '../../assets/icons/image_icon.png'
+
 export const imageManager = (mapRef) => {
     const dispatch = useDispatch();
     const map = mapRef;
@@ -16,8 +18,7 @@ export const imageManager = (mapRef) => {
 
 
     // Default placeholder image (you can replace this)
-    const defaultImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRkZGRkZGIi8+CjxwYXRoIGQ9Ik0xOSAzSDVDMy44OTU0MyAzIDMgMy44OTU0MyAzIDVWMTlDMyAyMC4xMDQ2IDMuODk1NDMgMjEgNSAyMUgxOUMyMC4xMDQ2IDIxIDIxIDIwLjEwNDYgMjEgMTlWNUMyMSAzLjg5NTQzIDIwLjEwNDYgMyAxOSAzWiIgZmlsbD0iI0ZGRjlDMCIvPgo8Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSIzIiBmaWxsPSIjRkZGRkZGIi8+CjxwYXRoIGQ9Ik0xOSAyMUw1IDIxTDEwIDE0TDE0IDE4TDE3IDE1TDE5IDIxWiIgZmlsbD0iI0ZGRkZGRiIvPgo8L3N2Zz4K';
-
+    const defaultImage = image_icon;
     const styleBaseBox = (box) => {
         box.style.background = "transparent";
         box.style.border = "none";
@@ -231,19 +232,29 @@ const renderImage = (state, force = false) => {
 };
 
 
-    const ensureCursorEl = () => {
-        if (cursorEl) return cursorEl;
-        const el = document.createElement("div");
-        el.style.position = "absolute";
-        el.style.pointerEvents = "none";
-        el.style.zIndex = "24";
-        el.style.transform = "translate(-50%, -50%)";
-        el.style.fontSize = "18px";
-        el.style.lineHeight = "1";
-        el.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" fill="white"/><path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" fill="#FFD469"/><circle cx="12" cy="10" r="3" fill="white"/><path d="M19 21L5 21L10 14L14 18L17 15L19 21Z" fill="white"/></svg>';
-        map.current.getContainer().appendChild(el);
-        cursorEl = el;
-        return el;
+const ensureCursorEl = () => {
+    if (cursorEl) return cursorEl;
+
+    const el = document.createElement("div");
+    el.style.position = "absolute";
+    el.style.pointerEvents = "none";
+    el.style.zIndex = "24";
+    el.style.transform = "translate(-50%, -50%)";
+    el.style.fontSize = "18px";
+    el.style.lineHeight = "1";
+
+    const img = document.createElement("img");
+    img.src = image_icon;
+    img.style.width = "30px";     // adjust size
+    img.style.height = "30px";    // adjust size
+    img.style.objectFit = "contain";
+    img.draggable = false;        // prevent drag behavior
+
+    el.appendChild(img);
+
+    map.current.getContainer().appendChild(el);
+    cursorEl = el;
+    return el;
     };
 
     const createImageMarker = (lngLat, imageUrl = '', imageId = null, caption = '') => {

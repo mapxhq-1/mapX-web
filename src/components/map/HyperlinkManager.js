@@ -2,7 +2,7 @@ import { fetchAllHyperlinks } from "../api/hyperlink";
 import maplibregl from "maplibre-gl";
 import { useDispatch } from "react-redux";
 import { openHyperlink } from '../../store/mapSlice';
-
+import hyperlink_icon from '../../assets/icons/hyperlink_icon.png'
 export const hyperlinkManager = (mapRef) => {
     const dispatch = useDispatch();
     const map = mapRef;
@@ -14,9 +14,6 @@ export const hyperlinkManager = (mapRef) => {
     const HYPERLINK_EXPAND_ZOOM = 12; // full iframe display
     const HYPERLINK_ICON_ZOOM = 5;    // small icon
     const stopEvt = (ev) => ev.stopPropagation();
-
-    // Default link icon SVG
-    const defaultLinkIcon = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjNEE5MEUyIi8+CjxwYXRoIGQ9Ik0xMiA2QzguNjg2MjkgNiA2IDguNjg2MjkgNiAxMkM2IDE1LjMxMzcgOC42ODYyOSAxOCAxMiAxOEMxNS4zMTM3IDE4IDE4IDE1LjMxMzcgMTggMTJDMTggOC42ODYyOSAxNS4zMTM3IDYgMTIgNloiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIvPgo8cGF0aCBkPSJNOCAxMkgxNiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+CjxwYXRoIGQ9Ik0xMiA4VjE2IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+';
 
     // Edit icon SVG
     const editIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -38,7 +35,7 @@ export const hyperlinkManager = (mapRef) => {
     };
 
     const applyModeStyles = (contentEl, mode) => {
-        contentEl.style.background = 'white';
+        contentEl.style.background = 'transparent';
         contentEl.style.borderRadius = '4px';
         contentEl.style.overflow = 'hidden';
         contentEl.style.cursor = 'pointer';
@@ -92,7 +89,7 @@ export const hyperlinkManager = (mapRef) => {
 
             // Create icon element for mini mode
             const iconEl = document.createElement('img');
-            iconEl.src = defaultLinkIcon;
+            iconEl.src = hyperlink_icon;
             iconEl.alt = 'Link';
             iconEl.style.cssText = `
                 width: 24px;
@@ -383,20 +380,31 @@ export const hyperlinkManager = (mapRef) => {
         }
     };
 
-    const ensureCursorEl = () => {
-        if (cursorEl) return cursorEl;
-        const el = document.createElement("div");
-        el.style.position = "absolute";
-        el.style.pointerEvents = "none";
-        el.style.zIndex = "24";
-        el.style.transform = "translate(-50%, -50%)";
-        el.style.fontSize = "18px";
-        el.style.lineHeight = "1";
-        el.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#4A90E2"/><path d="M8 12h8M12 8v8" stroke="white" stroke-width="2"/></svg>';
-        map.current.getContainer().appendChild(el);
-        cursorEl = el;
-        return el;
+   const ensureCursorEl = () => {
+    if (cursorEl) return cursorEl;
+
+    const el = document.createElement("div");
+    el.style.position = "absolute";
+    el.style.pointerEvents = "none";
+    el.style.zIndex = "24";
+    el.style.transform = "translate(-50%, -50%)";
+    el.style.fontSize = "18px";
+    el.style.lineHeight = "1";
+    
+    const img = document.createElement("img");
+    img.src = hyperlink_icon;
+    img.style.width = "30px";     // adjust size
+    img.style.height = "30px";    // adjust size
+    img.style.objectFit = "contain";
+    img.draggable = false;        // prevent drag behavior
+
+    el.appendChild(img);
+
+    map.current.getContainer().appendChild(el);
+    cursorEl = el;
+    return el;
     };
+
 
     const createHyperlinkMarker = (lngLat, hyperlinkUrl = '', hyperlinkId = null, title = '') => {
         // Create the stable anchor container (fixed size, never changes)

@@ -635,7 +635,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const NOTE_EXPAND_ZOOM = 12; // full box with content
 	const stopEvt = (ev) => ev.stopPropagation();
 
-	const styleBaseBox = (box,foldSize) => {
+	const styleBaseBox = (box,foldSize,state) => {
+		// console.log(state);
 		box.style.background = "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)";
 		box.style.boxShadow = "0 8px 20px rgba(0,0,0,0.18)";
 		box.style.color = "#111827";
@@ -776,7 +777,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 		if (z >= NOTE_ICON_ZOOM && z < NOTE_EXPAND_ZOOM) {
 			// medium rectangle (higher zoom)
-			styleBaseBox(rootEl,10);
+			styleBaseBox(rootEl,10,state);
 			addFoldedCorner(rootEl,10);
 			rootEl.style.minWidth = '222px';
 			rootEl.style.maxWidth = '222px';
@@ -821,7 +822,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		}
 
 		// full mode (very zoomed in)
-		styleBaseBox(rootEl,20);
+		styleBaseBox(rootEl,20,state);
 		addFoldedCorner(rootEl,20);
 		rootEl.style.minWidth = '222px';
 		rootEl.style.maxWidth = '222px';

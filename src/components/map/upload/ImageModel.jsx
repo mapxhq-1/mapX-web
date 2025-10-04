@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { closeImages } from "../../../store/mapSlice";
-import { uploadNewImage, updateImage } from "../../api/image";
+import { uploadNewImage, updateImage, deleteImage } from "../../api/image";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -10,6 +10,8 @@ const ImageModel = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [caption, setCaption] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const fileInputRef = useRef();
   const isOpen = useSelector((state) => state.map.imageOpen);
   const currentImage = useSelector((state) => state.map.currentImage);
@@ -18,19 +20,17 @@ const ImageModel = () => {
   const year = useSelector((state) => state.map.year);
   const email = useSelector((state) => state.project.ownerEmail);
 
-  // Determine if this is an update or new upload
   const isUpdate = currentImage?.id && currentImage.id !== "new";
 
-  // Initialize caption from currentImage when editing
   useEffect(() => {
     if (isUpdate && currentImage?.caption) {
-      setPreview(currentImage.imageUrl);
+      setPreview(currentImage.imageUrl || null);
       setCaption(currentImage.caption);
     } else {
       setCaption("");
+      setPreview(null);
     }
     setSelectedFile(null);
-
   }, [isOpen, currentImage?.id, isUpdate, currentImage?.caption]);
 
   const handleFileChange = (e) => {
@@ -41,74 +41,93 @@ const ImageModel = () => {
     }
   };
 
-  const handleUpload = async () => {
+  const handleUploadOrUpdate = async () => {
     if (!selectedFile) {
-      toast.error("No file selected");
+      toast.error("Please select an image file");
       return;
     }
+
     try {
-      await uploadNewImage(
-        projectId,
-        email,
-        Number(currentImage.coordinates.lat),
-        Number(currentImage.coordinates.lng),
-        selectedFile,
-        caption,
-        year,
-        "CE"
-      );
+      if (isUpdate) {
+        await updateImage(
+          currentImage.id,
+          email,
+          selectedFile,
+          caption,
+          year,
+          "CE"
+        );
+        toast.success("Image updated successfully");
+      } else {
+        await uploadNewImage(
+          projectId,
+          email,
+          Number(currentImage.coordinates.lat),
+          Number(currentImage.coordinates.lng),
+          selectedFile,
+          caption,
+          year,
+          "CE"
+        );
+        toast.success("Image uploaded successfully");
+      }
+
       setSelectedFile(null);
       setPreview(null);
       setCaption("");
       dispatch(closeImages());
-      toast.success("Image uploaded successfully");
 
       setTimeout(() => {
-        window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year, era: "CE" });
+        window.mapxImagesloadImagesByContext({
+          projectIdParam: projectId,
+          year,
+          era: "CE",
+        });
       }, 500);
     } catch (e) {
-      toast.error("Upload failed: " + e.response?.data?.message);
+      toast.error("Action failed: " + (e.response?.data?.message || e.message));
     }
   };
 
-  const handleUpdate = async () => {
+  const handleDelete = async () => {
     try {
-      await updateImage(
-        currentImage.id,
-        email,
-        selectedFile,// Optional: only if user selected a new file
-        caption,
-        year,
-        "CE"
-      );
-      setSelectedFile(null);
-      setPreview(null);
-      setCaption("");
+      await deleteImage(currentImage.id, email);
+      toast.success("Image deleted successfully");
+      setShowConfirm(false);
       dispatch(closeImages());
-      toast.success("Image updated successfully");
-      console.log(window.mapxImagesloadImagesByContext)
       setTimeout(() => {
-        window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year, era: "CE" });
+        window.mapxImagesloadImagesByContext({
+          projectIdParam: projectId,
+          year,
+          era: "CE",
+        });
       }, 500);
     } catch (e) {
-      toast.error("Update failed: " + e.response?.data?.message);
+      toast.error("Failed to delete image");
+      setShowConfirm(false);
+      console.log(e);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-40">
-      <div className="relative w-[400px] h-[460px]  rounded-lg shadow-xl flex flex-col items-center p-4 bg-white/2.5 border border-white/50 backdrop-blur-sm 
-          shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      {/* Main Glass Modal */}
+      <div
+        className="relative w-[400px] h-[500px] rounded-2xl shadow-xl flex flex-col items-center p-5
+        bg-white/10 border border-white/30 backdrop-blur-md 
+        shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]"
+      >
+        {/* Close */}
         <button
           onClick={() => dispatch(closeImages())}
-          className="absolute top-2 right-2 z-10 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
+          className="absolute top-3 right-3 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
         >
-          x
+          ×
         </button>
 
-        <h2 className="text-lg font-semibold mb-4">
+        <h2 className="text-xl font-semibold text-white mb-4">
           {isUpdate ? "Update Image" : "Upload Image"}
         </h2>
 
@@ -116,16 +135,10 @@ const ImageModel = () => {
           <img
             src={preview}
             alt="Preview"
-            className="w-[300px] h-[250px] object-contain border mb-4"
-          />
-        ) : isUpdate && currentImage?.url ? (
-          <img
-            src={currentImage.url}
-            alt="Current"
-            className="w-[300px] h-[250px] object-contain border mb-4"
+            className="w-[300px] h-[250px] object-contain border border-white/40 mb-4 rounded-lg bg-black/20"
           />
         ) : (
-          <div className="w-[300px] h-[250px] flex items-center justify-center border border-dashed text-gray-400 mb-4">
+          <div className="w-[300px] h-[250px] flex items-center justify-center border border-dashed border-white/40 text-gray-300 mb-4 rounded-lg">
             No image selected
           </div>
         )}
@@ -135,7 +148,7 @@ const ImageModel = () => {
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           placeholder="Enter caption"
-          className="w-[300px] mb-3 px-3 py-2 border rounded focus:outline-none focus:ring"
+          className="w-[300px] mb-3 px-3 py-2 border border-white/40 rounded bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
 
         <input
@@ -147,22 +160,59 @@ const ImageModel = () => {
         />
         <button
           onClick={() => fileInputRef.current.click()}
-          className="px-4 py-2 mb-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600"
+          className="px-4 py-2 mb-2 rounded-lg bg-blue-500/80 hover:bg-blue-600 text-white shadow-md"
         >
-          {isUpdate ? "Change File (Optional)" : "Choose File"}
+          Choose File
         </button>
 
-        <button
-          onClick={isUpdate ? handleUpdate : handleUpload}
-          disabled={isUpdate ? false : !selectedFile}
-          className={`px-4 py-2 rounded-lg text-white ${isUpdate || selectedFile
-              ? "bg-green-500 hover:bg-green-600"
-              : "bg-gray-400 cursor-not-allowed"
-            }`}
-        >
-          {isUpdate ? "Update" : "Upload"}
-        </button>
+        <div className="flex gap-3 mt-2">
+          <button
+            onClick={handleUploadOrUpdate}
+            className="px-4 py-2 rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md"
+          >
+            {isUpdate ? "Update" : "Upload"}
+          </button>
+
+          {isUpdate && (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Glass Delete Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-[10000]">
+          <div
+            className="w-[320px] p-5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 
+            shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.4)] text-center"
+          >
+            <h2 className="text-lg font-semibold text-white mb-3">
+              Delete this image?
+            </h2>
+            <p className="text-gray-300 mb-5">This action cannot be undone.</p>
+
+            <div className="flex justify-around">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

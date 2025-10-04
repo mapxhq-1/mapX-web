@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import save from "../../assets/icons/save.png";
 import axios from "axios";
 import { useSelector } from "react-redux";
@@ -165,7 +165,7 @@ function Open({ setIsOpen, project }) {
               </div>
             </div>
           )}
-          <div className=" rounded-lg p-2 mt-2 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)]">
+          <div className="rounded-lg p-2 mt-2 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)]">
             <p className="mb-2 ">
               {originalProjName}
             </p>

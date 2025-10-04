@@ -23,7 +23,6 @@ export async function uploadNewImage(projectId, email, latitude, longitude, imag
     headers: { client_name: 'mapx' },
   });
 
-  console.log(res);
   return res.data; // ImageUploadResponse
 }
 
@@ -54,7 +53,10 @@ export async function updateImage(imageId, email, imageFile, caption, year, era)
     formData,
     { headers: { client_name: 'mapx' } } // don't set Content-Type manually
   );
-
-  console.log(res);
   return res.data; // ImageUploadResponse
+}
+
+export async function deleteImage(imageId,email){
+    const res = await axios.delete('/project-management-service/delete-image-by-id/'+imageId,{params:{email},headers:{client_name:"mapx"}})
+    return res;
 }

@@ -23,12 +23,16 @@ export async function updateNote(noteId, year, era, email, htmlText) {
 }
 
 export async function createNote(projectId, year, era, latitude, longitude, email, htmlText, Title, backgroundColor) {
-    console.log(Title);
     const res = await axios.post('/project-management-service/create-new-note',
         { projectId, yearInTimeline: { year, era }, latitude, longitude, email, htmlText, noteTitle:Title, backgroundColor }, {
         headers: {
             client_name: "mapx"
         }
     })
+    return res;
+}
+
+export async function deleteTheNote(noteId,email){
+    const res = await axios.delete('/project-management-service/delete-note/'+noteId,{params:{email},headers:{client_name:"mapx"}})
     return res;
 }
