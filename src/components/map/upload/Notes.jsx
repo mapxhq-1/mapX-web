@@ -8,6 +8,7 @@ import { createNote, deleteTheNote, updateNote } from '../../api/note';
 import { toast } from 'react-toastify'
 import { useParams } from 'react-router-dom'
 import delete_icon from '../../../assets/icons/delete_icon.png'
+import { useQueryClient } from '@tanstack/react-query'
 
 const Notes = ({ onClose = null, isOpen = false }) => {
   const { id: projectId } = useParams();
@@ -25,7 +26,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
   const [notesTitle, setNotesTitle] = useState(currentNote?.title);
   const [content, setContent] = useState(currentNote?.content);
   const [showConfirm, setShowConfirm] = useState(false);
-
+  const queryClient = useQueryClient();
   const colorRef = useRef(null);
   const settingsRef = useRef(null);
   const editorRef = useRef(null);
@@ -56,6 +57,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
         await updateNote(currentNote.id, year, "CE", ownerEmail, htmlText);
         toast.success("Note updated successfully!!");
         onClose();
+        queryClient.invalidateQueries(["notes"]);
       } catch (err) {
         toast.error(err.response.data.message);
       }
@@ -73,6 +75,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
           currentColor
         );
         toast.success("Note saved successfully!!");
+        queryClient.invalidateQueries(["notes"]);
       } catch (err) {
         toast.error(err.response.data.message);
       }
@@ -138,6 +141,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
         window.mapxNotesLoadByContext();
       }, 500);
       onClose();
+      queryClient.invalidateQueries(["notes"]);
     } catch (e) {
       toast.error(e.response?.statusText || "Error deleting note");
       console.log(e);
@@ -260,7 +264,16 @@ const Notes = ({ onClose = null, isOpen = false }) => {
         {/* === NOTE CONTENT === */}
         <div ref={editorRef} className='ml-[300px] w-[400px]' onClick={() => setShowSettings(true)}>
           <div className='w-[400px] h-[35px] bg-[#D9D9D9] flex items-center'>
-            <input className='w-full p-1 focus:outline-none' type='text' value={notesTitle} onChange={(e) => setNotesTitle(e.target.value)} />
+            <div title={!newNote ? "Title cannot be edited for existing notes" : ""}>
+  <input
+    className={`w-full p-1 focus:outline-none ${!newNote ? ' cursor-not-allowed' : ''}`}
+    type='text'
+    value={notesTitle}
+    onChange={(e) => newNote && setNotesTitle(e.target.value)} 
+    disabled={!newNote}
+  />
+</div>
+
           </div>
           <div className='h-[365px] w-[400px]' style={{ background: colorGradients[currentColor] || currentColor }}>
             <EditorContent editor={editor} />

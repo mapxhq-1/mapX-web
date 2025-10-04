@@ -4,6 +4,8 @@ import { closeHyperlink } from "../../../store/mapSlice";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { createHyperlink, updateHyperlink, deleteHyperlink } from "../../api/hyperlink";
+import { useQueryClient } from '@tanstack/react-query'
+
 
 const HyperlinkModel = () => {
   const dispatch = useDispatch();
@@ -12,6 +14,7 @@ const HyperlinkModel = () => {
   const { id: projectId } = useParams();
   const email = useSelector((state) => state.project.ownerEmail);
   const year = useSelector((state) => state.map.year);
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
@@ -40,6 +43,7 @@ const HyperlinkModel = () => {
       if (isUpdate) {
         await updateHyperlink(currentHyperlink.id, email, link, year, "CE");
         toast.success("Hyperlink updated successfully");
+        queryClient.invalidateQueries(["hyperlink"]);
       } else {
         if (!title.trim()) {
           toast.error("Please enter a title");
@@ -55,6 +59,7 @@ const HyperlinkModel = () => {
           currentHyperlink.coordinates.lng,
           link
         );
+        queryClient.invalidateQueries(["hyperlink"]);
         toast.success("Hyperlink saved successfully");
       }
 
@@ -81,6 +86,7 @@ const HyperlinkModel = () => {
       await deleteHyperlink(currentHyperlink.id, email);
       toast.success("Hyperlink deleted");
       setShowConfirm(false);
+      queryClient.invalidateQueries(["hyperlink"]);
       setTimeout(() => {
         window.mapxHyperlinksloadHyperlinksByContext({
           projectIdParam: projectId,

@@ -4,6 +4,8 @@ import { closeImages } from "../../../store/mapSlice";
 import { uploadNewImage, updateImage, deleteImage } from "../../api/image";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useQueryClient } from '@tanstack/react-query'
+
 
 const ImageModel = () => {
   const dispatch = useDispatch();
@@ -11,6 +13,7 @@ const ImageModel = () => {
   const [preview, setPreview] = useState(null);
   const [caption, setCaption] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const queryClient = useQueryClient();
 
   const fileInputRef = useRef();
   const isOpen = useSelector((state) => state.map.imageOpen);
@@ -43,7 +46,7 @@ const ImageModel = () => {
 
   const handleUploadOrUpdate = async () => {
     if (!selectedFile) {
-      toast.error("Please select an image file");
+      toast.error("Please select a new image file");
       return;
     }
 
@@ -58,6 +61,7 @@ const ImageModel = () => {
           "CE"
         );
         toast.success("Image updated successfully");
+        queryClient.invalidateQueries(["images"]);
       } else {
         await uploadNewImage(
           projectId,
@@ -70,6 +74,7 @@ const ImageModel = () => {
           "CE"
         );
         toast.success("Image uploaded successfully");
+        queryClient.invalidateQueries(["images"]);
       }
 
       setSelectedFile(null);
@@ -95,6 +100,7 @@ const ImageModel = () => {
       toast.success("Image deleted successfully");
       setShowConfirm(false);
       dispatch(closeImages());
+      queryClient.invalidateQueries(["images"]);
       setTimeout(() => {
         window.mapxImagesloadImagesByContext({
           projectIdParam: projectId,
