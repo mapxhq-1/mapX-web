@@ -42,8 +42,10 @@ const Sidebar = () => {
       toast.error(err.response.data.message)
     }
   }
-  
-    const [profileOpen,setProfileOpen]= useState(false);
+    // TODO: Replace with authenticated user's id when auth is wired up
+    const userId = "pui_lmlr3htngdqz3e7iotjod4c6p6k6jnxi";
+    const { ownerEmail: email } = useSelector((state)=>state.project);
+      const [profileOpen,setProfileOpen]= useState(false);
     const dispatch = useDispatch();
     const location = useLocation();
     function handleClick(head){
@@ -208,7 +210,13 @@ const Sidebar = () => {
                         <p className='font-light text-sm text-zinc-400'>sankalpsadekar1@gmail.com</p>
                     </div>
                 </button>
-                {profileOpen&&(<Profile setProfileOpen={setProfileOpen}/>)}
+              {profileOpen && (
+                <Profile 
+                  setProfileOpen={setProfileOpen} 
+                  userId={userId} 
+                  email={email} 
+                />
+              )}
             </div>
         </div>
     </div>

@@ -43,7 +43,7 @@ export async function fetchImageById(imageName) {
 
 export async function updateImage(imageId, email, imageFile, caption, year, era) {
   const formData = new FormData();
-  formData.append('email', String(email));updateImage
+  formData.append('email', String(email));
   formData.append('imageFile', imageFile, imageFile?.name || 'image.jpg');
   formData.append('caption', String(caption));
   formData.append('year', String(year));
@@ -59,4 +59,12 @@ export async function updateImage(imageId, email, imageFile, caption, year, era)
 export async function deleteImage(imageId,email){
     const res = await axios.delete('/project-management-service/delete-image-by-id/'+imageId,{params:{email},headers:{client_name:"mapx"}})
     return res;
+}
+
+export async function fetchAllImagesByProject(projectId) {
+    const res = await axios.get('/project-management-service/get-all-image-by-project-id', {
+        headers: { client_name: "mapx" },
+        params: { projectId }
+    });
+    return res.data.images || [];
 }

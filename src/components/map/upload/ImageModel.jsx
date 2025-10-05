@@ -5,6 +5,8 @@ import { uploadNewImage, updateImage, deleteImage } from "../../api/image";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useQueryClient } from '@tanstack/react-query'
+import { getEraForYear, getAbsoluteYear } from "../../../utils/era";
+import cancel_icon from '../../../assets/icons/cancel_icon.png';
 
 
 const ImageModel = () => {
@@ -26,15 +28,17 @@ const ImageModel = () => {
   const isUpdate = currentImage?.id && currentImage.id !== "new";
 
   useEffect(() => {
-    if (isUpdate && currentImage?.caption) {
+    if (isUpdate && currentImage) {
+      // For existing images, show the image URL in preview
       setPreview(currentImage.imageUrl || null);
-      setCaption(currentImage.caption);
+      setCaption(currentImage.caption || "");
     } else {
+      // For new images, start with empty state
       setCaption("");
       setPreview(null);
     }
     setSelectedFile(null);
-  }, [isOpen, currentImage?.id, isUpdate, currentImage?.caption]);
+  }, [isOpen, currentImage?.id, isUpdate, currentImage?.imageUrl, currentImage?.caption]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -51,14 +55,16 @@ const ImageModel = () => {
     }
 
     try {
+      const selectedEra = getEraForYear(year);
+      const apiYear = getAbsoluteYear(year);
       if (isUpdate) {
         await updateImage(
           currentImage.id,
           email,
           selectedFile,
           caption,
-          year,
-          "CE"
+          apiYear,
+          selectedEra
         );
         toast.success("Image updated successfully");
         queryClient.invalidateQueries(["images"]);
@@ -70,8 +76,8 @@ const ImageModel = () => {
           Number(currentImage.coordinates.lng),
           selectedFile,
           caption,
-          year,
-          "CE"
+          apiYear,
+          selectedEra
         );
         toast.success("Image uploaded successfully");
         queryClient.invalidateQueries(["images"]);
@@ -83,11 +89,11 @@ const ImageModel = () => {
       dispatch(closeImages());
 
       setTimeout(() => {
-        window.mapxImagesloadImagesByContext({
-          projectIdParam: projectId,
-          year,
-          era: "CE",
-        });
+        if (window.mapxImagesLoadByContext) {
+          window.mapxImagesLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        } else if (window.mapxImagesloadImagesByContext) {
+          window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        }
       }, 500);
     } catch (e) {
       toast.error("Action failed: " + (e.response?.data?.message || e.message));
@@ -102,11 +108,11 @@ const ImageModel = () => {
       dispatch(closeImages());
       queryClient.invalidateQueries(["images"]);
       setTimeout(() => {
-        window.mapxImagesloadImagesByContext({
-          projectIdParam: projectId,
-          year,
-          era: "CE",
-        });
+        if (window.mapxImagesLoadByContext) {
+          window.mapxImagesLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        } else if (window.mapxImagesloadImagesByContext) {
+          window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        }
       }, 500);
     } catch (e) {
       toast.error("Failed to delete image");
@@ -118,22 +124,24 @@ const ImageModel = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-transparent bg-opacity-50" onClick={(e) => {
+      if (e.target === e.currentTarget) dispatch(closeImages());
+    }}>
       {/* Main Glass Modal */}
       <div
         className="relative w-[400px] h-[500px] rounded-2xl shadow-xl flex flex-col items-center p-5
-        bg-white/10 border border-white/30 backdrop-blur-md 
+        bg-black/10 border border-white/30 backdrop-blur-md 
         shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]"
       >
-        {/* Close */}
+        {/* Cancel Button */}
         <button
-          onClick={() => dispatch(closeImages())}
-          className="absolute top-3 right-3 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
+          onClick={() => { try { window.mapxImagesRemoveDraftMarkers && window.mapxImagesRemoveDraftMarkers(); } catch (_) {}; dispatch(closeImages()); }}
+          className="absolute top-3 right-3 bg-gray-500/80 hover:bg-gray-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
         >
-          ×
+          <img src={cancel_icon} alt="Cancel" width={16} height={16} />
         </button>
 
-        <h2 className="text-xl font-semibold text-white mb-4">
+        <h2 className="text-xl font-semibold text-black mb-4">
           {isUpdate ? "Update Image" : "Upload Image"}
         </h2>
 
@@ -144,7 +152,7 @@ const ImageModel = () => {
             className="w-[300px] h-[250px] object-contain border border-white/40 mb-4 rounded-lg bg-black/20"
           />
         ) : (
-          <div className="w-[300px] h-[250px] flex items-center justify-center border border-dashed border-white/40 text-gray-300 mb-4 rounded-lg">
+          <div className="w-[300px] h-[250px] flex items-center justify-center border border-dashed border-white/40 text-black mb-4 rounded-lg">
             No image selected
           </div>
         )}
@@ -154,7 +162,7 @@ const ImageModel = () => {
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           placeholder="Enter caption"
-          className="w-[300px] mb-3 px-3 py-2 border border-white/40 rounded bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className="w-[300px] mb-3 px-3 py-2 border border-white/40 rounded bg-white/20 text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
 
         <input
@@ -192,15 +200,15 @@ const ImageModel = () => {
 
       {/* Glass Delete Confirmation Modal */}
       {showConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-[10000]">
+        <div className="fixed inset-0 flex items-center justify-center bg-transparent bg-opacity-50 z-[10000]">
           <div
             className="w-[320px] p-5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 
             shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.4)] text-center"
           >
-            <h2 className="text-lg font-semibold text-white mb-3">
+            <h2 className="text-lg font-semibold text-black mb-3">
               Delete this image?
             </h2>
-            <p className="text-gray-300 mb-5">This action cannot be undone.</p>
+            <p className="text-black mb-5">This action cannot be undone.</p>
 
             <div className="flex justify-around">
               <button

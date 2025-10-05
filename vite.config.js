@@ -9,8 +9,20 @@ export default defineConfig({
   server: {
     proxy: {
       "/project-management-service": {
+        target: "http://localhost:8082",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/auth-service": {
         target: "http://localhost:8081",
         changeOrigin: true,
+        secure: false,
+      },
+      "/embed": {
+        target: "http://localhost:8061",
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/embed/, ""),
       },
     },
   },

@@ -236,7 +236,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
           <p className="text-[15px] ml-5">Notes</p>
         </div>
         </div>
-        <MenuButton menuText="Text" Tag={TextSvg} />
         {/* <MenuButton menuText="Hyperlink" Tag={HyperlinkSvg} /> */}
 
         <div onClick={() => { 

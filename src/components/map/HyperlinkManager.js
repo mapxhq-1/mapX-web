@@ -3,6 +3,7 @@ import maplibregl from "maplibre-gl";
 import { useDispatch } from "react-redux";
 import { openHyperlink } from '../../store/mapSlice';
 import hyperlink_icon from '../../assets/icons/hyperlink_icon.png'
+import { resolveEmbedHtml, normalizeUrl, prefetchEmbed } from "../api/embed";
 export const hyperlinkManager = (mapRef) => {
     const dispatch = useDispatch();
     const map = mapRef;
@@ -11,8 +12,8 @@ export const hyperlinkManager = (mapRef) => {
     let onMove = null;
     let onClick = null;
     const hyperlinkMarkers = [];
-    const HYPERLINK_EXPAND_ZOOM = 12; // full iframe display
-    const HYPERLINK_ICON_ZOOM = 5;    // small icon
+    const HYPERLINK_EXPAND_ZOOM = 6; // full iframe display
+    const HYPERLINK_ICON_ZOOM = 4;    // small icon
     const stopEvt = (ev) => ev.stopPropagation();
 
     // Edit icon SVG
@@ -61,12 +62,12 @@ export const hyperlinkManager = (mapRef) => {
         }
 
         const s = `${size}px`;
-        contentEl.style.width = s;
-        contentEl.style.height = s;
-        contentEl.style.minWidth = s;
-        contentEl.style.maxWidth = s;
-        contentEl.style.minHeight = s;
-        contentEl.style.maxHeight = s;
+        contentEl.style.width = (mode === 'full') ? '400px' : (mode === 'thumb') ? '200px' : s;
+        contentEl.style.height = (mode === 'full') ? '350px' : s;
+        contentEl.style.minWidth = (mode === 'full') ? '400px' : (mode === 'thumb') ? '200px' : s;
+        contentEl.style.maxWidth = (mode === 'full') ? '400px' : (mode === 'thumb') ? '200px' : s;
+        contentEl.style.minHeight = (mode === 'full') ? '350px' : s;
+        contentEl.style.maxHeight = (mode === 'full') ? '350px' : s;
         contentEl.style.boxShadow = boxShadow;
         contentEl.style.border = border;
     };
@@ -97,7 +98,7 @@ export const hyperlinkManager = (mapRef) => {
                 display: none;
             `;
 
-            // Create iframe for larger modes
+            // Create iframe for larger modes (fallback)
             const iframeEl = document.createElement('iframe');
             iframeEl.style.cssText = `
                 width: 100%;
@@ -105,8 +106,19 @@ export const hyperlinkManager = (mapRef) => {
                 border: none;
                 display: none;
             `;
-            iframeEl.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+            // Keep scripts but avoid combining with same-origin to prevent escape warning
+            iframeEl.setAttribute('sandbox', 'allow-scripts');
             iframeEl.setAttribute('loading', 'lazy');
+            iframeEl.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen');
+
+            // Create embed wrapper (preferred when available via Iframely)
+            const embedWrapperEl = document.createElement('div');
+            embedWrapperEl.style.cssText = `
+                width: 100%;
+                height: 100%;
+                display: none;
+                border: none;
+            `;
 
             // Create button container
             const buttonContainer = document.createElement('div');
@@ -237,6 +249,7 @@ export const hyperlinkManager = (mapRef) => {
             loadingEl.innerText = 'Loading...';
 
             contentContainer.appendChild(iconEl);
+            contentContainer.appendChild(embedWrapperEl);
             contentContainer.appendChild(iframeEl);
             contentContainer.appendChild(loadingEl);
             contentEl.appendChild(contentContainer);
@@ -253,6 +266,10 @@ export const hyperlinkManager = (mapRef) => {
             state.editBtn = editBtn;
             state.visitBtn = visitBtn;
             state.contentContainer = contentContainer;
+            state.embedWrapperEl = embedWrapperEl;
+            state.embedResolved = false;
+            state.embedLoading = false;
+            state.embedHtml = '';
             state.initialized = true;
 
             // Add click handlers for buttons
@@ -264,7 +281,8 @@ export const hyperlinkManager = (mapRef) => {
                     id: state.hyperlinkId,
                     hyperlinkUrl: state.hyperlinkUrl,
                     title: state.title,
-                    coordinates: coord
+                    coordinates: coord,
+                    mode: 'edit'
                 }));
             });
 
@@ -300,11 +318,30 @@ export const hyperlinkManager = (mapRef) => {
         state.expanded = (nextMode === 'full');
         applyModeStyles(contentEl, nextMode);
 
+        // Helper: attempt to resolve rich embed via Iframely once
+        const tryResolveEmbed = async () => {
+            if (!state.hyperlinkUrl || state.embedResolved || state.embedLoading) return;
+            state.embedLoading = true;
+            state.loadingEl.style.display = 'block';
+            try {
+                const html = await resolveEmbedHtml(state.hyperlinkUrl);
+                if (html && typeof html === 'string') {
+                    state.embedHtml = html;
+                }
+            } catch (_) {
+                // ignore
+            } finally {
+                state.embedResolved = true;
+                state.embedLoading = false;
+            }
+        };
+
         // Update content based on mode
         if (nextMode === 'mini') {
             // Show icon only
             state.iconEl.style.display = 'block';
             state.iframeEl.style.display = 'none';
+            if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
             state.titleEl.style.display = 'none';
             state.linkEl.style.display = 'none';
             state.loadingEl.style.display = 'none';
@@ -314,25 +351,43 @@ export const hyperlinkManager = (mapRef) => {
             state.iconEl.style.display = 'none';
             state.buttonContainer.style.display = 'flex';
 
-            if (state.hyperlinkUrl && !state.iframeLoaded) {
+            // Resolve embed once, then display either rich embed or fallback iframe
+            tryResolveEmbed();
+            if (!state.hyperlinkUrl) {
                 state.loadingEl.style.display = 'block';
-                state.iframeEl.src = state.hyperlinkUrl;
+                state.loadingEl.innerText = 'No URL';
+                state.iframeEl.style.display = 'none';
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
+            } else if (state.embedResolved && state.embedHtml) {
+                state.loadingEl.style.display = 'none';
+                if (state.embedWrapperEl) {
+                    state.embedWrapperEl.style.display = 'block';
+                    if (!state.embedWrapperEl.firstChild) {
+                        state.embedWrapperEl.innerHTML = state.embedHtml;
+                    }
+                }
+                state.iframeEl.style.display = 'none';
+            } else if (state.embedResolved && !state.embedHtml && !state.iframeLoaded) {
+                state.loadingEl.style.display = 'block';
+                state.iframeEl.src = normalizeUrl(state.hyperlinkUrl);
                 state.iframeLoaded = true;
-
                 state.iframeEl.onload = () => {
                     state.loadingEl.style.display = 'none';
                     state.iframeEl.style.display = 'block';
                 };
-
                 state.iframeEl.onerror = () => {
                     state.loadingEl.innerText = 'Failed to load';
                 };
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
             } else if (state.iframeLoaded) {
                 state.loadingEl.style.display = 'none';
                 state.iframeEl.style.display = 'block';
-            } else if (!state.hyperlinkUrl) {
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
+            } else {
+                // Still resolving embed
                 state.loadingEl.style.display = 'block';
-                state.loadingEl.innerText = 'No URL';
+                state.iframeEl.style.display = 'none';
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
             }
 
             // Show title if available
@@ -348,25 +403,43 @@ export const hyperlinkManager = (mapRef) => {
             state.iconEl.style.display = 'none';
             state.buttonContainer.style.display = 'flex';
 
-            if (state.hyperlinkUrl && !state.iframeLoaded) {
+            // Resolve embed once, then display either rich embed or fallback iframe
+            tryResolveEmbed();
+            if (!state.hyperlinkUrl) {
                 state.loadingEl.style.display = 'block';
-                state.iframeEl.src = state.hyperlinkUrl;
+                state.loadingEl.innerText = 'No URL';
+                state.iframeEl.style.display = 'none';
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
+            } else if (state.embedResolved && state.embedHtml) {
+                state.loadingEl.style.display = 'none';
+                if (state.embedWrapperEl) {
+                    state.embedWrapperEl.style.display = 'block';
+                    if (!state.embedWrapperEl.firstChild) {
+                        state.embedWrapperEl.innerHTML = state.embedHtml;
+                    }
+                }
+                state.iframeEl.style.display = 'none';
+            } else if (state.embedResolved && !state.embedHtml && !state.iframeLoaded) {
+                state.loadingEl.style.display = 'block';
+                state.iframeEl.src = normalizeUrl(state.hyperlinkUrl);
                 state.iframeLoaded = true;
-
                 state.iframeEl.onload = () => {
                     state.loadingEl.style.display = 'none';
                     state.iframeEl.style.display = 'block';
                 };
-
                 state.iframeEl.onerror = () => {
                     state.loadingEl.innerText = 'Failed to load';
                 };
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
             } else if (state.iframeLoaded) {
                 state.loadingEl.style.display = 'none';
                 state.iframeEl.style.display = 'block';
-            } else if (!state.hyperlinkUrl) {
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
+            } else {
+                // Still resolving embed
                 state.loadingEl.style.display = 'block';
-                state.loadingEl.innerText = 'No URL';
+                state.iframeEl.style.display = 'none';
+                if (state.embedWrapperEl) state.embedWrapperEl.style.display = 'none';
             }
 
             // Show both title and URL in full mode
@@ -485,6 +558,9 @@ export const hyperlinkManager = (mapRef) => {
             }
         });
 
+        // Prefetch embed (reduces first-view latency, esp. Wikipedia)
+        try { prefetchEmbed(hyperlinkUrl); } catch(_) {}
+
         const entry = { marker, state };
         hyperlinkMarkers.push(entry);
         return entry;
@@ -513,6 +589,17 @@ export const hyperlinkManager = (mapRef) => {
         hyperlinkMarkers.length = 0;
     };
 
+    // Remove any hyperlink markers that have not been saved (no hyperlinkId)
+    const removeDraftHyperlinks = () => {
+        for (let i = hyperlinkMarkers.length - 1; i >= 0; i--) {
+            const entry = hyperlinkMarkers[i];
+            if (!entry || !entry.state || !entry.state.hyperlinkId) {
+                try { entry.marker.remove(); } catch (_) {}
+                hyperlinkMarkers.splice(i, 1);
+            }
+        }
+    };
+
     const syncHyperlinksWithZoom = () => {
         hyperlinkMarkers.forEach((entry) => {
             renderHyperlink(entry.state, false);
@@ -530,13 +617,14 @@ export const hyperlinkManager = (mapRef) => {
             cursorEl.style.top = `${e.point.y}px`;
         };
         onClick = (e) => {
-            const entry = createHyperlinkMarker(e.lngLat, '', '');
+            // Only open modal; do not place any marker until saved
             dispatch(openHyperlink({
                 id: "new",
                 coordinates: {
                     lng: e.lngLat.lng,
                     lat: e.lngLat.lat
-                }
+                },
+                mode: 'edit'
             }));
 
             deactivate();
@@ -638,7 +726,11 @@ export const hyperlinkManager = (mapRef) => {
         } catch (_) { /* ignore */ }
     };
 
+    // Expose standardized loader name (capital L) used across app
+    try { window.mapxHyperlinksLoadByContext = loadHyperlinksByContext; } catch (_) { }
+    // Backward compatibility (lowercase l)
     try { window.mapxHyperlinksloadHyperlinksByContext = loadHyperlinksByContext; } catch (_) { }
+    try { window.mapxHyperlinksRemoveDraftMarkers = removeDraftHyperlinks; } catch (_) { }
 
     return {
         activate,

@@ -36,3 +36,10 @@ export async function deleteTheNote(noteId,email){
     const res = await axios.delete('/project-management-service/delete-note/'+noteId,{params:{email},headers:{client_name:"mapx"}})
     return res;
 }
+
+export async function fetchAllNotesByProject(projectId) {
+    const res = await axios.get('/project-management-service/get-all-notes-by-project/' + projectId, {
+        headers: { client_name: "mapx" }
+    });
+    return res.data.notes || [];
+}

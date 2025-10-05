@@ -9,8 +9,10 @@ const initialState = {
   currentNote: null,
   imageOpen: false,
   currentImage:null,
+  imageMode: 'view', // 'view' or 'edit'
   hyperlinkOpen: false,
   currentHyperlink:null,
+  hyperlinkMode: 'view', // 'view' or 'edit'
 };
 
 const mapSlice = createSlice({
@@ -34,21 +36,31 @@ const mapSlice = createSlice({
     openImages: (state, action) => {
       state.imageOpen = true;
       state.currentImage = action.payload;
+      state.imageMode = action.payload.mode || 'view';
     },
     closeImages: (state) => {
       state.imageOpen = false;
       state.currentImage = null;
+      state.imageMode = 'view';
+    },
+    setImageMode: (state, action) => {
+      state.imageMode = action.payload;
     },
     openHyperlink: (state, action) => {
       state.hyperlinkOpen = true;
       state.currentHyperlink = action.payload;
+      state.hyperlinkMode = action.payload.mode || 'view';
     },
     closeHyperlink: (state) => {
       state.hyperlinkOpen = false;
       state.currentHyperlink = null;
+      state.hyperlinkMode = 'view';
+    },
+    setHyperlinkMode: (state, action) => {
+      state.hyperlinkMode = action.payload;
     },
   }
 });
 
-export const { setYear, openNotes, closeNotes,openImages,closeImages,openHyperlink,closeHyperlink } = mapSlice.actions;
+export const { setYear, openNotes, closeNotes,openImages,closeImages,setImageMode,openHyperlink,closeHyperlink,setHyperlinkMode } = mapSlice.actions;
 export default mapSlice.reducer;

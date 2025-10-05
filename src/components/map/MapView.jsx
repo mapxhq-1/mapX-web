@@ -16,10 +16,15 @@ import saveIcon from "../../assets/icons/save_icon.png";
 import deleteIcon from "../../assets/icons/delete_icon.png";
 import cancelIcon from "../../assets/icons/cancel_icon.png";
 import noteIcon from "../../assets/icons/note_icon.png"
+import pencilIcon from "../../assets/icons/pencil_icon.png";
+import highlighterIcon from "../../assets/icons/highlighter_icon.png";
+import eraserIcon from "../../assets/icons/eraser_icon.png";
+import textIcon from "../../assets/icons/text_icon.png";
 import { fetchAllNotes } from "../api/note";
 import { store as reduxStore } from "../../store/store";
 import { imageManager } from './ImageManager';
 import { hyperlinkManager } from "./HyperlinkManager";
+import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshapes";
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
@@ -39,6 +44,77 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const textModeActiveRef = useRef(false);
 	const textClickHandlerRef = useRef(null);
 	const clickedCoordsRef = useRef(null);
+
+	// Custom cursor overlay (for pencil, highlighter, eraser)
+	const customCursorElRef = useRef(null);
+	const customCursorMoveHandlerRef = useRef(null);
+
+	const showCustomCursor = (imgSrc, sizePx = 30) => {
+		try {
+			if (!map.current) return;
+			const host = map.current.getContainer();
+			let el = customCursorElRef.current;
+			if (!el) {
+				el = document.createElement("div");
+				el.style.position = "absolute";
+				el.style.pointerEvents = "none";
+				el.style.zIndex = "24";
+				el.style.transform = "translate(-50%, -50%)";
+				el.style.lineHeight = "1";
+				const img = document.createElement("img");
+				img.draggable = false;
+				el.appendChild(img);
+				host.appendChild(el);
+				customCursorElRef.current = el;
+			}
+			const imgEl = el.querySelector("img");
+			imgEl.src = imgSrc;
+			imgEl.style.width = `${sizePx}px`;
+			imgEl.style.height = `${sizePx}px`;
+			imgEl.style.objectFit = "contain";
+			el.style.display = "block";
+			// Hide default cursor
+			map.current.getCanvas().style.cursor = "none";
+			// Attach move handler
+			if (!customCursorMoveHandlerRef.current) {
+				customCursorMoveHandlerRef.current = (e) => {
+					try {
+						if (!customCursorElRef.current) return;
+						customCursorElRef.current.style.left = `${e.point.x}px`;
+						customCursorElRef.current.style.top = `${e.point.y}px`;
+					} catch(_){}
+				};
+				try { map.current.on("mousemove", customCursorMoveHandlerRef.current); } catch(_){}
+			}
+		} catch(_){}
+	};
+
+	const hideCustomCursor = () => {
+		try {
+			if (!map.current) return;
+			if (customCursorMoveHandlerRef.current) {
+				try { map.current.off("mousemove", customCursorMoveHandlerRef.current); } catch(_){}
+				customCursorMoveHandlerRef.current = null;
+			}
+			if (customCursorElRef.current) {
+				customCursorElRef.current.style.display = "none";
+			}
+			map.current.getCanvas().style.cursor = "";
+		} catch(_){}
+	};
+
+	useEffect(() => {
+		return () => {
+			// Cleanup on unmount
+			try { hideCustomCursor(); } catch(_){}
+			try {
+				if (customCursorElRef.current && customCursorElRef.current.parentNode) {
+					customCursorElRef.current.parentNode.removeChild(customCursorElRef.current);
+				}
+				customCursorElRef.current = null;
+			} catch(_){}
+		};
+	}, []);
 
 	// Text helpers
 	const sanitizeText = (raw) => {
@@ -96,6 +172,54 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const polygons = useSelector((state) => state.map.polygons);
 	const year = useSelector((state) => state.map.year);
 	const { id: projectIdParam } = useParams?.() || {};
+	const ownerEmail = useSelector((state) => state.project.ownerEmail);
+	const { id: projectId } = useParams();
+
+	// Load shapes from backend and hydrate draw layer
+    const loadMapShapesByContext = async ({ year, era }) => {
+		if (!projectId) return;
+		try {
+			const response = await getAllMapShapes(projectId, year, era);
+			const shapesFromBackend = (response && (response.mapShapes || response)) || [];
+			const features = shapesFromBackend.flatMap((shape) => {
+				const sid = shape?.shapeId || shape?.id || shape?._id || null;
+				const feats = (shape && shape.geojson && Array.isArray(shape.geojson.features)) ? shape.geojson.features : [];
+				return feats.map((feat) => {
+					const props = { ...(feat.properties || {}) };
+					// Use the DB id for all parts of this saved shape so delete works
+					if (sid) props.id = sid;
+					return { ...feat, properties: props };
+				});
+			});
+			finalFeaturesRef.current = features;
+			if (map.current) {
+				const src = map.current.getSource("draw-final-src");
+				src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+			}
+		} catch (err) {
+			// Check if it's a "no data found" vs actual API error
+			const isNoDataError = err.response?.data?.message?.includes('No') && 
+								 err.response?.data?.message?.includes('found');
+			
+			if (isNoDataError) {
+				console.log(`No map shapes found for year ${year} ${era} - this is normal if no shapes were created for this year/era`);
+			} else {
+				console.error(`Failed to load map shapes for year ${year} ${era}:`, {
+					status: err.response?.status,
+					statusText: err.response?.statusText,
+					data: err.response?.data,
+					url: err.config?.url,
+					params: err.config?.params
+				});
+			}
+			
+			finalFeaturesRef.current = [];
+			try {
+				const src = map.current && map.current.getSource("draw-final-src");
+				src && src.setData({ type: "FeatureCollection", features: [] });
+			} catch (_) {}
+		}
+	};
 
 
 
@@ -509,67 +633,61 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 						host.appendChild(el);
 						textToolbarElRef.current = el;
 
-						function onSave() {
+						async function onSave() {
 							const vText = txt.value || "";
 							if (!vText.trim()) return;
-						const vSize = Math.max(8, Math.min(72, Number(size.value) || 16));
-						const elMode = el.getAttribute("data-mode") || "create";
-						if (elMode === "edit" && textToolbarFeatureIdRef.current) {
-							const id = textToolbarFeatureIdRef.current;
-							const idx = finalFeaturesRef.current.findIndex((f) => f.properties && f.properties.id === id);
-							if (idx >= 0) {
-								const f = { ...finalFeaturesRef.current[idx] };
-								f.properties = { ...f.properties, text: sanitizeText(vText.trim()), fontSize: vSize, color: color.value || "#ffffff" };
-								finalFeaturesRef.current[idx] = f;
-								const src = map.current.getSource("draw-final-src");
-								src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
-							}
-							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
-						} else {
-							finalizeTextFeature([textToolbarLngLatRef.current.lng, textToolbarLngLatRef.current.lat], vText.trim(), vSize, color.value || "#ffffff");
-							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
-						}
-						
-						// Download GeoJSON file
-						try {
-							const geoJsonData = {
-								type: "FeatureCollection",
-								features: finalFeaturesRef.current,
-								metadata: {
-									exportedAt: new Date().toISOString(),
-									totalFeatures: finalFeaturesRef.current.length,
-									textFeatures: finalFeaturesRef.current.filter(f => f.properties && f.properties.tool === 'text').length,
-									drawingFeatures: finalFeaturesRef.current.filter(f => f.properties && f.properties.tool !== 'text').length
+							const vSize = Math.max(8, Math.min(72, Number(size.value) || 16));
+							const elMode = el.getAttribute("data-mode") || "create";
+							if (elMode === "edit" && textToolbarFeatureIdRef.current) {
+								const id = textToolbarFeatureIdRef.current;
+								const idx = finalFeaturesRef.current.findIndex((f) => f.properties && f.properties.id === id);
+								if (idx >= 0) {
+									const f = { ...finalFeaturesRef.current[idx] };
+									f.properties = { ...f.properties, text: sanitizeText(vText.trim()), fontSize: vSize, color: color.value || "#ffffff" };
+									finalFeaturesRef.current[idx] = f;
+									const src = map.current.getSource("draw-final-src");
+									src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
 								}
-							};
-							
-							const blob = new Blob([JSON.stringify(geoJsonData, null, 2)], { type: 'application/json' });
-							const url = URL.createObjectURL(blob);
-							const a = document.createElement('a');
-							a.href = url;
-							a.download = `mapx-drawing-${new Date().toISOString().split('T')[0]}.geojson`;
-							document.body.appendChild(a);
-							a.click();
-							document.body.removeChild(a);
-							URL.revokeObjectURL(url);
-						} catch (error) {
-							console.error('Failed to download GeoJSON:', error);
-						}
-						
-						hideTextToolbar();
+								try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
+							} else {
+								const newFeature = finalizeTextFeature([textToolbarLngLatRef.current.lng, textToolbarLngLatRef.current.lat], vText.trim(), vSize, color.value || "#ffffff");
+								try {
+									const latestYearFromStore = reduxStore?.getState?.().map?.year ?? year;
+									const geojson = { type: 'FeatureCollection', features: [newFeature] };
+                            const res = await createMapShape(projectId, Math.abs(latestYearFromStore), (latestYearFromStore < 0 ? 'BCE' : 'CE'), ownerEmail, geojson);
+									const permanentId = res && res.shapeId;
+									if (permanentId) {
+										newFeature.properties.id = permanentId;
+										const src = map.current.getSource('draw-final-src');
+										src && src.setData({ type: 'FeatureCollection', features: finalFeaturesRef.current });
+									}
+								} catch (_) {}
+								try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
+							}
+							hideTextToolbar();
 						}
 
 						function onCancel() { hideTextToolbar(); }
 
-						function onDelete() {
-							const id = textToolbarFeatureIdRef.current;
-							if (!id) { hideTextToolbar(); return; }
+						async function onDelete() {
+							const id = selectedFeatureIdRef.current;
+							if (!id) { try { hideSelectionOverlay(); } catch(_) {} return; }
+							const isSavedInBackend = !String(id).includes('_');
+							try { 
+								if (isSavedInBackend) { 
+									try { await deleteMapShape(id, ownerEmail); } catch(err) { console.error('Delete shape failed', err); }
+								} 
+							} catch(_){}
 							finalFeaturesRef.current = finalFeaturesRef.current.filter((f) => (f.properties && f.properties.id) !== id);
 							const src = map.current.getSource("draw-final-src");
 							src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
 							selectedFeatureIdRef.current = null;
-							try { map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch(_){}
-							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
+							try { map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch(_){ }
+							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){ }
+                            try {
+                                const latestY = (reduxStore?.getState?.().map?.year ?? year);
+                                await loadMapShapesByContext({ year: Math.abs(latestY), era: (latestY < 0 ? 'BCE' : 'CE') });
+                            } catch(_) {}
 							hideTextToolbar();
 						}
 
@@ -632,7 +750,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	let onMove = null;
 	let onClick = null;
 	const textMarkers = [];
-	const NOTE_EXPAND_ZOOM = 12; // full box with content
+	const NOTE_EXPAND_ZOOM = 5; // full box with content
 	const stopEvt = (ev) => ev.stopPropagation();
 
 	const styleBaseBox = (box,foldSize,state) => {
@@ -734,7 +852,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		}
 	};
 
-	const NOTE_ICON_ZOOM = 5;    
+	const NOTE_ICON_ZOOM = 4;    
 	const renderNote = (state, expanded) => {
 		const { rootEl } = state;
 		rootEl.innerHTML = '';
@@ -823,11 +941,11 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 		// full mode (very zoomed in)
 		styleBaseBox(rootEl,20,state);
-		addFoldedCorner(rootEl,20);
-		rootEl.style.minWidth = '222px';
-		rootEl.style.maxWidth = '222px';
-		rootEl.style.minHeight = '222px';
-		rootEl.style.maxHeight = '222px';
+		addFoldedCorner(rootEl,25);
+		rootEl.style.minWidth = '250px';
+		rootEl.style.maxWidth = '250px';
+		rootEl.style.minHeight = '250px';
+		rootEl.style.maxHeight = '250px';
 		
 		const header = document.createElement('div');
 		header.style.display = 'flex';
@@ -992,6 +1110,17 @@ const createTextboxMarker = (lngLat, initialTitle = '', initialBody = '', noteId
 		}
 	};
 
+	// Remove any note markers that have not been saved (no noteId)
+	const removeDraftNotes = () => {
+		for (let i = textMarkers.length - 1; i >= 0; i--) {
+			const entry = textMarkers[i];
+			if (!entry || !entry.state || !entry.state.noteId) {
+				try { entry.marker.remove(); } catch (_) {}
+				textMarkers.splice(i, 1);
+			}
+		}
+	};
+
 const syncNotesWithZoom = () => {
     textMarkers.forEach((entry) => {
         const { state } = entry;
@@ -1034,9 +1163,8 @@ const syncNotesWithZoom = () => {
 			cursorEl.style.left = `${e.point.x}px`;
 			cursorEl.style.top = `${e.point.y}px`;
 		};
-		onClick = (e) => {
-			const entry = createTextboxMarker(e.lngLat, '', '','');
-			// Open notes component for the new note
+	onClick = (e) => {
+			// Only open modal; do not place any marker until saved
 			dispatch(openNotes({
 				id: `new`,
 				title: '',
@@ -1046,7 +1174,7 @@ const syncNotesWithZoom = () => {
 					lat: e.lngLat.lat
 				}
 			}));
-			// After placing a single note, switch back to select mode
+			// After initiating creation, switch back to select mode
 			deactivate();
 			try { window.mapxDrawSetMode && window.mapxDrawSetMode('select'); } catch (_) {}
 		};
@@ -1122,19 +1250,52 @@ const syncNotesWithZoom = () => {
 						});
 						lastLoaded = { projectId, year: yearVal, era: eraVal };
 					}
+				} catch (err) {
+					// Check if it's a "no data found" vs actual API error
+					const isNoDataError = err.response?.data?.message?.includes('No') && 
+										 err.response?.data?.message?.includes('found');
+					
+					if (isNoDataError) {
+						console.log(`No notes found for year ${yearVal} ${eraVal} - this is normal if no notes were created for this year/era`);
+					} else {
+						console.error(`Failed to load notes for year ${yearVal} ${eraVal}:`, {
+							status: err.response?.status,
+							statusText: err.response?.statusText,
+							data: err.response?.data,
+							url: err.config?.url,
+							params: err.config?.params
+						});
+					}
 				} finally {
 					loading = false;
 				}
 			}
 		} catch (_) { /* ignore */ }
 	};
-	try { window.mapxNotesLoadByContext = loadByContext; } catch (_) {}
+    try { window.mapxNotesLoadByContext = loadByContext; } catch (_) {}
+	try { window.mapxNotesRemoveDraftMarkers = removeDraftNotes; } catch (_) {}
 	// Initial load
 	loadByContext({ year });
 	return { activate, deactivate };
 })();
 				// imageManager.loadImagesByContext({ year,projectIdParam,era:"CE" });
 				window.mapxDrawSetMode = (mode) => {
+					// Global cleanup before switching modes to prevent overlay collisions
+					try { hideCustomCursor(); } catch(_){}
+					// Deactivate managers that own their own cursor overlays
+					try { manager.deactivate && manager.deactivate(); } catch(_){}
+					try { hyperlinker.deactivate && hyperlinker.deactivate(); } catch(_){}
+					try { noteManager.deactivate && noteManager.deactivate(); } catch(_){}
+					// Cleanup special modes
+					try { window.mapxEraserCleanup && window.mapxEraserCleanup(); } catch(_){}
+					try { window.mapxHandCleanup && window.mapxHandCleanup(); } catch(_){}
+					// Reset text mode state and toolbar
+					try { textModeActiveRef.current = false; } catch(_){}
+					try { if (textClickHandlerRef.current) map.current.off("click", textClickHandlerRef.current); } catch(_){}
+					try { hideTextToolbar(); } catch(_){}
+					// Clear select click handler and reset native cursor
+					try { map.current.off("click", onSelectClick); } catch(_){}
+					try { map.current.getCanvas().style.cursor = ""; } catch(_){}
 					// pencil mode
 					if (mode === "pencil") {
 						// Clean up eraser if active
@@ -1170,6 +1331,8 @@ const syncNotesWithZoom = () => {
 						arrow.setActive(false);
 						highlight.setActive(true);
 						try { map.current.off("click", onSelectClick); } catch (_) {}
+						// Show highlighter cursor
+						showCustomCursor(highlighterIcon, 28);
 						try { window.mapxOnModeChanged && window.mapxOnModeChanged('highlight'); } catch (_) {}
 						return;
 					}
@@ -1288,7 +1451,8 @@ const syncNotesWithZoom = () => {
 							};
 						}
 						try { map.current.on("click", textClickHandlerRef.current); } catch (_) {}
-						map.current.getCanvas().style.cursor = "crosshair";
+						// Show text cursor overlay using text button icon
+						showCustomCursor(textIcon, 24);
 						return;
 					}
 					if (mode === "hand") {
@@ -1356,6 +1520,8 @@ const syncNotesWithZoom = () => {
 						
 						// Activate eraser mode: hover to erase
 						map.current.getCanvas().style.cursor = "crosshair";
+						// Show eraser cursor (overrides crosshair by hiding system cursor)
+						showCustomCursor(eraserIcon, 36);
 						
 						// Eraser functionality - hover to delete
 						let erasedIds = new Set(); // Track what we've already erased
@@ -1425,6 +1591,8 @@ const syncNotesWithZoom = () => {
 								map.current.keyboard.enable(); 
 								// Reset cursor to default
 								map.current.getCanvas().style.cursor = "";
+								// Hide any custom eraser cursor overlay
+								hideCustomCursor();
 							} catch (_) {}
 						};
 						
@@ -1499,9 +1667,9 @@ const syncNotesWithZoom = () => {
 							return b;
 						};
 
-						const onSave = () => {
+						const onSave = async () => {
 							try {
-								// If selected feature is text, persist any palette changes before saving
+								// Persist any text palette edits locally first
 								const id = selectedFeatureIdRef.current;
 								if (id) {
 									const idx = finalFeaturesRef.current.findIndex((f) => f.properties && f.properties.id === id);
@@ -1518,11 +1686,65 @@ const syncNotesWithZoom = () => {
 										}
 									}
 								}
-								window.mapxDrawExportAll && window.mapxDrawExportAll();
-								window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal();
+
+								// Save selected feature to backend
+								if (id) {
+									const featuresToSave = finalFeaturesRef.current.filter((f) => f.properties && f.properties.id === id);
+									if (featuresToSave.length > 0) {
+										const geojson = { type: 'FeatureCollection', features: featuresToSave };
+										const latestYearFromStore = reduxStore?.getState?.().map?.year ?? year;
+                                        try {
+                                            const computedEra = (latestYearFromStore < 0 ? 'BCE' : 'CE');
+                                            const computedYear = Math.abs(latestYearFromStore);
+                                            const res = await createMapShape(projectId, computedYear, computedEra, ownerEmail, geojson);
+											const permanentId = res && res.shapeId;
+											if (permanentId) {
+												finalFeaturesRef.current = finalFeaturesRef.current.map((feat) => {
+													if (feat.properties && feat.properties.id === id) {
+														return { ...feat, properties: { ...feat.properties, id: permanentId } };
+													}
+													return feat;
+												});
+												selectedFeatureIdRef.current = permanentId;
+												const src = map.current.getSource(finalSourceId);
+												src && src.setData({ type: 'FeatureCollection', features: finalFeaturesRef.current });
+											}
+										} catch (_) {}
+									}
+								}
+
+								// Preserve existing local save only
+								try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch (_) {}
+								try { hideSelectionOverlay(); } catch (_) {}
 							} catch (_) {}
 						};
-						const onDelete = () => { try { window.mapxDrawDeleteSelected && window.mapxDrawDeleteSelected(); hideSelectionOverlay(); } catch (_) {} };
+						const onDelete = async () => {
+							const id = selectedFeatureIdRef.current;
+							if (!id) { 
+								try { hideSelectionOverlay(); } catch(_) {} 
+								return; 
+							}
+							
+							// Hide toolbar immediately to prevent double-click issues
+							try { hideSelectionOverlay(); } catch(_) {}
+							
+							const isSavedInBackend = !String(id).includes('_');
+							try { 
+								if (isSavedInBackend) { 
+									try { await deleteMapShape(id, ownerEmail); } catch(err) { console.error('Delete shape failed', err); }
+								} 
+							} catch(_){}
+							finalFeaturesRef.current = finalFeaturesRef.current.filter((f) => (f.properties && f.properties.id) !== id);
+							const src = map.current.getSource("draw-final-src");
+							src && src.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
+							selectedFeatureIdRef.current = null;
+							try { map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch(_){ }
+							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){ }
+							try { 
+								const latestY = reduxStore?.getState?.().map?.year ?? year;
+								await loadMapShapesByContext({ year: Math.abs(latestY), era: (latestY < 0 ? 'BCE' : 'CE') }); 
+							} catch(_) {}
+						};
 						const onCancel = () => { hideSelectionOverlay(); try { selectedFeatureIdRef.current = null; map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch (_) {} };
 
 						// Order: Delete (left), Save (center), Cancel (right)
@@ -1626,7 +1848,7 @@ const syncNotesWithZoom = () => {
 						const data = JSON.stringify(window.mapxDrawGetAll());
 						const blob = new Blob([data], { type: "application/geo+json" });
 						const url = URL.createObjectURL(blob);
-						const a = document.createElement("a");
+						const a = document.createElement('a');
 						a.href = url;
 						a.download = `mapx-draw-${new Date().toISOString().replace(/[:.]/g, "-")}.geojson`;
 						document.body.appendChild(a);
@@ -1676,14 +1898,15 @@ const syncNotesWithZoom = () => {
 
 			//Initializing image container
 			
-			manager.loadImagesByContext({ year,projectIdParam,era:"CE" }); 
+			manager.loadImagesByContext({ year: Math.abs(year), projectIdParam, era: (year < 0 ? 'BCE' : 'CE') }); 
 			try { 
 				window.mapxImagesLoadByContext = manager.loadImagesByContext; 
+				window.mapxImagesClearAll = manager.clearAllImages;
 			} catch (_) {}
 
-			hyperlinker.loadHyperlinksByContext({ year,projectIdParam,era:"CE" }); 
+			hyperlinker.loadHyperlinksByContext({ year: Math.abs(year), projectIdParam, era: (year < 0 ? 'BCE' : 'CE') }); 
 			try { 
-				window.mapxImagesLoadByContext = hyperlinker.loadHyperlinksByContext; 
+				window.mapxHyperlinksLoadByContext = hyperlinker.loadHyperlinksByContext; 
 			} catch (_) {}
 		});
 
@@ -2485,6 +2708,9 @@ const syncNotesWithZoom = () => {
 		map.current.addControl(new MeasureDistanceControl(), "bottom-left");
 		map.current.addControl(new PhotonSearchControl(), "bottom-left");
 
+		// Load shapes from backend initially
+		try { loadMapShapesByContext({ year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') }); } catch (_) {}
+
 		return () => {
 			if (map.current) {
 				map.current.remove();
@@ -2554,7 +2780,10 @@ useEffect(() => {
     try {
         if (window.mapxNotesLoadByContext) {
             const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
-            t = setTimeout(() => window.mapxNotesLoadByContext({ year: latestYear }), 1000);
+            t = setTimeout(() => {
+                window.mapxNotesLoadByContext({ year: Math.abs(latestYear), era: (latestYear < 0 ? 'BCE' : 'CE') });
+                try { loadMapShapesByContext({ year: Math.abs(latestYear), era: (latestYear < 0 ? 'BCE' : 'CE') }); } catch (_) {}
+            }, 1000);
         }
     } catch (_) {}
     return () => { if (t) clearTimeout(t); };
@@ -2563,13 +2792,29 @@ useEffect(() => {
 useEffect(() => {
     let t = null;
     try {
+        if (window.mapxHyperlinksLoadByContext) {
+            const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
+            t = setTimeout(() => window.mapxHyperlinksLoadByContext({ 
+                year: Math.abs(latestYear), 
+                projectIdParam, 
+                era: (latestYear < 0 ? 'BCE' : 'CE') 
+            }), 1000);
+        }
+    } catch (_) {}
+    return () => { if (t) clearTimeout(t); };
+}, [year, projectIdParam]);
+
+useEffect(() => {
+    let t = null;
+    try {
         if (window.mapxImagesLoadByContext) {
             const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
+            try { window.mapxImagesClearAll && window.mapxImagesClearAll(); } catch(_) {}
             t = setTimeout(() => window.mapxImagesLoadByContext({ 
-                year: latestYear, 
+                year: Math.abs(latestYear), 
                 projectIdParam, 
-                era: "CE" 
-            }), 1000);
+                era: (latestYear < 0 ? 'BCE' : 'CE') 
+            }), 300);
         }
     } catch (_) {}
     return () => { if (t) clearTimeout(t); };

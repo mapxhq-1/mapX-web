@@ -3,6 +3,8 @@ import maplibregl from "maplibre-gl";
 import { useDispatch } from "react-redux";
 import {openImages} from '../../store/mapSlice';
 import image_icon from '../../assets/icons/image_icon.png'
+import { deleteImage } from "../api/image";
+import { store as reduxStore } from '../../store/store';
 
 export const imageManager = (mapRef) => {
     const dispatch = useDispatch();
@@ -12,8 +14,8 @@ export const imageManager = (mapRef) => {
     let onMove = null;
     let onClick = null;
     const imageMarkers = [];
-    const IMAGE_EXPAND_ZOOM = 12; // full image display
-    const IMAGE_ICON_ZOOM = 5;    // small icon
+    const IMAGE_EXPAND_ZOOM = 6; // full image display
+    const IMAGE_ICON_ZOOM = 4;    // small icon
     const stopEvt = (ev) => ev.stopPropagation();
 
 
@@ -74,12 +76,12 @@ export const imageManager = (mapRef) => {
             user-select: none;
             overflow: hidden;
             transition: all 0.2s ease;
-            min-width: 80px;
-            max-width: 80px;
-            min-height: 80px;
-            max-height: 80px;
-            width: 80px;
-            height: 80px;
+            min-width: 150px;
+            max-width: 150px;
+            min-height: 90px;
+            max-height: 90px;
+            width: 150px;
+            height: 90px;
             display: block;
         `;
 
@@ -108,12 +110,12 @@ export const imageManager = (mapRef) => {
             user-select: none;
             overflow: hidden;
             transition: all 0.2s ease;
-            min-width: 200px;
-            max-width: 200px;
-            min-height: 200px;
-            max-height: 200px;
-            width: 200px;
-            height: 200px;
+            min-width: 400px;
+            max-width: 400px;
+            min-height: 350px;
+            max-height: 350px;
+            width: 400px;
+            height: 350px;
             display: block;
         `;
 
@@ -122,7 +124,7 @@ export const imageManager = (mapRef) => {
         img.alt = 'Image';
         img.style.width = '100%';
         img.style.height = '100%';
-        img.style.objectFit= 'cover';
+        img.style.objectFit = 'contain';
         img.style.borderRadius = '4px';
         img.style.display = 'block';
 
@@ -160,12 +162,28 @@ const applyModeStyles = (rootEl, mode) => {
   else if (mode === 'full') { size = 200; boxShadow = '0 8px 24px rgba(0,0,0,0.2)'; border = '2px solid white'; }
 
   const s = `${size}px`;
-  rootEl.style.width = s;
-  rootEl.style.height = s;
-  rootEl.style.minWidth = s;
-  rootEl.style.maxWidth = s;
-  rootEl.style.minHeight = s;
-  rootEl.style.maxHeight = s;
+  if (mode === 'full') {
+    rootEl.style.width = '450px';
+    rootEl.style.height = '350px';
+    rootEl.style.minWidth = '450px';
+    rootEl.style.maxWidth = '450px';
+    rootEl.style.minHeight = '350px';
+    rootEl.style.maxHeight = '350px';
+  } else if (mode === 'thumb') {
+    rootEl.style.width = '150px';
+    rootEl.style.height = '90px';
+    rootEl.style.minWidth = '150px';
+    rootEl.style.maxWidth = '150px';
+    rootEl.style.minHeight = '90px';
+    rootEl.style.maxHeight = '90px';
+  } else {
+    rootEl.style.width = s;
+    rootEl.style.height = s;
+    rootEl.style.minWidth = s;
+    rootEl.style.maxWidth = s;
+    rootEl.style.minHeight = s;
+    rootEl.style.maxHeight = s;
+  }
   rootEl.style.boxShadow = boxShadow;
   rootEl.style.border = border;
 };
@@ -178,7 +196,7 @@ const renderImage = (state, force = false) => {
         img.alt = 'Image';
         img.style.width = '100%';
         img.style.height = '100%';
-        img.style.objectFit = 'cover';
+        img.style.objectFit = 'contain';
         img.style.borderRadius = '4px';
         img.style.display = 'block';
 
@@ -203,6 +221,7 @@ const renderImage = (state, force = false) => {
             display: none;
         `;
 
+
         rootEl.appendChild(img);
         rootEl.appendChild(captionEl);
 
@@ -219,7 +238,20 @@ const renderImage = (state, force = false) => {
     const z = map.current.getZoom();
     const nextMode = getModeForZoom(z);
 
+    // Only auto-switch modes if user hasn't manually expanded to full mode
     if (!force && state.mode === nextMode) return;
+    
+    // If user manually expanded to full mode, only allow switching back to smaller sizes
+    // when zooming out significantly (below thumb threshold)
+    if (state.mode === 'full' && state.userExpanded) {
+        if (nextMode === 'mini') {
+            // Reset user expansion when zooming out to mini
+            state.userExpanded = false;
+        } else {
+            // Stay in full mode for thumb zoom levels
+            return;
+        }
+    }
 
     state.mode = nextMode;
     state.expanded = (nextMode === 'full');
@@ -268,7 +300,8 @@ const ensureCursorEl = () => {
     expanded: false,
     imageId,
     initialized: false,
-    mode: null
+    mode: null,
+    userExpanded: false
   };
 
   // Pre-size so MapLibre computes the correct anchor offsets
@@ -292,13 +325,41 @@ const ensureCursorEl = () => {
 
   root.addEventListener('click', (e) => {
     e.stopPropagation();
-    dispatch(openImages({
-      id: imageId,
-      imageUrl,
-      caption,
-      coordinates: lngLat
-    }));
+    
+    // If already in full mode (either by zoom or user expansion), open edit modal
+    if (state.mode === 'full') {
+      dispatch(openImages({
+        id: imageId,
+        imageUrl,
+        caption,
+        coordinates: lngLat
+      }));
+    } else {
+      // If not in full mode, expand to full mode
+      state.mode = 'full';
+      state.userExpanded = true; // Mark as user-expanded
+      applyModeStyles(state.rootEl, 'full');
+      if (state.captionEl) {
+        state.captionEl.style.display = state.caption ? 'block' : 'none';
+      }
+    }
   });
+
+  // Add click listener to map to reset user expansion when clicking outside
+  const resetUserExpansion = () => {
+    if (state.userExpanded) {
+      state.userExpanded = false;
+      const currentZoomMode = getModeForZoom(map.current.getZoom());
+      state.mode = currentZoomMode;
+      applyModeStyles(state.rootEl, currentZoomMode);
+      if (state.captionEl) {
+        state.captionEl.style.display = (currentZoomMode === 'full' && state.caption) ? 'block' : 'none';
+      }
+    }
+  };
+
+  // Store the reset function in state for cleanup
+  state.resetUserExpansion = resetUserExpansion;
 
   const entry = { marker, state };
   imageMarkers.push(entry);
@@ -320,6 +381,17 @@ const clearAllImages = () => {
     // Also clear the array for good measure
     imageMarkers.length = 0;
     
+};
+
+// Remove any image markers that have not been saved (no imageId)
+const removeDraftImages = () => {
+    for (let i = imageMarkers.length - 1; i >= 0; i--) {
+        const entry = imageMarkers[i];
+        if (!entry || !entry.state || !entry.state.imageId) {
+            try { entry.marker.remove(); } catch (_) {}
+            imageMarkers.splice(i, 1);
+        }
+    }
 };
 
 let rafZoom = null;
@@ -345,18 +417,15 @@ const syncImagesWithZoom = () => {
             cursorEl.style.top = `${e.point.y}px`;
         };
         onClick = (e) => {
-            // Create image marker with default image
-            const entry = createImageMarker(e.lngLat, defaultImage, '');
-            // Open image upload/selection dialog
+            // Only open modal; do not place any marker until saved
             dispatch(openImages({
-                id:"new",
+                id: "new",
                 coordinates: {
                     lng: e.lngLat.lng,
                     lat: e.lngLat.lat
                 }
             }));
-            
-            // Switch back to select mode after placing
+            // Switch back to select mode after initiating creation
             deactivate();
             try { window.mapxDrawSetMode && window.mapxDrawSetMode('select'); } catch (_) {}
         };
@@ -392,6 +461,34 @@ const syncImagesWithZoom = () => {
     // If map isn't ready, try again after a short delay
     if (!listenersSetup) {
         setTimeout(setupZoomListeners, 100);
+    }
+
+    // Add global click listener to reset user expansions when clicking outside images
+    const setupMapClickListener = () => {
+        if (map && map.current) {
+            const handleMapClick = (e) => {
+                // Check if click is on an image marker
+                const clickedImage = e.originalEvent.target.closest('.mx-image-root');
+                if (!clickedImage) {
+                    // Click is outside any image, reset all user expansions
+                    imageMarkers.forEach(entry => {
+                        if (entry && entry.state && entry.state.resetUserExpansion) {
+                            entry.state.resetUserExpansion();
+                        }
+                    });
+                }
+            };
+            
+            map.current.on('click', handleMapClick);
+            return true;
+        }
+        return false;
+    };
+
+    // Setup map click listener
+    const mapClickSetup = setupMapClickListener();
+    if (!mapClickSetup) {
+        setTimeout(setupMapClickListener, 100);
     }
 
     const loadFromUrl = async (url) => {
@@ -467,7 +564,11 @@ const syncImagesWithZoom = () => {
         } catch (_) { /* ignore */ }
     };
 
+    // Expose standardized loader name (capital L) used across app
+    try { window.mapxImagesLoadByContext = loadImagesByContext; } catch (_) {}
+    // Backward compatibility (lowercase l)
     try { window.mapxImagesloadImagesByContext = loadImagesByContext; } catch (_) {}
+    try { window.mapxImagesRemoveDraftMarkers = removeDraftImages; } catch (_) {}
     // Initial load
 
     return { activate, deactivate, createImageMarker, clearAllImages, loadImagesByContext };

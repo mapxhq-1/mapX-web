@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { closeHyperlink } from "../../../store/mapSlice";
+import { closeHyperlink, setHyperlinkMode } from "../../../store/mapSlice";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { createHyperlink, updateHyperlink, deleteHyperlink } from "../../api/hyperlink";
 import { useQueryClient } from '@tanstack/react-query'
+import { getEraForYear, getAbsoluteYear } from "../../../utils/era";
 
 
 const HyperlinkModel = () => {
   const dispatch = useDispatch();
   const isOpen = useSelector((state) => state.map.hyperlinkOpen);
   const currentHyperlink = useSelector((state) => state.map.currentHyperlink);
+  const hyperlinkMode = useSelector((state) => state.map.hyperlinkMode);
   const { id: projectId } = useParams();
   const email = useSelector((state) => state.project.ownerEmail);
   const year = useSelector((state) => state.map.year);
@@ -40,10 +42,50 @@ const HyperlinkModel = () => {
     }
 
     try {
+      const selectedEra = getEraForYear(year);
+      const apiYear = getAbsoluteYear(year);
       if (isUpdate) {
-        await updateHyperlink(currentHyperlink.id, email, link, year, "CE");
-        toast.success("Hyperlink updated successfully");
-        queryClient.invalidateQueries(["hyperlink"]);
+        try {
+          await updateHyperlink(
+            currentHyperlink.id,
+            email,
+            link,
+            apiYear,
+            selectedEra,
+            title,
+            currentHyperlink?.coordinates?.lat,
+            currentHyperlink?.coordinates?.lng
+          );
+          toast.success("Hyperlink updated successfully");
+          queryClient.invalidateQueries(["hyperlink"]);
+        } catch (err) {
+          // Frontend-only fallback for environments where PATCH is blocked by CORS
+          const status = err?.response?.status;
+          const msg = err?.response?.data;
+          const isCorsBlocked = status === 403 || (typeof msg === 'string' && msg.includes('CORS'));
+          if (isCorsBlocked) {
+            try {
+              await createHyperlink(
+                projectId,
+                email,
+                title,
+                apiYear,
+                selectedEra,
+                currentHyperlink.coordinates.lat,
+                currentHyperlink.coordinates.lng,
+                link
+              );
+              await deleteHyperlink(currentHyperlink.id, email);
+              toast.success("Hyperlink updated successfully");
+              queryClient.invalidateQueries(["hyperlink"]);
+            } catch (fallbackErr) {
+              console.log(fallbackErr);
+              throw fallbackErr;
+            }
+          } else {
+            throw err;
+          }
+        }
       } else {
         if (!title.trim()) {
           toast.error("Please enter a title");
@@ -53,8 +95,8 @@ const HyperlinkModel = () => {
           projectId,
           email,
           title,
-          year,
-          "CE",
+          apiYear,
+          selectedEra,
           currentHyperlink.coordinates.lat,
           currentHyperlink.coordinates.lng,
           link
@@ -64,11 +106,11 @@ const HyperlinkModel = () => {
       }
 
       setTimeout(() => {
-        window.mapxHyperlinksloadHyperlinksByContext({
-          projectIdParam: projectId,
-          year,
-          era: "CE",
-        });
+        if (window.mapxHyperlinksLoadByContext) {
+          window.mapxHyperlinksLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        } else if (window.mapxHyperlinksloadHyperlinksByContext) {
+          window.mapxHyperlinksloadHyperlinksByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        }
       }, 500);
 
       dispatch(closeHyperlink());
@@ -88,11 +130,11 @@ const HyperlinkModel = () => {
       setShowConfirm(false);
       queryClient.invalidateQueries(["hyperlink"]);
       setTimeout(() => {
-        window.mapxHyperlinksloadHyperlinksByContext({
-          projectIdParam: projectId,
-          year,
-          era: "CE",
-        });
+        if (window.mapxHyperlinksLoadByContext) {
+          window.mapxHyperlinksLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        } else if (window.mapxHyperlinksloadHyperlinksByContext) {
+          window.mapxHyperlinksloadHyperlinksByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+        }
       }, 500);
       dispatch(closeHyperlink());
     } catch (e) {
@@ -105,93 +147,165 @@ const HyperlinkModel = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-transparent bg-opacity-50">
       {/* Main Glass Card */}
-      <div className="relative w-[400px] min-h-[280px] rounded-2xl shadow-xl flex flex-col items-center p-5
-        bg-white/10 border border-white/30 backdrop-blur-md 
+      <div className="relative w-[500px] min-h-[400px] rounded-2xl shadow-xl flex flex-col items-center p-5
+        bg-black/10 border border-white/30 backdrop-blur-md 
         shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]">
 
         {/* Close button */}
         <button
-          onClick={() => dispatch(closeHyperlink())}
+          onClick={() => { try { window.mapxHyperlinksRemoveDraftMarkers && window.mapxHyperlinksRemoveDraftMarkers(); } catch (_) {}; dispatch(closeHyperlink()); }}
           className="absolute top-3 right-3 z-10 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
         >
           ×
         </button>
 
-        <h2 className="text-xl font-semibold text-white mb-4">
-          {isUpdate ? "Update Hyperlink" : "Add Hyperlink"}
-        </h2>
-
-        {isUpdate ? (
-          <div className="w-[300px] mb-3 px-3 py-2 border border-white/30 rounded bg-white/20 text-gray-200">
-            {title || "Untitled"}
-          </div>
-        ) : (
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter title"
-            className="w-[300px] mb-3 px-3 py-2 border border-white/40 bg-white/20 rounded text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-        )}
-
-        <input
-          type="text"
-          value={link}
-          onChange={(e) => setLink(e.target.value)}
-          placeholder="Enter hyperlink (https://...)"
-          className="w-[300px] mb-5 px-3 py-2 border border-white/40 bg-white/20 rounded text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-        />
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md"
-          >
-            {isUpdate ? "Update" : "Save"}
-          </button>
-
-          {isUpdate && (
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
-            >
-              Delete
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {showConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-[10000]">
-          <div className="w-[320px] p-5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30
-            shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.4)] text-center">
-
-            <h2 className="text-lg font-semibold text-white mb-3">
-              Delete this hyperlink?
+        {hyperlinkMode === 'view' ? (
+          <>
+            {/* PREVIEW MODE */}
+            <h2 className="text-xl font-semibold text-black mb-4">
+              {currentHyperlink?.title || "Hyperlink Preview"}
             </h2>
-            <p className="text-gray-300 mb-5">This action cannot be undone.</p>
+            
+            <div className="w-full max-w-[450px] mb-4">
+              {currentHyperlink?.hyperlinkUrl && (
+                <div className="bg-white/10 rounded-lg p-4 min-h-[250px]">
+                  {/* Small URL display at top */}
+                  <div className="mb-3">
+                    <a 
+                      href={currentHyperlink.hyperlinkUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-400 underline text-sm break-all hover:text-blue-300 block"
+                    >
+                      {currentHyperlink.hyperlinkUrl}
+                    </a>
+                  </div>
+                  
+                  {/* Preview content */}
+                  <div className="w-full h-[200px] flex items-center justify-center">
+                    {currentHyperlink.hyperlinkUrl.includes('youtube.com') || currentHyperlink.hyperlinkUrl.includes('youtu.be') ? (
+                      // YouTube embed
+                      <iframe
+                        src={currentHyperlink.hyperlinkUrl.includes('embed') ? currentHyperlink.hyperlinkUrl : 
+                              currentHyperlink.hyperlinkUrl.replace(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/, 'https://www.youtube.com/embed/$1')}
+                        className="w-full h-full border-0 rounded"
+                        title="YouTube Video Preview"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      // Regular iframe for other websites
+                      <iframe
+                        src={currentHyperlink.hyperlinkUrl}
+                        className="w-full h-full border-0 rounded"
+                        title="Hyperlink Preview"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
-            <div className="flex justify-around">
+            <div className="flex gap-3">
               <button
-                onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white"
+                onClick={() => dispatch(setHyperlinkMode('edit'))}
+                className="px-4 py-2 rounded-lg bg-blue-500/80 hover:bg-blue-600 text-white shadow-md"
               >
-                Cancel
+                Edit
               </button>
               <button
-                onClick={handleDelete}
-                className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+                onClick={() => dispatch(closeHyperlink())}
+                className="px-4 py-2 rounded-lg bg-gray-500/80 hover:bg-gray-600 text-white shadow-md"
               >
-                Delete
+                Close
               </button>
             </div>
+          </>
+        ) : (
+          <>
+            {/* EDIT MODE */}
+            <h2 className="text-xl font-semibold text-black mb-4">
+              {isUpdate ? "Update Hyperlink" : "Add Hyperlink"}
+            </h2>
+
+            {isUpdate ? (
+              <div className="w-[300px] mb-3 px-3 py-2 border border-white/30 rounded bg-white/20 text-gray-200">
+                {title || "Untitled"}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter title"
+                className="w-[300px] mb-3 px-3 py-2 border border-white/40 bg-white/20 rounded text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            )}
+
+            <input
+              type="text"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="Enter hyperlink (https://...)"
+              className="w-[300px] mb-5 px-3 py-2 border border-white/40 bg-white/20 rounded text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md"
+              >
+                {isUpdate ? "Update" : "Save"}
+              </button>
+
+              {isUpdate && (
+                <button
+                  onClick={() => setShowConfirm(true)}
+                  className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+                >
+                  Delete
+                </button>
+              )}
+              
+              {isUpdate && (
+                <button
+                  onClick={() => dispatch(setHyperlinkMode('view'))}
+                  className="px-4 py-2 rounded-lg bg-white-500/80 hover:bg-gray-600 text-white shadow-md"
+                >
+                  Preview
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        {/* Delete Confirmation Modal (scoped to this card only) */}
+        {showConfirm && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/60 backdrop-blur-sm">
+            <div className="w-[320px] p-5 rounded-2xl bg-white border border-gray-200 
+              shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.1)] text-center">
+              <h2 className="text-lg font-semibold text-black mb-3">Delete this hyperlink?</h2>
+              <p className="text-gray-700 mb-5">This action cannot be undone.</p>
+              <div className="flex justify-around">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
