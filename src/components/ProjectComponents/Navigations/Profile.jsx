@@ -7,24 +7,16 @@ import { getUserProfile, updateUserProfile, uploadProfilePhoto, deleteProfilePho
 const Profile = ({ setProfileOpen, userId, email }) => {
     const [userData, setUserData] = useState(null);
     const [profilePictureUrl, setProfilePictureUrl] = useState("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const { register, handleSubmit, reset } = useForm();
     const divRef = useRef(null);
     const fileInputRef = useRef(null);
 
     const fetchProfile = async () => {
-        if (!userId) {
-            setLoading(false);
-            setError("Missing user ID.");
-            return;
-        }
-        setLoading(true);
-        setError(null);
+        if (!userId) return;
         try {
-            const profile = await getUserProfile(userId, email);
+            const profile = await getUserProfile(userId);
             setUserData(profile);
-            reset(profile || {});
+            reset(profile);
 
             if (profile?.picture) {
                 try {
@@ -41,18 +33,15 @@ const Profile = ({ setProfileOpen, userId, email }) => {
                 } catch (imgError) {
                     console.error("Failed to fetch profile image:", imgError);
                     setProfilePictureUrl("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
+                    setProfileOpen(false);
                 }
             } else {
                 setProfilePictureUrl("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
             }
-            setLoading(false);
+
         } catch (error) {
-            setLoading(false);
-            setError(error?.response?.data?.message || "Failed to load profile data.");
-            toast.error(error?.response?.data?.message || "Failed to load profile data.");
-            // Show the form with empty fields so the user can still update
-            setUserData({});
-            reset({});
+            toast.error("Failed to load profile data.");
+            setProfileOpen(false);
         }
     };
 
@@ -101,7 +90,7 @@ const Profile = ({ setProfileOpen, userId, email }) => {
         }
     };
     
-    if (loading) {
+    if (!userData) {
         return (
             <div className='fixed inset-0 flex items-center justify-center z-50'>
                 <div className="absolute inset-0 bg-black opacity-75"></div>
@@ -119,11 +108,6 @@ const Profile = ({ setProfileOpen, userId, email }) => {
                     <div className='ml-5 w-12 rounded-t-full bg-blue-600 h-1'></div>
                     <div className='w-full h-[1px] bg-gray-600'></div>
                 </div>
-                {error && (
-                    <div className='mt-3 mb-2 text-sm text-red-400'>
-                        {error}
-                    </div>
-                )}
                 <div className='flex mt-5'>
                     <div className='mr-8 flex flex-col items-center space-y-2 w-24'>
                         <img className='h-[80px] w-[80px] object-cover rounded-full' src={profilePictureUrl} alt="Profile" />

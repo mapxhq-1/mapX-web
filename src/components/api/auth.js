@@ -3,10 +3,10 @@ import axios from "axios";
 const BASE_URL = "/auth-service";
 const API_CLIENT_NAME = "mapx";
 
-export const getUserProfile = async (userId, email) => {
+export const getUserProfile = async (userId) => {
   const response = await axios.post(
     `${BASE_URL}/get-user-profile`,
-    { id: userId, email },
+    { userId },
     { headers: { client_name: API_CLIENT_NAME } }
   );
   return response.data.userProfileGetResult.profile;
@@ -68,7 +68,4 @@ export const deleteProfilePhoto = async (userId, email) => {
     );
     return response.data;
 };
-
-
-// ... other auth functions
 

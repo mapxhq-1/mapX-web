@@ -42,9 +42,13 @@ const Sidebar = () => {
       toast.error(err.response.data.message)
     }
   }
-    // TODO: Replace with authenticated user's id when auth is wired up
+ const fullState = useSelector((state) => state);
+    console.log("Full Redux State:", fullState);
+    
+ // Use optional chaining (?.) to safely access nested properties.
+    // If state.auth.user is undefined, userId will be undefined instead of crashing.
     const userId = "pui_lmlr3htngdqz3e7iotjod4c6p6k6jnxi";
-    const { ownerEmail: email } = useSelector((state)=>state.project);
+  const email = "praneethvineeth9@gmail.com";
       const [profileOpen,setProfileOpen]= useState(false);
     const dispatch = useDispatch();
     const location = useLocation();
@@ -211,12 +215,12 @@ const Sidebar = () => {
                     </div>
                 </button>
               {profileOpen && (
-                <Profile 
-                  setProfileOpen={setProfileOpen} 
-                  userId={userId} 
-                  email={email} 
-                />
-              )}
+  <Profile 
+    setProfileOpen={setProfileOpen} 
+    userId={userId} 
+    email={email} 
+  />
+)}
             </div>
         </div>
     </div>

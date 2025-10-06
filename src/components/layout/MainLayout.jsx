@@ -9,9 +9,10 @@ import LeftPanel from "../panels/LeftPanel";
 import RightPanel from "../panels/RightPanel";
 import Notes from "../map/upload/Notes";
 import ImageModel from "../map/upload/ImageModel"
-import { closeNotes,closeImages, closeHyperlink } from "../../store/mapSlice";
+import { closeNotes, closeImages, closeHyperlink, fetchAllEmpirePolygons } from "../../store/mapSlice";
 import { toast } from "react-toastify";
 import HyperlinkModel from "../map/upload/HyperlinkModel";
+import MapLoader from "../loaders/MapLoader"; // Import the loader
 
 export default function MainLayout() {
   const [leftExpanded, setLeftExpanded] = useState(false);
@@ -23,11 +24,12 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
-  // Get notes state from Redux
+  // Get state from Redux
   const notesOpen = useSelector((state) => state.map.notesOpen);
   const currentNote = useSelector((state) => state.map.currentNote);
   const imageOpen = useSelector((state) => state.map.imageOpen);
   const hyperlinkOpen = useSelector((state) => state.map.hyperlinkOpen);
+  const loading = useSelector((state) => state.map.loading); // Get loading state
   
   useEffect(() => {
     async function getProjectDetails() {
@@ -45,6 +47,11 @@ export default function MainLayout() {
     }
     getProjectDetails();
   }, [id]);
+
+  // Fetch empire polygons on mount
+  useEffect(() => {
+    dispatch(fetchAllEmpirePolygons());
+  }, [dispatch]);
 
   return (
     <Box
@@ -114,66 +121,83 @@ export default function MainLayout() {
             project={project}
           />
         </Box>
+        
+        {/* Loading Overlay - positioned within the map container */}
+        {loading && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 500, // Below modals but above everything else
+              pointerEvents: "none",
+            }}
+          >
+            <MapLoader />
+          </Box>
+        )}
       </Box>
       
-      {/* Notes Modal - rendered at top level with highest z-index */}
-      {/* Notes Modal - separate container */}
-{notesOpen && (
-  <Box
-    sx={{
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 1000,
-      pointerEvents: "auto",
-    }}
-  >
-    <Notes 
-      noteData={currentNote} 
-      isOpen={notesOpen} 
-      onClose={() => dispatch(closeNotes())} 
-    />
-  </Box>
-)}
+      {/* Notes Modal */}
+      {notesOpen && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1000,
+            pointerEvents: "auto",
+          }}
+        >
+          <Notes 
+            noteData={currentNote} 
+            isOpen={notesOpen} 
+            onClose={() => dispatch(closeNotes())} 
+          />
+        </Box>
+      )}
 
-{/* Image Modal - separate container */}
-{imageOpen && (
-  <Box
-    sx={{
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 1001, // Higher than Notes modal
-      pointerEvents: "auto",
-    }}
-  >
-    <ImageModel 
-      onClose={() => dispatch(closeImages())} 
-    />
-  </Box>
-)}
+      {/* Image Modal */}
+      {imageOpen && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1001,
+            pointerEvents: "auto",
+          }}
+        >
+          <ImageModel 
+            onClose={() => dispatch(closeImages())} 
+          />
+        </Box>
+      )}
 
-{hyperlinkOpen && (
-  <Box
-    sx={{
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 1001, // Higher than Notes modal
-      pointerEvents: "auto",
-    }}
-  >
-    <HyperlinkModel
-      onClose={() => dispatch(closeHyperlink())} 
-    />
-  </Box>
-)}
+      {/* Hyperlink Modal */}
+      {hyperlinkOpen && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1001,
+            pointerEvents: "auto",
+          }}
+        >
+          <HyperlinkModel
+            onClose={() => dispatch(closeHyperlink())} 
+          />
+        </Box>
+      )}
     </Box>
   );
 }

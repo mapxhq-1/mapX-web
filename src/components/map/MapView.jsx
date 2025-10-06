@@ -25,6 +25,7 @@ import { store as reduxStore } from "../../store/store";
 import { imageManager } from './ImageManager';
 import { hyperlinkManager } from "./HyperlinkManager";
 import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshapes";
+import { fetchAllEmpirePolygons } from "../../store/mapSlice";
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
@@ -2819,6 +2820,11 @@ useEffect(() => {
     } catch (_) {}
     return () => { if (t) clearTimeout(t); };
 }, [year, projectIdParam]);
+
+useEffect(() => {
+    dispatch(fetchAllEmpirePolygons());
+  }, [dispatch]);
+
 	return (
 		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
 			<GalaxyCanvas />
