@@ -26,6 +26,9 @@ import { imageManager } from './ImageManager';
 import { hyperlinkManager } from "./HyperlinkManager";
 import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshapes";
 import { fetchAllEmpirePolygons } from "../../store/mapSlice";
+import { colorPolygonsFourColor, colorIndexToHex, colorIndexToHexDark } from "../../utils/polygonColoring";
+import { getEraForYear, getAbsoluteYear } from "../../utils/era";
+import * as turf from "@turf/turf";
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
@@ -148,6 +151,61 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		} catch (_) { return true; }
 	};
 
+	// Build one label point per empire name (dedupe multi-part empires)
+	const getEmpireName = (props) => {
+		try {
+			return (
+				props?.name ||
+				props?.Name ||
+				props?.empire ||
+				props?.title ||
+				props?.label ||
+				""
+			);
+		} catch (_) {
+			return "";
+		}
+	};
+
+	const buildEmpireLabelPoints = (features) => {
+		try {
+			if (!Array.isArray(features)) return { type: "FeatureCollection", features: [] };
+			const groups = new Map();
+			for (const f of features) {
+				const t = f?.geometry?.type;
+				if (t !== "Polygon" && t !== "MultiPolygon") continue;
+				const name = getEmpireName(f?.properties || {});
+				if (!name) continue;
+				if (!groups.has(name)) groups.set(name, []);
+				groups.get(name).push(f);
+			}
+			const points = [];
+			for (const [name, arr] of groups.entries()) {
+				let best = null;
+				let bestArea = -1;
+				for (const f of arr) {
+					let a = 0;
+					try { a = turf.area(f); } catch(_) { a = 0; }
+					if (a > bestArea) { bestArea = a; best = f; }
+				}
+				if (!best) continue;
+				let center = null;
+				try { center = turf.centerOfMass(best); } catch(_) {
+					try { center = turf.center(best); } catch(__) { center = null; }
+				}
+				if (!center || !center.geometry || !Array.isArray(center.geometry.coordinates)) continue;
+				points.push({
+					type: "Feature",
+					properties: { name },
+					geometry: { type: "Point", coordinates: center.geometry.coordinates }
+				});
+			}
+			return { type: "FeatureCollection", features: points };
+		} catch(_) {
+			return { type: "FeatureCollection", features: [] };
+		}
+	};
+
 	const finalizeTextFeature = (coords, textValue, sizePx, colorHex) => {
 		if (!isValidCoordinate(coords)) throw new Error("Invalid coordinates");
 		const id = `tx_${uuidv4()}`;
@@ -171,6 +229,9 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 	// ✅ Get polygons from Redux
 	const polygons = useSelector((state) => state.map.polygons);
+	// Keep latest polygons available inside style handlers (avoid stale closure)
+	const polygonsRef = useRef(polygons);
+	useEffect(() => { polygonsRef.current = polygons; }, [polygons]);
 	const year = useSelector((state) => state.map.year);
 	const { id: projectIdParam } = useParams?.() || {};
 	const ownerEmail = useSelector((state) => state.project.ownerEmail);
@@ -270,6 +331,33 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					features: [],
 				},
 			});
+			// If polygons already loaded before map 'load', seed the source now
+			try {
+				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+				if (Array.isArray(basePolys) && basePolys.length > 0) {
+					let colored = basePolys;
+					try { colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" }); } catch(_){ }
+					map.current.getSource("polygons-source")?.setData({ type: "FeatureCollection", features: colored });
+				}
+			} catch(_) {}
+			}
+
+			// Add a separate point source for centroid-based empire labels
+			if (!map.current.getSource("empire-labels-source")) {
+				map.current.addSource("empire-labels-source", {
+					type: "geojson",
+					data: { type: "FeatureCollection", features: [] },
+				});
+				// If polygons already present, seed label points now
+				try {
+					const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+					if (Array.isArray(basePolys) && basePolys.length > 0) {
+						let colored = basePolys;
+						try { colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" }); } catch(_){ }
+						const labelFC = buildEmpireLabelPoints(colored || []);
+						map.current.getSource("empire-labels-source")?.setData(labelFC);
+					}
+				} catch(_) {}
 			}
 
 			// Freehand drawing sources and layers (live preview + finalized)
@@ -361,7 +449,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					type: "line",
 					source: finalSourceId,
 					layout: { "line-join": "round", "line-cap": "round" },
-					paint: { "line-color": "#1e90ff", "line-width": 5, "line-opacity": 0.9 },
+					paint: { "line-color": "#1e90ff", "line-width": 5, "line-opacity": 0.7 },
 					filter: ["==", ["get", "id"], "__none__"],
 				});
 			}
@@ -373,23 +461,82 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					type: "fill",
 					source: "polygons-source",
 					paint: {
-						"fill-color": "#0080ff",
-						"fill-opacity": 0.5,
+						"fill-color": [
+							"case",
+							["has", "colorIndex"],
+							["match", ["get", "colorIndex"], 0, colorIndexToHex(0), 1, colorIndexToHex(1), 2, colorIndexToHex(2), 3, colorIndexToHex(3), colorIndexToHex(4)],
+							"#FFC000"
+						],
+						"fill-opacity": 0.2,
 					},
 				});
+				// Keep layer visible-only without consuming global map events
 			}
 
 			// Border layer
-			if (!map.current.getLayer("polygon-border")) {
+            if (!map.current.getLayer("polygon-border")) {
+                map.current.addLayer({
+                    id: "polygon-border",
+                    type: "line",
+                    source: "polygons-source",
+                    paint: {
+                        "line-color": [
+                            "case",
+                            ["has", "colorIndex"],
+                            ["match", ["get", "colorIndex"], 0, colorIndexToHexDark(0), 1, colorIndexToHexDark(1), 2, colorIndexToHexDark(2), 3, colorIndexToHexDark(3), 4, colorIndexToHexDark(4), colorIndexToHexDark(5)],
+                            "#0000ff"
+                        ],
+                        "line-width": 2,
+                    },
+                });
+                // Keep layer visible-only without consuming global map events
+            }
+
+			// Symbol labels from POINTS (one per empire name)
+			if (!map.current.getLayer("empire-labels")) {
 				map.current.addLayer({
-					id: "polygon-border",
-					type: "line",
-					source: "polygons-source",
-					paint: {
-						"line-color": "#0000ff",
-						"line-width": 2,
+					id: "empire-labels",
+					type: "symbol",
+					source: "empire-labels-source",
+					minzoom: 2,
+					layout: {
+						"text-field": ["get", "name"],
+						"text-font": ["Noto Sans Bold"],
+						"text-size": [
+							"interpolate", ["linear"], ["zoom"],
+							2, 8,
+							4, 10,
+							6, 12,
+							8, 14,
+							10, 16,
+							12, 18
+						],
+						"symbol-placement": "point",
+						"text-anchor": "center",
+						"text-allow-overlap": false,
+						"text-ignore-placement": false,
+						"symbol-avoid-edges": true,
+						"text-max-width": 10,
+						"text-transform": "uppercase",
+						"text-letter-spacing": 0.1
 					},
+					paint: {
+						"text-color": "#1a1a1a",
+						"text-halo-color": "#ffffff",
+						"text-halo-width": 2,
+						"text-halo-blur": 1,
+						"text-opacity": ["interpolate", ["linear"], ["zoom"], 2, 0.8, 5, 0.95, 8, 1]
+					}
 				});
+				// Seed label data if polygons already present
+				try {
+					const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+					if (Array.isArray(basePolys) && basePolys.length > 0 && map.current.getSource("empire-labels-source")) {
+						let colored = basePolys;
+						try { colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" }); } catch(_){ }
+						map.current.getSource("empire-labels-source").setData(buildEmpireLabelPoints(colored || []));
+					}
+				} catch(_) {}
 			}
 
 			// Offset builtin control groups so they don't sit under side panels
@@ -751,7 +898,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	let onMove = null;
 	let onClick = null;
 	const textMarkers = [];
-	const NOTE_EXPAND_ZOOM = 5; // full box with content
+	const NOTE_EXPAND_ZOOM = 6; // full box with content
 	const stopEvt = (ev) => ev.stopPropagation();
 
 	const styleBaseBox = (box,foldSize,state) => {
@@ -853,7 +1000,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		}
 	};
 
-	const NOTE_ICON_ZOOM = 4;    
+	const NOTE_ICON_ZOOM = 5;    
 	const renderNote = (state, expanded) => {
 		const { rootEl } = state;
 		rootEl.innerHTML = '';
@@ -1227,8 +1374,10 @@ const syncNotesWithZoom = () => {
 			const latestYearFromStore = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year);
 			const yearValRaw = (opts && typeof opts.year !== 'undefined') ? opts.year : (latestYearFromStore ?? year);
 			const yearVal = Number(yearValRaw);
-			// era from timeline if present on year shape, else default 'CE'
-			const eraVal = (opts && opts.era) || 'CE';
+			// Properly derive era from the year value
+			const eraVal = (opts && opts.era) || getEraForYear(yearVal);
+			// Convert to absolute year for API
+			const absYear = getAbsoluteYear(yearVal);
 			if (projectId && (yearVal !== undefined)) {
 				// Prevent unnecessary API calls (but allow re-fetch if markers are cleared)
 				if (loading) return;
@@ -1236,7 +1385,7 @@ const syncNotesWithZoom = () => {
 				try {
 					// Clear existing markers before re-rendering
 					clearAllNotes();
-					const response = await fetchAllNotes(projectId, yearVal, eraVal);
+					const response = await fetchAllNotes(projectId, absYear, eraVal);
 					const notes = response?.note || response || [];
 					if (Array.isArray(notes)) {
 						//try { console.log('Loaded notes:', notes.length, notes); } catch (_) {}
@@ -1249,7 +1398,7 @@ const syncNotesWithZoom = () => {
 							const body = n.noteContent;
 							createTextboxMarker({ lng, lat }, title, body, n.noteId, n.backgroundColor);
 						});
-						lastLoaded = { projectId, year: yearVal, era: eraVal };
+						lastLoaded = { projectId, year: absYear, era: eraVal };
 					}
 				} catch (err) {
 					// Check if it's a "no data found" vs actual API error
@@ -1257,9 +1406,9 @@ const syncNotesWithZoom = () => {
 										 err.response?.data?.message?.includes('found');
 					
 					if (isNoDataError) {
-						console.log(`No notes found for year ${yearVal} ${eraVal} - this is normal if no notes were created for this year/era`);
+						console.log(`No notes found for year ${absYear} ${eraVal} - this is normal if no notes were created for this year/era`);
 					} else {
-						console.error(`Failed to load notes for year ${yearVal} ${eraVal}:`, {
+						console.error(`Failed to load notes for year ${absYear} ${eraVal}:`, {
 							status: err.response?.status,
 							statusText: err.response?.statusText,
 							data: err.response?.data,
@@ -2556,29 +2705,140 @@ const syncNotesWithZoom = () => {
 						data: { type: "FeatureCollection", features: [] },
 					});
 				}
-				if (!map.current.getLayer("polygon-fill")) {
-					map.current.addLayer({
-						id: "polygon-fill",
-						type: "fill",
-						source: "polygons-source",
-						paint: { "fill-color": "#0080ff", "fill-opacity": 0.5 },
-					});
-				}
+					// Ensure label point source exists after style changes
+					if (!map.current.getSource("empire-labels-source")) {
+						map.current.addSource("empire-labels-source", {
+							type: "geojson",
+							data: { type: "FeatureCollection", features: [] },
+						});
+					}
+            if (!map.current.getLayer("polygon-fill")) {
+                map.current.addLayer({
+                    id: "polygon-fill",
+                    type: "fill",
+                    source: "polygons-source",
+                    paint: {
+                        "fill-color": [
+                            "case",
+                            ["has", "colorIndex"],
+                            ["match", ["get", "colorIndex"], 0, colorIndexToHex(0), 1, colorIndexToHex(1), 2, colorIndexToHex(2), 3, colorIndexToHex(3), 4, colorIndexToHex(4), colorIndexToHex(5)],
+                            "#FFC000"
+                        ],
+                        "fill-opacity": 0.2
+                    },
+                });
+            }
 				if (!map.current.getLayer("polygon-border")) {
 					map.current.addLayer({
 						id: "polygon-border",
 						type: "line",
 						source: "polygons-source",
-						paint: { "line-color": "#0000ff", "line-width": 2 },
+						paint: {
+							"line-color": [
+								"case",
+								["has", "colorIndex"],
+								["match", ["get", "colorIndex"], 0, colorIndexToHexDark(0), 1, colorIndexToHexDark(1), 2, colorIndexToHexDark(2), 3, colorIndexToHexDark(3), 4, colorIndexToHexDark(4), colorIndexToHexDark(5)],
+								"#0000ff"
+							],
+							"line-width": 2
+						},
 					});
 				}
-				// refresh data if present
-				if (polygons && map.current.getSource("polygons-source")) {
-					map.current.getSource("polygons-source").setData({
+					// Ensure centroid label layer exists after style changes
+					if (!map.current.getLayer("empire-labels")) {
+						map.current.addLayer({
+							id: "empire-labels",
+							type: "symbol",
+							source: "empire-labels-source",
+							minzoom: 2,
+							layout: {
+								"text-field": ["get", "name"],
+								"text-font": ["Noto Sans Bold"],
+								"text-size": [
+									"interpolate", ["linear"], ["zoom"],
+									2, 8,
+									4, 10,
+									6, 12,
+									8, 14,
+									10, 16,
+									12, 18
+								],
+								"symbol-placement": "point",
+								"text-anchor": "center",
+								"text-allow-overlap": false,
+								"text-ignore-placement": false,
+								"symbol-avoid-edges": true,
+								"text-max-width": 10,
+								"text-transform": "uppercase",
+								"text-letter-spacing": 0.1
+							},
+							paint: {
+								"text-color": "#1a1a1a",
+								"text-halo-color": "#ffffff",
+								"text-halo-width": 2,
+								"text-halo-blur": 1,
+								"text-opacity": ["interpolate", ["linear"], ["zoom"], 2, 0.8, 5, 0.95, 8, 1]
+							}
+						});
+					}
+				// refresh data if present (use latest polygons via ref to avoid stale closure)
+				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+				let colored = basePolys;
+				try {
+					colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" });
+				} catch (_) {}
+				if (map.current.getSource("polygons-source")) {
+	map.current.getSource("polygons-source").setData({
 						type: "FeatureCollection",
-						features: polygons,
+						features: colored,
 					});
+		// update empire centroid labels as well
+		try {
+			if (map.current.getSource("empire-labels-source")) {
+				const labelFC = buildEmpireLabelPoints(colored || []);
+				map.current.getSource("empire-labels-source").setData(labelFC);
+			}
+		} catch(_) {}
 				}
+				// also rebuild label points
+				try {
+					if (map.current.getSource("empire-labels-source")) {
+						const labelFC = buildEmpireLabelPoints(colored || []);
+						map.current.getSource("empire-labels-source").setData(labelFC);
+					}
+				} catch(_) {}
+				// Ensure paint and label expressions applied after style reload
+				try {
+					if (map.current.getLayer("polygon-fill")) {
+						map.current.setPaintProperty("polygon-fill", "fill-color", [
+							"case",
+							["has", "colorIndex"],
+							["match", ["get", "colorIndex"], 0, colorIndexToHex(0), 1, colorIndexToHex(1), 2, colorIndexToHex(2), 3, colorIndexToHex(3), 4, colorIndexToHex(4), colorIndexToHex(5)],
+							"#FFC000"
+						]);
+					}
+					if (map.current.getLayer("polygon-border")) {
+						map.current.setPaintProperty("polygon-border", "line-color", [
+							"case",
+							["has", "colorIndex"],
+							["match", ["get", "colorIndex"], 0, colorIndexToHexDark(0), 1, colorIndexToHexDark(1), 2, colorIndexToHexDark(2), 3, colorIndexToHexDark(3), 4, colorIndexToHexDark(4), colorIndexToHexDark(5)],
+							"#0000ff"
+						]);
+					}
+					// ensure label layer exists and properties are set
+					if (map.current.getLayer("empire-labels")) {
+						map.current.setLayoutProperty("empire-labels", "text-font", ["Noto Sans Bold"]);
+						map.current.setLayoutProperty("empire-labels", "text-size", [
+							"interpolate", ["linear"], ["zoom"], 2, 8, 4, 10, 6, 12, 8, 14, 10, 16, 12, 18
+						]);
+						map.current.setLayoutProperty("empire-labels", "text-transform", "uppercase");
+						map.current.setLayoutProperty("empire-labels", "text-letter-spacing", 0.1);
+						map.current.setPaintProperty("empire-labels", "text-color", "#1a1a1a");
+						map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
+						map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
+						map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
+					}
+				} catch (_) {}
 			} catch (_) {}
 		};
 
@@ -2599,8 +2859,8 @@ const syncNotesWithZoom = () => {
 			} catch (_) {}
 		};
 
-		// Recreate layers and globe when a new style is applied
-		map.current.on("styledata", () => {
+        // Recreate layers and globe when a new style is applied
+        map.current.on("styledata", () => {
 			try { enforceGlobe(); } catch (_) {}
 			try { ensurePolygonLayers(); } catch (_) {}
 			// Ensure drawing layers and their data persist across style changes
@@ -2663,6 +2923,15 @@ const syncNotesWithZoom = () => {
 				finalSrc && finalSrc.setData({ type: "FeatureCollection", features: finalFeaturesRef.current });
 				map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], selectedFeatureIdRef.current || "__none__"]);
 				map.current.setFilter("draw-final-fill-selected", ["all", ["any", ["==", ["get", "tool"], "polygon"], ["==", ["get", "tool"], "circle"]], ["==", ["get", "id"], selectedFeatureIdRef.current || "__none__"]]);
+				// After style reload, seed label points from current polygons
+				try {
+					const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+					if (map.current.getSource("empire-labels-source")) {
+						let colored = basePolys;
+						try { colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" }); } catch(_){ }
+						map.current.getSource("empire-labels-source").setData(buildEmpireLabelPoints(colored || []));
+					}
+				} catch(_) {}
 			} catch (_) {}
 		});
 
@@ -2720,14 +2989,53 @@ const syncNotesWithZoom = () => {
 		};
 	}, []);
 
-	// ✅ Whenever polygons change in Redux → update the map
+	// ✅ Whenever polygons change in Redux → color them and update the map AND labels
 	useEffect(() => {
 		if (!map.current || !map.current.getSource("polygons-source")) return;
-
+		
+		// Apply four-coloring and attach colorIndex per feature
+		let colored = [];
+		try {
+			colored = colorPolygonsFourColor(polygons || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" });
+		} catch(_) {
+			colored = polygons || [];
+		}
+		
+		// Update polygon source
 		map.current.getSource("polygons-source").setData({
 			type: "FeatureCollection",
-			features: polygons,
+			features: colored,
 		});
+		
+		// ✅ CRITICAL: Update empire labels immediately when polygons change
+		// This ensures labels move to new positions when year changes
+		try {
+			const labelSource = map.current.getSource("empire-labels-source");
+			if (labelSource) {
+				const labelFC = buildEmpireLabelPoints(colored || []);
+				labelSource.setData(labelFC);
+			}
+		} catch(_) {}
+		
+		// Ensure paint uses colorIndex
+		try {
+			if (map.current.getLayer("polygon-fill")) {
+				map.current.setPaintProperty("polygon-fill", "fill-color", [
+					"case",
+					["has", "colorIndex"],
+					["match", ["get", "colorIndex"], 0, colorIndexToHex(0), 1, colorIndexToHex(1), 2, colorIndexToHex(2), 3, colorIndexToHex(3), 4, colorIndexToHex(4), colorIndexToHex(5)],
+					"#FFC000"
+				]);
+			}
+			if (map.current.getLayer("polygon-border")) {
+				map.current.setPaintProperty("polygon-border", "line-color", [
+					"case",
+					["has", "colorIndex"],
+					["match", ["get", "colorIndex"], 0, colorIndexToHexDark(0), 1, colorIndexToHexDark(1), 2, colorIndexToHexDark(2), 3, colorIndexToHexDark(3), 4, colorIndexToHexDark(4), colorIndexToHexDark(5)],
+					"#0000ff"
+				]);
+			}
+		} catch(_) {}
 	}, [polygons, year]);
 
 	// Reposition control corners whenever side offsets change

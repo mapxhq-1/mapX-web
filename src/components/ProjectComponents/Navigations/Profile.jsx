@@ -33,7 +33,6 @@ const Profile = ({ setProfileOpen, userId, email }) => {
                 } catch (imgError) {
                     console.error("Failed to fetch profile image:", imgError);
                     setProfilePictureUrl("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
-                    setProfileOpen(false);
                 }
             } else {
                 setProfilePictureUrl("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
@@ -41,7 +40,6 @@ const Profile = ({ setProfileOpen, userId, email }) => {
 
         } catch (error) {
             toast.error("Failed to load profile data.");
-            setProfileOpen(false);
         }
     };
 

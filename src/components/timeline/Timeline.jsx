@@ -152,7 +152,8 @@ export default function Timeline() {
   // Drag end — final sync
   const handleMouseUp = () => {
     setIsDragging(false);
-    dispatch(setYear(localYear)); // final confirm
+    // final confirm
+    if (localYear !== globalYear) dispatch(setYear(localYear));
     buttonOffsetRef.current = 0;
     if (sliderRef.current) {
       sliderRef.current.style.transform = "translateX(-50%)";
@@ -169,7 +170,8 @@ export default function Timeline() {
         );
         if (next !== localYear) {
           setLocalYear(next);
-          dispatch(setYear(next));
+          // commit once; avoid extra churn
+          if (next !== globalYear) dispatch(setYear(next));
         }
       }
     }
@@ -217,6 +219,14 @@ const speedLookup = useMemo(() => {
   useEffect(() => {
     let frameId;
     const friction = 0.95;
+    // Debounced commit to Redux to avoid 60fps global churn
+    let commitTimer = 0;
+    const scheduleCommit = (value) => {
+      if (commitTimer) clearTimeout(commitTimer);
+      commitTimer = setTimeout(() => {
+        if (value !== globalYear) dispatch(setYear(value));
+      }, 120);
+    };
 
     const animate = () => {
       const offset = buttonOffsetRef.current;
@@ -236,7 +246,8 @@ const speedLookup = useMemo(() => {
           );
           if (target !== localYear) {
             setLocalYear(target);
-            dispatch(setYear(target));
+            // do NOT dispatch every frame; schedule a debounced commit
+            scheduleCommit(target);
           }
           dragAccumulatorRef.current -= step;
         }
@@ -251,11 +262,8 @@ const speedLookup = useMemo(() => {
 
         if (next !== localYear) {
           setLocalYear(next);
-
-          // 🔴 LIVE Redux sync during inertia as well
-          if (next !== globalYear) {
-            dispatch(setYear(next));
-          }
+          // during inertia, still debounce global updates
+          scheduleCommit(next);
         }
 
         velocityRef.current *= friction;
@@ -265,7 +273,10 @@ const speedLookup = useMemo(() => {
     };
 
     frameId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameId);
+    return () => {
+      if (commitTimer) clearTimeout(commitTimer);
+      cancelAnimationFrame(frameId);
+    };
   }, [isDragging, localYear, globalYear, speedLookup, dispatch]);
 
   // ----- Arrow hold with highway-like acceleration -----
@@ -315,7 +326,7 @@ const speedLookup = useMemo(() => {
     const next = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, getNextValidYear(localYear, dir)));
     if (next !== localYear) {
       setLocalYear(next);
-      dispatch(setYear(next));
+      if (next !== globalYear) dispatch(setYear(next));
     }
   };
 
@@ -349,7 +360,7 @@ const speedLookup = useMemo(() => {
       // Clamp to valid range
       const clampedYear = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, parsedYear));
       setLocalYear(clampedYear);
-      dispatch(setYear(clampedYear));
+      if (clampedYear !== globalYear) dispatch(setYear(clampedYear));
       setInputValue(formatYear(clampedYear));
       setShowGoButton(false); // Hide Go button after successful navigation
     } else {
