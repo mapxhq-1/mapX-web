@@ -61,10 +61,11 @@ export const projectSlice = createSlice({
     errorShared: "",
     loadingMy: true,
     loadingShared: true,
-    ownerEmail: "slayer@gmail.com",
+    ownerEmail: "",
     option: "Alphabetical",
     search: "",
     heading: "My Projects",
+    userToken:"",
   },
   reducers: {
     setOption:(state,action)=>{
@@ -76,6 +77,12 @@ export const projectSlice = createSlice({
     setHeading:(state,action)=>{
       state.heading = action.payload;
     },
+    setEmail:(state,action)=>{
+      state.email = action.payload;
+    },
+    setUserToken:(state,action)=>{
+      state.userToken = action.payload;
+    }
   },
   extraReducers: (builder) => {
     builder.addCase(myProjApiCall.pending, (state) => {
@@ -105,6 +112,6 @@ export const projectSlice = createSlice({
   },
 });
 
-export const { setSearch, setOption, setHeading } = projectSlice.actions;
+export const { setSearch, setOption, setHeading, setEmail,setUserToken } = projectSlice.actions;
 
 export default projectSlice.reducer;

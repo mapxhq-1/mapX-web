@@ -69,3 +69,31 @@ export const deleteProfilePhoto = async (userId, email) => {
     return response.data;
 };
 
+
+/**
+ * Call /get-user-info API
+ * @param {string} code - The login code
+ * @returns {Promise<object>} - API response
+ */
+export async function getUserInfo(code) {
+  try {
+    const response = await axios.post(
+      `${BASE_URL}/get-user-info`,
+      { code },                  // request body
+      {
+        headers: {
+          "Content-Type": "application/json",
+          client_name: API_CLIENT_NAME, // use constant
+        },
+      }
+    );
+
+    return response.data; // success response
+  } catch (error) {
+    if (error.response) {
+      return error.response.data; // backend error
+    } else {
+      return { status: "failure", message: error.message }; // network or other error
+    }
+  }
+}

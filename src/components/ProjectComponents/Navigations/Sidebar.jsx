@@ -42,14 +42,12 @@ const Sidebar = () => {
       toast.error(err.response.data.message)
     }
   }
- const fullState = useSelector((state) => state);
-    console.log("Full Redux State:", fullState);
+//  const fullState = useSelector((state) => state);
     
- // Use optional chaining (?.) to safely access nested properties.
-    // If state.auth.user is undefined, userId will be undefined instead of crashing.
-    const userId = "pui_lmlr3htngdqz3e7iotjod4c6p6k6jnxi";
-  const email = "praneethvineeth9@gmail.com";
-      const [profileOpen,setProfileOpen]= useState(false);
+
+    const userId = useSelector(state.project.userToken);
+    const email = useSelector(state.project.ownerEmail);
+    const [profileOpen,setProfileOpen]= useState(false);
     const dispatch = useDispatch();
     const location = useLocation();
     function handleClick(head){
