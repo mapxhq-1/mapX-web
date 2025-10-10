@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import  { useEffect, useState } from "react";
 import ProjectCard from "./ProjectCard";
 import NewProjectCard from "./NewProjectCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,14 +8,16 @@ import GalaxyCanvas from "../../common/GalaxyCanvas";
 
 const ProjectGrid = () => {
   const dispatch = useDispatch();
-  const {sharedProj, myProj, loadingMy, loadingShared, errorMy, errorShared, option, search, heading} = useSelector((state)=>state.project)
+  const {ownerEmail,sharedProj, myProj, loadingMy, loadingShared, errorMy, errorShared, option, search, heading} = useSelector((state)=>state.project)
 
   const [sortedData, setSortedData] = useState([]);
-
+  
   useEffect(()=>{
-    dispatch(myProjApiCall())
-    dispatch(sharedProjApiCall())
-  },[dispatch])
+    if(ownerEmail){
+      dispatch(myProjApiCall())
+      dispatch(sharedProjApiCall())
+    }
+  },[dispatch,ownerEmail])
 
   useEffect(() => {
     let newData;
@@ -36,10 +38,7 @@ const ProjectGrid = () => {
     setSortedData(newData);
   }, [option, sharedProj, myProj, heading]);
 
-  if (
-    (myProj != undefined && loadingMy) ||
-    (sharedProj != undefined && loadingShared)
-  )
+  if (loadingMy || loadingShared) 
     return (
       <>
         <div className="relative w-full h-screen overflow-hidden">
@@ -47,7 +46,7 @@ const ProjectGrid = () => {
           <GalaxyCanvas />
           <div className="relative grid gap-10 justify-center p-10 z-10">
             <h1 className="ml-30 text-xl text-green-500">
-              Awsome Projects loading...
+              Awesome Projects loading...
             </h1>
           </div>
         </div>

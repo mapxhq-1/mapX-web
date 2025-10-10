@@ -19,7 +19,7 @@ export default defineConfig({
         secure: false,
       },
       "/auth-service": {
-        target: "http://localhost:8081",
+        target: "http://localhost:8002",
         changeOrigin: true,
         secure: false,
       },

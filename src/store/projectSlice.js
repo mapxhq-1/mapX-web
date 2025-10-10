@@ -78,7 +78,7 @@ export const projectSlice = createSlice({
       state.heading = action.payload;
     },
     setEmail:(state,action)=>{
-      state.email = action.payload;
+      state.ownerEmail = action.payload;
     },
     setUserToken:(state,action)=>{
       state.userToken = action.payload;
@@ -98,8 +98,8 @@ export const projectSlice = createSlice({
       state.loadingMy = false;
     });
     builder.addCase(sharedProjApiCall.pending, (state) => {
-      state.errorMy = "";
-      state.loadingShared = false;
+      state.errorShared = "";
+      state.loadingShared = true;
     });
     builder.addCase(sharedProjApiCall.rejected, (state, action) => {
       state.errorShared = action.payload;

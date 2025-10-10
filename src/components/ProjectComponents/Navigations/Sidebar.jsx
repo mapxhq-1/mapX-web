@@ -45,8 +45,8 @@ const Sidebar = () => {
 //  const fullState = useSelector((state) => state);
     
 
-    const userId = useSelector(state.project.userToken);
-    const email = useSelector(state.project.ownerEmail);
+    const userId = useSelector((state)=>state.project.userToken);
+    const email = useSelector((state)=>state.project.ownerEmail);
     const [profileOpen,setProfileOpen]= useState(false);
     const dispatch = useDispatch();
     const location = useLocation();
