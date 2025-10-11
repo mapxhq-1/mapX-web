@@ -13,7 +13,7 @@ import { closeNotes, closeImages, closeHyperlink, fetchAllEmpirePolygons } from 
 import { toast } from "react-toastify";
 import HyperlinkModel from "../map/upload/HyperlinkModel";
 import MapLoader from "../loaders/MapLoader"; // Import the loader
-
+import { setEmail,setUserToken } from "../../store/projectSlice";
 export default function MainLayout() {
   const [leftExpanded, setLeftExpanded] = useState(false);
   const [rightExpanded, setRightExpanded] = useState(false);
@@ -30,13 +30,22 @@ export default function MainLayout() {
   const imageOpen = useSelector((state) => state.map.imageOpen);
   const hyperlinkOpen = useSelector((state) => state.map.hyperlinkOpen);
   const loading = useSelector((state) => state.map.loading); // Get loading state
-  
+  const token = localStorage.getItem('bearerToken');
+    useEffect(() => {
+      const savedEmail = localStorage.getItem('ownerEmail');
+      const savedToken = localStorage.getItem('userToken');
+      
+      if (savedEmail && savedToken) {
+        dispatch(setEmail(savedEmail));
+        dispatch(setUserToken(savedToken));
+      }
+    }, [dispatch]);
   useEffect(() => {
     async function getProjectDetails() {
       try {
         const res = await axios.get('/project-management-service/get-project-by-id/' + id, {
           headers: {
-            'client_name': 'mapx'
+            'client_name': 'mapx',"Authorization": `Bearer ${token}`
           }
         });
         setProject(res.data.data);

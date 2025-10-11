@@ -35,10 +35,10 @@ const Projects = () => {
       // Exchange the code with your backend for tokens
       getUserInfo(code)
         .then((data) => {
-          
+          console.log(data);
           const email = data.clientUserinfoResult.active_token.email;
           const token = data.clientUserinfoResult.active_token.identity;
-          
+          const bearer = data.clientUserinfoResult.active_token.token;
           // Update Redux state
           dispatch(setUserToken(token));
           dispatch(setEmail(email));
@@ -46,7 +46,7 @@ const Projects = () => {
           // Save to localStorage for persistence
           localStorage.setItem('ownerEmail', email);
           localStorage.setItem('userToken', token);
-          
+          localStorage.setItem('bearerToken',bearer);
           // Navigate to projects page
           navigate("/myProjects", { replace: true });
         })

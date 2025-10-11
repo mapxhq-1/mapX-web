@@ -1,9 +1,9 @@
 import axios from "axios";
-
+const token = localStorage.getItem('bearerToken');
 export async function getAllEmpires() {
   try {
     const res = await axios.get("/geo-json-service/get-all-empires", {
-      headers: { client_name: "mapx" }, 
+      headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, 
     });
     // console.log(res.data);
     return res.data; 
@@ -21,6 +21,7 @@ export async function getEmpireDetailsById(id) {
         headers: {
           Accept: "application/json",
           client_name: "mapx", // optional if backend expects it
+          "Authorization": `Bearer ${token}`
         },
       }
     );

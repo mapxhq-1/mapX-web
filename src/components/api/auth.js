@@ -4,15 +4,17 @@ const BASE_URL = "/auth-service";
 const API_CLIENT_NAME = "mapx";
 
 export const getUserProfile = async (userId) => {
+  const token = localStorage.getItem('bearerToken');
   const response = await axios.post(
     `${BASE_URL}/get-user-profile`,
     { userId },
-    { headers: { client_name: API_CLIENT_NAME } }
+    { headers: { client_name: API_CLIENT_NAME, "Authorization": `Bearer ${token}` } }
   );
   return response.data.userProfileGetResult.profile;
 };
 
 export const updateUserProfile = async (userId, profileData) => {
+  const token = localStorage.getItem('bearerToken');
   // This payload includes the 'id' and filters out any empty fields
   const payload = { id: userId };
   for (const key in profileData) {
@@ -24,7 +26,7 @@ export const updateUserProfile = async (userId, profileData) => {
   const response = await axios.post(
     `${BASE_URL}/update-user-profile`,
     payload,
-    { headers: { client_name: API_CLIENT_NAME } }
+    { headers: { client_name: API_CLIENT_NAME }, "Authorization": `Bearer ${token}` }
   );
   return response.data;
 };
@@ -37,6 +39,7 @@ export const updateUserProfile = async (userId, profileData) => {
  * @returns {Promise<object>} The API response.
  */
 export const uploadProfilePhoto = async (userId, email, imageFile) => {
+  const token = localStorage.getItem('bearerToken');
   const formData = new FormData();
   formData.append("image", imageFile);
 
@@ -46,7 +49,7 @@ export const uploadProfilePhoto = async (userId, email, imageFile) => {
     {
       headers: {
         "client_name": API_CLIENT_NAME,
-        "Content-Type": "multipart/form-data",
+        "Content-Type": "multipart/form-data", "Authorization": `Bearer ${token}`
       },
     }
   );
@@ -60,13 +63,14 @@ export const uploadProfilePhoto = async (userId, email, imageFile) => {
  * @returns {Promise<object>} The API response.
  */
 export const deleteProfilePhoto = async (userId, email) => {
-    const response = await axios.delete(
-        `${BASE_URL}/delete-profile-picture?userId=${userId}&email=${email}`,
-        {
-            headers: { client_name: API_CLIENT_NAME },
-        }
-    );
-    return response.data;
+  const token = localStorage.getItem('bearerToken');
+  const response = await axios.delete(
+    `${BASE_URL}/delete-profile-picture?userId=${userId}&email=${email}`,
+    {
+      headers: { client_name: API_CLIENT_NAME, "Authorization": `Bearer ${token}` },
+    }
+  );
+  return response.data;
 };
 
 
@@ -96,4 +100,17 @@ export async function getUserInfo(code) {
       return { status: "failure", message: error.message }; // network or other error
     }
   }
+}
+
+export async function getProfilePhoto(email,fileId) {
+  const token = localStorage.getItem('bearerToken');
+  const response = await axios.get(
+    `/auth-service/fetch-profile-photo/${fileId}`,
+    {
+      params: { email },
+      headers: { client_name: "mapx", "Authorization": `Bearer ${token}` },
+      responseType: 'blob'
+    }
+  );
+  return response;
 }

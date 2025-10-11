@@ -6,6 +6,7 @@ export const myProjApiCall = createAsyncThunk(
   "project/myProjApiCall",
   async (_, { rejectWithValue, getState }) => {
     try {
+      const token = localStorage.getItem('bearerToken');
       const res = await axios.get(
         "/project-management-service/get-all-projects-of-owner",
         {
@@ -13,7 +14,7 @@ export const myProjApiCall = createAsyncThunk(
             ownerEmail: getState().project.ownerEmail,
           },
           headers: {
-            'client_name': 'mapx'
+            'client_name': 'mapx',"Authorization": `Bearer ${token}`
           }
         }
       );
@@ -32,6 +33,7 @@ export const sharedProjApiCall = createAsyncThunk(
   "project/sharedProjApiCall",
   async (_, { getState, rejectWithValue }) => {
     try {
+      const token = localStorage.getItem('bearerToken');
       const res = await axios.get(
         "/project-management-service/get-all-accessible-projects",
         {
@@ -39,7 +41,7 @@ export const sharedProjApiCall = createAsyncThunk(
             email: getState().project.ownerEmail,
           },
           headers: {
-            'client_name': 'mapx'
+            'client_name': 'mapx',"Authorization": `Bearer ${token}`
           }
         }
       );

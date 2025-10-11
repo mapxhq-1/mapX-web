@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { NavLink,useLocation } from "react-router-dom";
-import { useDispatch } from 'react-redux';
 import { setHeading } from '../../../store/projectSlice';
 import Profile from "./Profile"
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { useSelector } from 'react-redux';
+import { useSelector,useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { getUserProfile,getProfilePhoto } from '../../api/auth';
+import { setEmail,setUserToken } from '../../../store/projectSlice';
+
 
 import plus from '../../../assets/icons/Plus.png';
 import time from '../../../assets/icons/time.png';
@@ -16,7 +18,6 @@ import folder from '../../../assets/icons/folder.png';
 import calander from '../../../assets/icons/calander.png';
 import account from '../../../assets/icons/account.png';
 import logout from '../../../assets/icons/logout.png';
-
 import timeB from '../../../assets/icons/timeB.png';
 import presentationB from '../../../assets/icons/presentationB.png';
 import mapB from '../../../assets/icons/mapB.png';
@@ -26,6 +27,14 @@ import accountB from '../../../assets/icons/accountB.png';
 const Sidebar = () => {
     const {ownerEmail} = useSelector((state)=>state.project);
     const navigate = useNavigate();
+    const [userData, setUserData] = useState(null);
+    const [profilePictureUrl, setProfilePictureUrl] = useState("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
+    const userId = useSelector((state)=>state.project.userToken);
+    const email = useSelector((state)=>state.project.ownerEmail);
+    const [profileOpen,setProfileOpen]= useState(false);
+    const dispatch = useDispatch();
+    const location = useLocation();
+
     async function createNewProj(){
     try{
       const res = await axios.post('project-management-service/create-new-project',{
@@ -42,18 +51,48 @@ const Sidebar = () => {
       toast.error(err.response.data.message)
     }
   }
-//  const fullState = useSelector((state) => state);
-    
+  function handleLogout(){
+    localStorage.removeItem('ownerEmail');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('bearerToken');
+    dispatch(setEmail(''));
+    dispatch(setUserToken(''));
+    window.location.href = 'https://auth.app.mapx.in/authorize?state=xxxxxxxxxxxxx';
+  }
 
-    const userId = useSelector((state)=>state.project.userToken);
-    const email = useSelector((state)=>state.project.ownerEmail);
-    const [profileOpen,setProfileOpen]= useState(false);
-    const dispatch = useDispatch();
-    const location = useLocation();
     function handleClick(head){
         dispatch(setHeading(head))
     }
+    const fetchProfile = async () => {
+
+        if (!userId) return;
+        try {
+            const profile = await getUserProfile(userId);
+            setUserData(profile);
+            if (profile?.picture) {
+                try {
+                    setTimeout(async () => {
+                        const response = await getProfilePhoto(email, profile.picture);
+                        const imageUrl = URL.createObjectURL(response.data);
+                    setProfilePictureUrl(imageUrl);
+                    }, 100);
+
+                    
+                } catch (imgError) {
+                    console.error("Failed to fetch profile image:", imgError);
+                    setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
+                }
+            } else {
+                setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
+            }
+
+        } catch (error) {
+            console.log(error);
+            toast.error("Failed to load profile data.");
+        }
+    };
     useEffect(()=>{
+        fetchProfile();
         if(location.pathname.includes("/myprojects")){
             dispatch(setHeading("My projects"))
         }else if(location.pathname.includes("/recents")){
@@ -63,7 +102,7 @@ const Sidebar = () => {
         }else if(location.pathname.includes("/allProjects")){
             dispatch(setHeading("All Projects"))
         }
-    },[location.pathname,dispatch])
+    },[location.pathname,dispatch,userId])
   return (
     <div>
         <div className='w-[300px] bg-[#1F1F1F] h-full text-white  border-1 border-t-0 border-zinc-600'>
@@ -193,7 +232,7 @@ const Sidebar = () => {
                             <p className='pl-[15px]'>Account Settings</p>
                         </div>
                     </button>
-                    <div className='relative flex flex-row items-center gap-2 text-sm py-[20px] pl-[40px] px-5 cursor-pointer text-white 
+                    <div onClick={handleLogout} className='relative flex flex-row items-center gap-2 text-sm py-[20px] pl-[40px] px-5 cursor-pointer text-white 
                                 rounded-lg transition-all duration-500 ease-in-out select-none
                                 hover:bg-white/10  hover:backdrop-blur-md
                                 hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]
@@ -206,10 +245,10 @@ const Sidebar = () => {
             </div>
             <div>
                 <button className='pl-4 p-2 flex'>
-                    <img className='h-[50px] w-[50px] object-cover rounded-full' src="https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg" alt="" />
+                    <img className='h-[50px] w-[50px] object-cover rounded-full' src={profilePictureUrl} alt="" />
                     <div className='pl-2'>
-                        <p className='font-semibold'>Sankalp Sadekar</p>
-                        <p className='font-light text-sm text-zinc-400'>sankalpsadekar1@gmail.com</p>
+                        <p className='font-semibold text-left'>{userData?userData.first_name+" "+userData.last_name:"Loading"}</p>
+                        <p className='font-light text-sm text-zinc-400 text-left'>{email}</p>
                     </div>
                 </button>
               {profileOpen && (
@@ -217,6 +256,9 @@ const Sidebar = () => {
     setProfileOpen={setProfileOpen} 
     userId={userId} 
     email={email} 
+    profilePictureUrl={profilePictureUrl}
+    userData={userData}
+    fetchProfile={fetchProfile}
   />
 )}
             </div>

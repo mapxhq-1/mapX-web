@@ -1,7 +1,8 @@
 import axios from "axios";
+const token = localStorage.getItem('bearerToken');
 export async function fetchAllHyperlinks(projectId,year,era) {
     const res = await axios.get('/project-management-service/get-all-hyperlink-by-project-id-and-year/'+projectId,{
-        headers:{client_name:"mapx"},
+        headers:{client_name:"mapx","Authorization": `Bearer ${token}`},
         params:{year,era}
     })
     return res.data.hyperlinks;
@@ -21,7 +22,7 @@ export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era, 
         `/project-management-service/update-hyperlink/${hyperlinkId}`,
         payload,
         {
-            headers: { client_name: "mapx" },
+            headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
             params: { email }
         }
     );
@@ -30,18 +31,18 @@ export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era, 
 }
 
 export async function createHyperlink(projectId,email,hyperlinkTitle,year,era,latitude,longitude,hyperlink) {
-    const res = await axios.post(`/project-management-service/create-new-hyperlink`,{projectId,email,hyperlinkTitle,yearInTimeline:{year,era},latitude,longitude,hyperlink},{headers:{client_name:"mapx"}})
+    const res = await axios.post(`/project-management-service/create-new-hyperlink`,{projectId,email,hyperlinkTitle,yearInTimeline:{year,era},latitude,longitude,hyperlink},{headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function deleteHyperlink(hyperlinkId,email){
-    const res = await axios.delete('/project-management-service/delete-hyperlink/'+hyperlinkId,{params:{email},headers:{client_name:"mapx"}})
+    const res = await axios.delete('/project-management-service/delete-hyperlink/'+hyperlinkId,{params:{email},headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function fetchAllHyperlinksByProject(projectId) {
     const res = await axios.get('/project-management-service/get-all-hyperlinks-by-project/' + projectId, {
-        headers: { client_name: "mapx" }
+        headers: { client_name: "mapx","Authorization": `Bearer ${token}` }
     });
     return res.data.hyperlinks || [];
 }

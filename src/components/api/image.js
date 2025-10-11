@@ -1,8 +1,9 @@
 import axios from "axios";
+const token = localStorage.getItem('bearerToken');
 export async function fetchAllImages(projectId, year, era) {
     
     const res = await axios.get('/project-management-service/get-all-images-by-project-id-year-in-timeline' , {
-        headers: { client_name: "mapx" },
+        headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
         params:{projectId,year,era},
     });
     return res.data.images;
@@ -20,7 +21,7 @@ export async function uploadNewImage(projectId, email, latitude, longitude, imag
   formData.append('era', String(era));
 
   const res = await axios.post('/project-management-service/upload-new-image', formData, {
-    headers: { client_name: 'mapx' },
+    headers: { client_name: 'mapx',"Authorization": `Bearer ${token}` },
   });
 
   return res.data; // ImageUploadResponse
@@ -30,7 +31,7 @@ export async function fetchImageById(imageName) {
   const res = await axios.get(
     `/project-management-service/fetch-image-content/${encodeURIComponent(imageName)}`,
     {
-      headers: { client_name: "mapx" },
+      headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
       responseType: "arraybuffer", // 👈 this is the key
     }
   );
@@ -51,19 +52,19 @@ export async function updateImage(imageId, email, imageFile, caption, year, era)
   const res = await axios.put(
     `/project-management-service/update-image-by-id/${encodeURIComponent(imageId)}`,
     formData,
-    { headers: { client_name: 'mapx' } } // don't set Content-Type manually
+    { headers: { client_name: 'mapx',"Authorization": `Bearer ${token}` } } // don't set Content-Type manually
   );
   return res.data; // ImageUploadResponse
 }
 
 export async function deleteImage(imageId,email){
-    const res = await axios.delete('/project-management-service/delete-image-by-id/'+imageId,{params:{email},headers:{client_name:"mapx"}})
+    const res = await axios.delete('/project-management-service/delete-image-by-id/'+imageId,{params:{email},headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function fetchAllImagesByProject(projectId) {
     const res = await axios.get('/project-management-service/get-all-image-by-project-id', {
-        headers: { client_name: "mapx" },
+        headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
         params: { projectId }
     });
     return res.data.images || [];

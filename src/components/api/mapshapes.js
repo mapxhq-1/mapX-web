@@ -1,5 +1,5 @@
 import axios from "axios";
-
+const token = localStorage.getItem('bearerToken');
 // Best practice: Use an environment variable for the URL.
 // Create a .env file in your project's root with: VITE_PM_BASE_PATH=/project-management-service
 // Fallback to the Vite proxy path when not provided.
@@ -21,7 +21,7 @@ export async function getAllMapShapes(projectId, year, era) {
   try {
     const res = await axios.get(`${BASE_URL}/get-all-map-shapes-by-project-id-and-year/${projectId}`, {
       params: { year, era },
-      headers: { client_name: API_CLIENT_NAME },
+      headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
     });
     console.log("✅ Fetched all map shapes for year:", res.data);
     return res.data;
@@ -54,7 +54,7 @@ export async function createMapShape(projectId, year, era, email, geojson) {
         geojson,
       },
       {
-        headers: { client_name: API_CLIENT_NAME },
+        headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
       }
     );
     console.log("✅ Map shape saved successfully:", res.data);
@@ -82,7 +82,7 @@ export async function updateMapShape(shapeId, email, updateData) {
       updateData,
       {
         params: { email },
-        headers: { client_name: API_CLIENT_NAME },
+        headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
       }
     );
     console.log("✅ Map shape updated successfully:", res.data);
@@ -106,7 +106,7 @@ export async function deleteMapShape(shapeId, email) {
   try {
     const res = await axios.delete(`${BASE_URL}/delete-mapShape/${shapeId}`, {
       params: { email },
-      headers: { client_name: API_CLIENT_NAME },
+      headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
     });
     console.log("✅ Map shape deleted successfully:", res.data);
     return res.data;

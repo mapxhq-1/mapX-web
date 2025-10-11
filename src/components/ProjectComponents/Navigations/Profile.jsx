@@ -1,50 +1,28 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import axios from 'axios';
-import { getUserProfile, updateUserProfile, uploadProfilePhoto, deleteProfilePhoto } from '../../api/auth';
+import { updateUserProfile, uploadProfilePhoto, deleteProfilePhoto } from '../../api/auth';
 
-const Profile = ({ setProfileOpen, userId, email }) => {
-    const [userData, setUserData] = useState(null);
-    const [profilePictureUrl, setProfilePictureUrl] = useState("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
+const Profile = ({ setProfileOpen, userId, email,profilePictureUrl,fetchProfile,userData }) => {
+    
     const { register, handleSubmit, reset } = useForm();
     const divRef = useRef(null);
     const fileInputRef = useRef(null);
-
-    const fetchProfile = async () => {
-        if (!userId) return;
-        try {
-            const profile = await getUserProfile(userId);
-            setUserData(profile);
-            reset(profile);
-
-            if (profile?.picture) {
-                try {
-                    const response = await axios.get(
-                        `/auth-service/fetch-profile-photo/${profile.picture}`,
-                        {
-                            params: { email },
-                            headers: { client_name: "mapx" },
-                            responseType: 'blob'
-                        }
-                    );
-                    const imageUrl = URL.createObjectURL(response.data);
-                    setProfilePictureUrl(imageUrl);
-                } catch (imgError) {
-                    console.error("Failed to fetch profile image:", imgError);
-                    setProfilePictureUrl("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
-                }
-            } else {
-                setProfilePictureUrl("https://i.pinimg.com/originals/5b/d3/d8/5bd3d84ec587abcd897e556237e46c6e.jpg");
-            }
-
-        } catch (error) {
-            toast.error("Failed to load profile data.");
-        }
-    };
+    useEffect(() => {
+    if (userData) {
+        reset({
+            first_name: userData.first_name || '',
+            last_name: userData.last_name || '',
+            phone: userData.phone || '',
+            gender: userData.gender || '',
+            birthdate: userData.birthdate || '',
+            organization: userData.organization || '',
+            role: userData.role || '',
+        });
+    }
+}, [userData, reset]);
 
     useEffect(() => {
-        fetchProfile();
         const handleOutsideClick = (event) => {
             if (divRef.current && !divRef.current.contains(event.target)) {
                 setProfileOpen(false);
@@ -58,8 +36,8 @@ const Profile = ({ setProfileOpen, userId, email }) => {
         try {
             await updateUserProfile(userId, data);
             toast.success("Profile updated successfully!");
+            setProfileOpen(false)
             await fetchProfile();
-            setTimeout(() => setProfileOpen(false), 1000);
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to update profile.");
         }
@@ -73,7 +51,7 @@ const Profile = ({ setProfileOpen, userId, email }) => {
             toast.success("Profile photo updated!");
             fetchProfile();
         } catch (error) {
-            toast.error("Failed to upload photo.");
+            toast.error("Failed to upload photo. "+error.response.statusText);
         }
     };
 

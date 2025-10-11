@@ -1,7 +1,8 @@
 import axios from 'axios';
+const token = localStorage.getItem('bearerToken');
 export async function fetchAllNotes(projectId, year, era) {
     const res = await axios.get('/project-management-service/get-all-note-by-project-id-and-year/' + projectId, {
-        headers: { client_name: "mapx" }, params: {
+        headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, params: {
             year: year, era: era
         }
     });
@@ -14,7 +15,7 @@ export async function updateNote(noteId, year, era, email, htmlText) {
             year, era
         }, htmlText
     }, {
-        headers: { client_name: "mapx" },
+        headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
         params: {
             email,
         },
@@ -26,20 +27,20 @@ export async function createNote(projectId, year, era, latitude, longitude, emai
     const res = await axios.post('/project-management-service/create-new-note',
         { projectId, yearInTimeline: { year, era }, latitude, longitude, email, htmlText, noteTitle:Title, backgroundColor }, {
         headers: {
-            client_name: "mapx"
+            client_name: "mapx","Authorization": `Bearer ${token}`
         }
     })
     return res;
 }
 
 export async function deleteTheNote(noteId,email){
-    const res = await axios.delete('/project-management-service/delete-note/'+noteId,{params:{email},headers:{client_name:"mapx"}})
+    const res = await axios.delete('/project-management-service/delete-note/'+noteId,{params:{email},headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function fetchAllNotesByProject(projectId) {
     const res = await axios.get('/project-management-service/get-all-notes-by-project/' + projectId, {
-        headers: { client_name: "mapx" }
+        headers: { client_name: "mapx","Authorization": `Bearer ${token}` }
     });
     return res.data.notes || [];
 }
