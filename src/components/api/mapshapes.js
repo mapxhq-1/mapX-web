@@ -1,5 +1,4 @@
 import axios from "axios";
-const token = localStorage.getItem('bearerToken');
 // Best practice: Use an environment variable for the URL.
 // Create a .env file in your project's root with: VITE_PM_BASE_PATH=/project-management-service
 // Fallback to the Vite proxy path when not provided.
@@ -15,6 +14,7 @@ const API_CLIENT_NAME = "mapx";
  * @returns {Promise<object>} The response from the backend containing the map shapes.
  */
 export async function getAllMapShapes(projectId, year, era) {
+  const token = localStorage.getItem('bearerToken');
   if (!projectId || year === undefined || !era) {
     throw new Error("Project ID, year, and era are required to fetch shapes.");
   }
@@ -41,6 +41,7 @@ export async function getAllMapShapes(projectId, year, era) {
  * @returns {Promise<object>} The response from the backend.
  */
 export async function createMapShape(projectId, year, era, email, geojson) {
+  const token = localStorage.getItem('bearerToken');
   if (!projectId || year === undefined || !era || !email || !geojson) {
     throw new Error("All parameters are required to create a map shape.");
   }
@@ -73,6 +74,7 @@ export async function createMapShape(projectId, year, era, email, geojson) {
  * @returns {Promise<object>} The response from the backend.
  */
 export async function updateMapShape(shapeId, email, updateData) {
+  const token = localStorage.getItem('bearerToken');
   if (!shapeId || !email || !updateData) {
     throw new Error("Shape ID, email, and update data are required.");
   }
@@ -100,6 +102,7 @@ export async function updateMapShape(shapeId, email, updateData) {
  * @returns {Promise<object>} The response from the backend.
  */
 export async function deleteMapShape(shapeId, email) {
+  const token = localStorage.getItem('bearerToken');
   if (!shapeId || !email) {
     throw new Error("Shape ID and email are required to delete a shape.");
   }

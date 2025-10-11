@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { closeHyperlink, setHyperlinkMode } from "../../../store/mapSlice";
 import { useParams } from "react-router-dom";
@@ -17,6 +17,7 @@ const HyperlinkModel = () => {
   const email = useSelector((state) => state.project.ownerEmail);
   const year = useSelector((state) => state.map.year);
   const queryClient = useQueryClient();
+  const modalRef = useRef(null);
 
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
@@ -33,6 +34,22 @@ const HyperlinkModel = () => {
       setLink("");
     }
   }, [isOpen, currentHyperlink?.id, isUpdate]);
+
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (modalRef.current && !modalRef.current.contains(event.target)) {
+      try { window.mapxHyperlinksRemoveDraftMarkers && window.mapxHyperlinksRemoveDraftMarkers(); } catch (_) {};
+      dispatch(closeHyperlink());
+    }
+  };
+
+  if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, [isOpen, dispatch]);
+
 
   // Save or update hyperlink
   const handleSave = async () => {
@@ -149,7 +166,7 @@ const HyperlinkModel = () => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-transparent bg-opacity-50">
       {/* Main Glass Card */}
-      <div className="relative w-[500px] min-h-[400px] rounded-2xl shadow-xl flex flex-col items-center p-5
+      <div ref={modalRef} className="relative w-[500px] min-h-[400px] rounded-2xl shadow-xl flex flex-col items-center p-5
         bg-black/10 border border-white/30 backdrop-blur-md 
         shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]">
 

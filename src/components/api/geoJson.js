@@ -1,6 +1,7 @@
 import axios from "axios";
-const token = localStorage.getItem('bearerToken');
+
 export async function getAllEmpires() {
+  const token = localStorage.getItem('bearerToken');
   try {
     const res = await axios.get("/geo-json-service/get-all-empires", {
       headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, 
@@ -14,6 +15,7 @@ export async function getAllEmpires() {
 }
 
 export async function getEmpireDetailsById(id) {
+  const token = localStorage.getItem('bearerToken');
   try {
     const res = await axios.get(
       `/geo-json-service/get-empire-details-by-id/${id}`,

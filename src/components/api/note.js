@@ -1,6 +1,7 @@
 import axios from 'axios';
-const token = localStorage.getItem('bearerToken');
+
 export async function fetchAllNotes(projectId, year, era) {
+    const token = localStorage.getItem('bearerToken');
     const res = await axios.get('/project-management-service/get-all-note-by-project-id-and-year/' + projectId, {
         headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, params: {
             year: year, era: era
@@ -10,6 +11,7 @@ export async function fetchAllNotes(projectId, year, era) {
 }
 
 export async function updateNote(noteId, year, era, email, htmlText) {
+    const token = localStorage.getItem('bearerToken');
     const res = await axios.patch('/project-management-service/update-note/' + noteId, {
         yearInTimeline: {
             year, era
@@ -24,6 +26,7 @@ export async function updateNote(noteId, year, era, email, htmlText) {
 }
 
 export async function createNote(projectId, year, era, latitude, longitude, email, htmlText, Title, backgroundColor) {
+    const token = localStorage.getItem('bearerToken');
     const res = await axios.post('/project-management-service/create-new-note',
         { projectId, yearInTimeline: { year, era }, latitude, longitude, email, htmlText, noteTitle:Title, backgroundColor }, {
         headers: {
@@ -34,12 +37,14 @@ export async function createNote(projectId, year, era, latitude, longitude, emai
 }
 
 export async function deleteTheNote(noteId,email){
+    const token = localStorage.getItem('bearerToken');
     const res = await axios.delete('/project-management-service/delete-note/'+noteId,{params:{email},headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function fetchAllNotesByProject(projectId) {
-    const res = await axios.get('/project-management-service/get-all-notes-by-project/' + projectId, {
+    const token = localStorage.getItem('bearerToken');
+    const res = await axios.get('/project-management-service/get-all-note-by-project-id/' + projectId, {
         headers: { client_name: "mapx","Authorization": `Bearer ${token}` }
     });
     return res.data.notes || [];

@@ -3,7 +3,6 @@ import { toast } from "react-toastify";
 
 const BASE_URL = "/project-management-service";
 const API_CLIENT_NAME = "mapx";
-const token = localStorage.getItem('bearerToken');
 /**
  * Clones a project for the current user.
  * @param {string} projectId - The ID of the project to clone.
@@ -11,6 +10,7 @@ const token = localStorage.getItem('bearerToken');
  * @returns {Promise<string>} The ID of the newly cloned project.
  */
 export const cloneProject = async (projectId, email) => {
+  const token = localStorage.getItem('bearerToken');
   try {
     const response = await axios.post(
       `${BASE_URL}/clone-project`,

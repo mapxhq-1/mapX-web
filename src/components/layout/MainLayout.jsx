@@ -30,7 +30,7 @@ export default function MainLayout() {
   const imageOpen = useSelector((state) => state.map.imageOpen);
   const hyperlinkOpen = useSelector((state) => state.map.hyperlinkOpen);
   const loading = useSelector((state) => state.map.loading); // Get loading state
-  const token = localStorage.getItem('bearerToken');
+  
     useEffect(() => {
       const savedEmail = localStorage.getItem('ownerEmail');
       const savedToken = localStorage.getItem('userToken');
@@ -42,6 +42,7 @@ export default function MainLayout() {
     }, [dispatch]);
   useEffect(() => {
     async function getProjectDetails() {
+      const token = localStorage.getItem('bearerToken');
       try {
         const res = await axios.get('/project-management-service/get-project-by-id/' + id, {
           headers: {
