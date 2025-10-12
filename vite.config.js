@@ -9,7 +9,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/project-management-service": {
-        target: "http://localhost:8081",
+        target: "https://api.mapx.in/project-management-service",
         changeOrigin: true,
         secure: false,
       },
@@ -19,7 +19,7 @@ export default defineConfig({
         secure: false,
       },
       "/auth-service": {
-        target: "http://localhost:8002",
+        target: "https://api.mapx.in/auth-service",
         changeOrigin: true,
         secure: false,
       },
