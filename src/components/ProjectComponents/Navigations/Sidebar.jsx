@@ -200,7 +200,7 @@ const Sidebar = () => {
                 <div className="help ">
                     <p className='px-[40px] py-[20px] text-lg font-light text-[#1B76D0]'>Help</p>
                     <nav>
-                        <a href='https://cal.com/sankalp-sadekar-mapx'>
+                        <a href='https://cal.com/sankalp-sadekar-mapx' target='_blank'>
                             <div className='relative flex flex-row items-center gap-2 text-sm pl-[40px] py-[25px] px-5 cursor-pointer text-white 
                                 rounded-lg transition-all duration-500 ease-in-out select-none
                                 hover:bg-white/10  hover:backdrop-blur-md

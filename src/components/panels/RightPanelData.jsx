@@ -3,7 +3,7 @@ import image_icon from '../../assets/icons/image_icon.png';
 import hyperlink_icon from '../../assets/icons/hyperlink_icon.png';
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllNotesByProject } from '../api/note';
-import { fetchAllImagesByProject } from '../api/image';
+import { fetchAllImagesByProject,fetchImageById } from '../api/image';
 import { fetchAllHyperlinksByProject } from '../api/hyperlink';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';

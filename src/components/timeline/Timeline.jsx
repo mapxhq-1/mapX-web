@@ -246,8 +246,9 @@ const speedLookup = useMemo(() => {
           );
           if (target !== localYear) {
             setLocalYear(target);
-            // do NOT dispatch every frame; schedule a debounced commit
-            scheduleCommit(target);
+            // Always dispatch immediately during dragging
+            dispatch(setYear(target));
+            dragAccumulatorRef.current -= step;
           }
           dragAccumulatorRef.current -= step;
         }
@@ -374,8 +375,8 @@ const speedLookup = useMemo(() => {
   return (
     <Box sx={{ position: "fixed", left: 0, right: 0, width: "100vw", zIndex: 15, color: "#fff", pointerEvents: "none", bottom: 8 }}>
       {/* Year input */}
-      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "auto" }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "none" }}>
+        <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 1, pointerEvents: "auto", width: "fit-content", margin: "0 auto" }}>
           <input
             type="text"
             value={inputValue}
