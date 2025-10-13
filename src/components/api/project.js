@@ -1,7 +1,7 @@
 import axios from "axios";
 import { toast } from "react-toastify";
 
-const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+const BASE_URL = import.meta.env.VITE_URL_PROJECT +  "/project-management-service";
 const API_CLIENT_NAME = "mapx";
 /**
  * Clones a project for the current user.

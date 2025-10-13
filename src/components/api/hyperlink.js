@@ -1,5 +1,5 @@
 import axios from "axios";
-const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
 
 export async function fetchAllHyperlinks(projectId,year,era) {
     const token = localStorage.getItem('bearerToken');

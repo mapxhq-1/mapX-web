@@ -1,5 +1,5 @@
 import axios from "axios";
-const BASE_URL = import.meta.env.VITE_URL_GEO;
+const BASE_URL = import.meta.env.VITE_URL_GEO + "/geo-json-service";
 
 export async function getAllEmpires() {
   const token = localStorage.getItem('bearerToken');
