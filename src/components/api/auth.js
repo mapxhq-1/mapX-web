@@ -107,7 +107,7 @@ export async function getUserInfo(code) {
 export async function getProfilePhoto(email,fileId) {
   const token = localStorage.getItem('bearerToken');
   const response = await axios.get(
-    BASE_URL+`fetch-profile-photo/${fileId}`,
+    BASE_URL+`/fetch-profile-photo/${fileId}`,
     {
       params: { email },
       headers: { client_name: "mapx", "Authorization": `Bearer ${token}` },
