@@ -12,39 +12,6 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     server: {
       proxy: {
-        "/project-management-service": {
-          target: "https://api.mapx.in"+env.VITE_URL_PROJECT,
-          changeOrigin: true,
-          secure: false,
-          configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('origin', 'https://app.mapx.in');
-            proxyReq.setHeader('referer', 'https://app.mapx.in/');
-          });
-        }
-        },
-        "/geo-json-service": {
-          target: "https://api.mapx.in"+env.VITE_URL_GEO,
-          changeOrigin: true,
-          secure: false,
-          configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('origin', 'https://app.mapx.in');
-            proxyReq.setHeader('referer', 'https://app.mapx.in/');
-          });
-        }
-        },
-        "/auth-service": {
-          target: "https://api.mapx.in"+env.VITE_URL_AUTH,
-          changeOrigin: true,
-          secure: false,
-          configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('origin', 'https://app.mapx.in');
-            proxyReq.setHeader('referer', 'https://app.mapx.in/');
-          });
-        }
-        },
         "/embed": {
           target: "http://localhost:8061",
           changeOrigin: true,
