@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "https://api.mapx.in/auth-service/auth-service";
+const BASE_URL = "/auth-service";
 const API_CLIENT_NAME = "mapx";
 
 export const getUserProfile = async (userId) => {
