@@ -106,40 +106,77 @@ async function mapWithConcurrency(items, limit, mapper) {
   await done;
   return results;
 }
+const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
-export async function loadAllEmpiresWithDetailsCached() {
-  // 1) Try to read cached metadata list
+export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
+  const now = Date.now();
+
+  // 1️⃣ --- Load cached metadata (list of empires)
+  let metadataList = null;
   const cachedMeta = await idbGet(STORE_META, "list");
-  let metadataList = cachedMeta;
-  if (!Array.isArray(metadataList) || metadataList.length === 0) {
+
+  if (
+    !forceRefresh &&
+    cachedMeta &&
+    cachedMeta.data &&
+    now - cachedMeta.timestamp < CACHE_EXPIRY_MS
+  ) {
+    metadataList = cachedMeta.data;
+  } else {
+    // Cache expired or force refresh
     metadataList = await getAllEmpires();
-    // Best-effort cache
-    idbSet(STORE_META, "list", metadataList).catch(() => {});
+    idbSet(STORE_META, "list", {
+      timestamp: now,
+      data: metadataList,
+    }).catch(() => {});
   }
 
   const ids = metadataList.map((e) => e.objectId).filter(Boolean);
 
-  // 2) Collect cached details
+  // 2️⃣ --- Collect cached empire details
   const cachedIds = await idbKeys(STORE_DETAILS);
   const cachedIdSet = new Set(cachedIds);
-  const fromCachePromises = ids
-    .filter((id) => cachedIdSet.has(id))
-    .map((id) => idbGet(STORE_DETAILS, id));
-  const cachedDetails = (await Promise.all(fromCachePromises)).filter(Boolean);
 
-  // 3) Fetch missing with limited concurrency and cache as we go
-  const missingIds = ids.filter((id) => !cachedIdSet.has(id));
+  const cachedDetailsPromises = ids.map(async (id) => {
+    if (!cachedIdSet.has(id)) return null;
+    const cached = await idbGet(STORE_DETAILS, id);
+    if (
+      !forceRefresh &&
+      cached &&
+      cached.data &&
+      now - cached.timestamp < CACHE_EXPIRY_MS
+    ) {
+      return cached.data; // still valid
+    }
+    return null; // expired or missing
+  });
+
+  const cachedDetails = (await Promise.all(cachedDetailsPromises)).filter(Boolean);
+  const cachedDetailIds = new Set(cachedDetails.map((d) => d?.objectId || d?.id || d?._id));
+
+  // 3️⃣ --- Fetch missing or expired details (limit concurrency)
+  const missingIds = ids.filter((id) => !cachedDetailIds.has(id));
   const fetchedDetails = await mapWithConcurrency(missingIds, 6, async (id) => {
     const detail = await getEmpireDetailsById(id);
-    // Cache best-effort
-    idbSet(STORE_DETAILS, id, detail).catch(() => {});
+    // Store with timestamp
+    idbSet(STORE_DETAILS, id, {
+      timestamp: now,
+      data: detail,
+    }).catch(() => {});
     return detail;
   });
 
-  // Preserve original order per metadata list
-  const detailsById = new Map([...cachedDetails, ...fetchedDetails].map((d) => [d?.objectId || d?.id || d?._id, d]));
+  // 4️⃣ --- Merge and order results
+  const detailsById = new Map(
+    [...cachedDetails, ...fetchedDetails].map((d) => [
+      d?.objectId || d?.id || d?._id,
+      d,
+    ])
+  );
+
   const ordered = ids.map((id) => detailsById.get(id)).filter(Boolean);
   return ordered;
 }
+
 
 
