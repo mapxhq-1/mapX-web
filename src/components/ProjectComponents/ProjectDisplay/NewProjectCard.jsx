@@ -6,7 +6,7 @@ import {toast} from 'react-toastify';
 const NewProjectCard = () => {
   const {ownerEmail} = useSelector((state)=>state.project);
   const navigate = useNavigate();
-  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT + '/project-management-service';
   async function createNewProj(){
     try{
       const token = localStorage.getItem('bearerToken');
