@@ -1,7 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
-const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
 
 export const myProjApiCall = createAsyncThunk(
   "project/myProjApiCall",
