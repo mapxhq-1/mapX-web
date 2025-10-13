@@ -2,7 +2,7 @@ import axios from "axios";
 // Best practice: Use an environment variable for the URL.
 // Create a .env file in your project's root with: VITE_PM_BASE_PATH=/project-management-service
 // Fallback to the Vite proxy path when not provided.
-const BASE_URL = import.meta?.env?.VITE_PM_BASE_PATH || "/project-management-service";
+const BASE_URL = import.meta.env.VITE_URL_PROJECT;
 
 const API_CLIENT_NAME = "mapx";
 

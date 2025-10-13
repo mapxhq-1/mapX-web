@@ -6,6 +6,7 @@ import {myProjApiCall,sharedProjApiCall} from "../../../store/projectSlice"
 import { useNavigate } from 'react-router-dom';
 
 const ProjectCard = ({data}) => {
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
   const [menu,setMenu] = useState(false);
   const [isPrivate,setIsPrivate] = useState(false);
   const menuref = useRef(null);
@@ -30,7 +31,7 @@ const ProjectCard = ({data}) => {
 
   async function handleRename(){
     try{
-      await axios.patch('/project-management-service/update-project',{
+      await axios.patch(BASE_URL+'/update-project',{
         projectName : projname,
         ownerEmail : ownerEmail,
         projectId : data.id,
@@ -52,7 +53,7 @@ const ProjectCard = ({data}) => {
   async function handlePrivate(e){
     e.stopPropagation();
     try{
-      await axios.patch('/project-management-service/update-project',{
+      await axios.patch(BASE_URL+'/update-project',{
         accessorList : [],
         ownerEmail : ownerEmail,
         projectId : data.id,
@@ -72,7 +73,7 @@ const ProjectCard = ({data}) => {
   async function handleDelete(e){
     e.stopPropagation();
     try{
-      await axios.delete('/project-management-service/delete-project/'+data.id,{
+      await axios.delete(BASE_URL+'/delete-project/'+data.id,{
         params:{
           ownerEmail:ownerEmail
         },

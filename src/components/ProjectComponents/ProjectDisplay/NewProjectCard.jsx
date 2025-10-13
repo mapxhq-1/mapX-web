@@ -6,10 +6,11 @@ import {toast} from 'react-toastify';
 const NewProjectCard = () => {
   const {ownerEmail} = useSelector((state)=>state.project);
   const navigate = useNavigate();
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
   async function createNewProj(){
     try{
       const token = localStorage.getItem('bearerToken');
-      const res = await axios.post('project-management-service/create-new-project',{
+      const res = await axios.post(BASE_URL+'/create-new-project',{
         ownerEmail : ownerEmail,
         projectName : "New project"
       }, {

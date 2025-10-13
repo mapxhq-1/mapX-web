@@ -1,6 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
+const BASE_URL = import.meta.env.VITE_URL_PROJECT;
 
 export const myProjApiCall = createAsyncThunk(
   "project/myProjApiCall",
@@ -8,7 +9,7 @@ export const myProjApiCall = createAsyncThunk(
     try {
       const token = localStorage.getItem('bearerToken');
       const res = await axios.get(
-        "/project-management-service/get-all-projects-of-owner",
+        BASE_URL+"/get-all-projects-of-owner",
         {
           params: {
             ownerEmail: getState().project.ownerEmail,
@@ -35,7 +36,7 @@ export const sharedProjApiCall = createAsyncThunk(
     try {
       const token = localStorage.getItem('bearerToken');
       const res = await axios.get(
-        "/project-management-service/get-all-accessible-projects",
+        BASE_URL+"/get-all-accessible-projects",
         {
           params: {
             email: getState().project.ownerEmail,

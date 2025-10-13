@@ -15,6 +15,7 @@ import HyperlinkModel from "../map/upload/HyperlinkModel";
 import MapLoader from "../loaders/MapLoader"; // Import the loader
 import { setEmail,setUserToken } from "../../store/projectSlice";
 export default function MainLayout() {
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
   const [leftExpanded, setLeftExpanded] = useState(false);
   const [rightExpanded, setRightExpanded] = useState(false);
   const { id } = useParams();
@@ -44,7 +45,7 @@ export default function MainLayout() {
     async function getProjectDetails() {
       const token = localStorage.getItem('bearerToken');
       try {
-        const res = await axios.get('/project-management-service/get-project-by-id/' + id, {
+        const res = await axios.get(BASE_URL+'/get-project-by-id/' + id, {
           headers: {
             'client_name': 'mapx',"Authorization": `Bearer ${token}`
           }

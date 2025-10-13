@@ -25,6 +25,7 @@ import folderB from '../../../assets/icons/folderB.png';
 import accountB from '../../../assets/icons/accountB.png';
 
 const Sidebar = () => {
+    const BASE_URL = import.meta.env.VITE_URL_PROJECT;
     const {ownerEmail} = useSelector((state)=>state.project);
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
@@ -37,7 +38,7 @@ const Sidebar = () => {
 
     async function createNewProj(){
     try{
-      const res = await axios.post('project-management-service/create-new-project',{
+      const res = await axios.post(BASE_URL+'/create-new-project',{
         ownerEmail : ownerEmail,
         projectName : "New project"
       }, {

@@ -1,9 +1,10 @@
 import axios from "axios";
+const BASE_URL = import.meta.env.VITE_URL_GEO;
 
 export async function getAllEmpires() {
   const token = localStorage.getItem('bearerToken');
   try {
-    const res = await axios.get("/geo-json-service/get-all-empires", {
+    const res = await axios.get(BASE_URL+"/get-all-empires", {
       headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, 
     });
     // console.log(res.data);
@@ -18,7 +19,7 @@ export async function getEmpireDetailsById(id) {
   const token = localStorage.getItem('bearerToken');
   try {
     const res = await axios.get(
-      `/geo-json-service/get-empire-details-by-id/${id}`,
+      BASE_URL+`/get-empire-details-by-id/${id}`,
       {
         headers: {
           Accept: "application/json",

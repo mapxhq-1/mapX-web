@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import RightPanelData from "./RightPanelData";
 
 function Open({ setIsOpen, project }) {
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
   const [saveOpen, setSaveOpen] = useState(false);
   const saveRef = useRef(null);
   const [projName, setProjName] = useState(project.projectName);
@@ -49,7 +50,7 @@ function Open({ setIsOpen, project }) {
     try {
       const token = localStorage.getItem('bearerToken');
       const res = await axios.patch(
-        "/project-management-service/update-project",
+        BASE_URL+"/update-project",
         {
           ownerEmail,
           projectName: projName,

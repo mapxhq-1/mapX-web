@@ -1,8 +1,9 @@
 import axios from "axios";
+const BASE_URL = import.meta.env.VITE_URL_PROJECT;
 
 export async function fetchAllHyperlinks(projectId,year,era) {
     const token = localStorage.getItem('bearerToken');
-    const res = await axios.get('/project-management-service/get-all-hyperlink-by-project-id-and-year/'+projectId,{
+    const res = await axios.get(BASE_URL+'/get-all-hyperlink-by-project-id-and-year/'+projectId,{
         headers:{client_name:"mapx","Authorization": `Bearer ${token}`},
         params:{year,era}
     })
@@ -21,7 +22,7 @@ export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era, 
     }
 
     const res = await axios.patch(
-        `/project-management-service/update-hyperlink/${hyperlinkId}`,
+        BASE_URL+`/update-hyperlink/${hyperlinkId}`,
         payload,
         {
             headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
@@ -34,19 +35,19 @@ export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era, 
 
 export async function createHyperlink(projectId,email,hyperlinkTitle,year,era,latitude,longitude,hyperlink) {
     const token = localStorage.getItem('bearerToken');
-    const res = await axios.post(`/project-management-service/create-new-hyperlink`,{projectId,email,hyperlinkTitle,yearInTimeline:{year,era},latitude,longitude,hyperlink},{headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
+    const res = await axios.post(BASE_URL+`/create-new-hyperlink`,{projectId,email,hyperlinkTitle,yearInTimeline:{year,era},latitude,longitude,hyperlink},{headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function deleteHyperlink(hyperlinkId,email){
     const token = localStorage.getItem('bearerToken');
-    const res = await axios.delete('/project-management-service/delete-hyperlink/'+hyperlinkId,{params:{email},headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
+    const res = await axios.delete(BASE_URL+'/delete-hyperlink/'+hyperlinkId,{params:{email},headers:{client_name:"mapx","Authorization": `Bearer ${token}`}})
     return res;
 }
 
 export async function fetchAllHyperlinksByProject(projectId) {
     const token = localStorage.getItem('bearerToken');
-    const res = await axios.get('/project-management-service/get-all-hyperlink-by-project-id/' + projectId, {
+    const res = await axios.get(BASE_URL+'/get-all-hyperlink-by-project-id/' + projectId, {
         headers: { client_name: "mapx","Authorization": `Bearer ${token}` }
     });
     return res.data.hyperlinks || [];
