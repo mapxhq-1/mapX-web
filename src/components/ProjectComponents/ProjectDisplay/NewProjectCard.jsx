@@ -8,12 +8,13 @@ const NewProjectCard = () => {
   const navigate = useNavigate();
   async function createNewProj(){
     try{
+      const token = localStorage.getItem('bearerToken');
       const res = await axios.post('project-management-service/create-new-project',{
         ownerEmail : ownerEmail,
         projectName : "New project"
       }, {
         headers: {
-          'client_name': 'mapx'
+          'client_name': 'mapx',"Authorization": `Bearer ${token}`
         }
       })
       toast.success('New project created!!')

@@ -57,7 +57,7 @@ const Sidebar = () => {
     localStorage.removeItem('bearerToken');
     dispatch(setEmail(''));
     dispatch(setUserToken(''));
-    window.location.href = 'https://auth.app.mapx.in/authorize?state=xxxxxxxxxxxxx';
+    window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
   }
 
     function handleClick(head){

@@ -1,10 +1,11 @@
+// Projects.jsx - Add auth check AND code handling here
 import Header from './Navigations/Header'
 import Sidebar from './Navigations/Sidebar'
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProjectGrid from './ProjectDisplay/ProjectGrid';
 import CloneProjectPage from './ProjectDisplay/CloneProjectPage'
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getUserInfo } from '../api/auth';
 import { setEmail, setUserToken } from '../../store/projectSlice';
 import { useDispatch } from 'react-redux';
@@ -13,32 +14,22 @@ const Projects = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
-  // Load saved auth data from localStorage on mount (runs on every refresh)
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('ownerEmail');
-    const savedToken = localStorage.getItem('userToken');
-    
-    if (savedEmail && savedToken) {
-      dispatch(setEmail(savedEmail));
-      dispatch(setUserToken(savedToken));
-    }
-  }, [dispatch]);
-
-  // Handle OAuth callback with code parameter
+  // Handle OAuth callback with code parameter FIRST
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const code = params.get("code");
     
     if (code) {
-      
       // Exchange the code with your backend for tokens
       getUserInfo(code)
         .then((data) => {
-          console.log(data);
+          console.log("Auth response:", data);
           const email = data.clientUserinfoResult.active_token.email;
           const token = data.clientUserinfoResult.active_token.identity;
           const bearer = data.clientUserinfoResult.active_token.token;
+          
           // Update Redux state
           dispatch(setUserToken(token));
           dispatch(setEmail(email));
@@ -46,15 +37,45 @@ const Projects = () => {
           // Save to localStorage for persistence
           localStorage.setItem('ownerEmail', email);
           localStorage.setItem('userToken', token);
-          localStorage.setItem('bearerToken',bearer);
-          // Navigate to projects page
+          localStorage.setItem('bearerToken', bearer);
+          
+          // Navigate to projects page and mark auth as ready
           navigate("/myProjects", { replace: true });
+          setIsAuthReady(true);
         })
         .catch((err) => {
           console.error("Auth error:", err);
+          window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
         });
+    } else {
+      // No code, check for existing token
+      const token = localStorage.getItem('bearerToken');
+      console.log("No code, checking token:", token ? "found" : "not found");
+      
+      if (!token) {
+        window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
+      } else {
+        // Load saved data from localStorage
+        const savedEmail = localStorage.getItem('ownerEmail');
+        const savedToken = localStorage.getItem('userToken');
+        
+        if (savedEmail && savedToken) {
+          dispatch(setEmail(savedEmail));
+          dispatch(setUserToken(savedToken));
+        }
+        setIsAuthReady(true);
+      }
     }
   }, [dispatch, navigate, location.search]);
+
+  // Show loading while checking auth
+  if (!isAuthReady) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg">Authenticating...</div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -66,6 +87,7 @@ const Projects = () => {
 
           <Routes>
             <Route index element={<Navigate to="myProjects" replace />} />
+            {/* Remove ProtectedRoute from these - already protected at Projects level */}
             <Route path="sharedProjects" element={<ProjectGrid />} />
             <Route path="myProjects" element={<ProjectGrid />} />
             <Route path="allProjects" element={<ProjectGrid />} />
