@@ -21,13 +21,16 @@ const ProjectGrid = () => {
 
   useEffect(() => {
     let newData;
-    if(heading === "My Projects"){
-      newData = [ ...myProj];
-    }else if(heading === "Shared Projects"){
-      newData = [...sharedProj];
-    }else{
-      newData = [...sharedProj, ...myProj];
-    }
+      if (heading === "My Projects") {
+    newData = Array.isArray(myProj) ? [...myProj] : [];
+  } else if (heading === "Shared Projects") {
+    newData = Array.isArray(sharedProj) ? [...sharedProj] : [];
+  } else {
+    newData = [
+      ...(Array.isArray(sharedProj) ? sharedProj : []),
+      ...(Array.isArray(myProj) ? myProj : []),
+    ];
+  }
     if (heading==="Recents" || option === "Date") {
       newData = newData.sort(
         (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
