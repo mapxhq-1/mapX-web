@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// const BASE_URL = "/auth-service";
-const BASE_URL = import.meta.env.VITE_URL_AUTH + "/auth-service";
+const BASE_URL = "/auth-service";
+// const BASE_URL = import.meta.env.VITE_URL_AUTH + "/auth-service";
 
 const API_CLIENT_NAME = "mapx";
 

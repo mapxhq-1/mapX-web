@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/project-management-service": {
-          target: env.VITE_URL_PROJECT,
+          target: "https://api.mapx.in"+env.VITE_URL_PROJECT,
           changeOrigin: true,
           secure: false,
           configure: (proxy, options) => {
@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
         }
         },
         "/geo-json-service": {
-          target: env.VITE_URL_GEO,
+          target: "https://api.mapx.in"+env.VITE_URL_GEO,
           changeOrigin: true,
           secure: false,
           configure: (proxy, options) => {
@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
         }
         },
         "/auth-service": {
-          target: env.VITE_URL_AUTH,
+          target: "https://api.mapx.in"+env.VITE_URL_AUTH,
           changeOrigin: true,
           secure: false,
           configure: (proxy, options) => {
