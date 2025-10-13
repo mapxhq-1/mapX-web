@@ -25,7 +25,7 @@ import folderB from '../../../assets/icons/folderB.png';
 import accountB from '../../../assets/icons/accountB.png';
 
 const Sidebar = () => {
-    const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+    const BASE_URL = import.meta.env.VITE_URL_PROJECT+  "/project-management-service";
     const {ownerEmail} = useSelector((state)=>state.project);
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);

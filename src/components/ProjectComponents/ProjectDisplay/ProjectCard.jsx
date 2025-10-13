@@ -6,7 +6,7 @@ import {myProjApiCall,sharedProjApiCall} from "../../../store/projectSlice"
 import { useNavigate } from 'react-router-dom';
 
 const ProjectCard = ({data}) => {
-  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT +  "/project-management-service";
   const [menu,setMenu] = useState(false);
   const [isPrivate,setIsPrivate] = useState(false);
   const menuref = useRef(null);

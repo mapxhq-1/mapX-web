@@ -15,7 +15,7 @@ import HyperlinkModel from "../map/upload/HyperlinkModel";
 import MapLoader from "../loaders/MapLoader"; // Import the loader
 import { setEmail,setUserToken } from "../../store/projectSlice";
 export default function MainLayout() {
-  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT +  "/project-management-service";
   const [leftExpanded, setLeftExpanded] = useState(false);
   const [rightExpanded, setRightExpanded] = useState(false);
   const { id } = useParams();

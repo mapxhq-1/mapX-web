@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 import RightPanelData from "./RightPanelData";
 
 function Open({ setIsOpen, project }) {
-  const BASE_URL = import.meta.env.VITE_URL_PROJECT;
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT  +  "/project-management-service";
   const [saveOpen, setSaveOpen] = useState(false);
   const saveRef = useRef(null);
   const [projName, setProjName] = useState(project.projectName);
