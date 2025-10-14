@@ -19,9 +19,9 @@ const ProjectGrid = () => {
     }
   },[dispatch,ownerEmail])
 
-  useEffect(() => {
-    let newData;
-      if (heading === "My Projects") {
+useEffect(() => {
+  let newData;
+  if (heading === "My Projects") {
     newData = Array.isArray(myProj) ? [...myProj] : [];
   } else if (heading === "Shared Projects") {
     newData = Array.isArray(sharedProj) ? [...sharedProj] : [];
@@ -31,15 +31,31 @@ const ProjectGrid = () => {
       ...(Array.isArray(myProj) ? myProj : []),
     ];
   }
-    if (heading==="Recents" || option === "Date") {
-      newData = newData.sort(
-        (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
-      );
-    } else{
-      newData = newData.sort((a, b) => a.projectName.localeCompare(b.projectName));
+  
+  // CRITICAL FIX: Filter out invalid entries and ensure valid dates
+  newData = newData.filter(item => {
+    if (!item || typeof item.projectName !== 'string') return false;
+    
+    // Ensure updatedAt is a valid string
+    if (!item.updatedAt || typeof item.updatedAt !== 'string') {
+      console.warn('Invalid updatedAt for project:', item);
+      return false;
     }
-    setSortedData(newData);
-  }, [option, sharedProj, myProj, heading]);
+    
+    return true;
+  });
+  
+  if (heading === "Recents" || option === "Date") {
+    newData = newData.sort(
+      (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+    );
+  } else {
+    newData = newData.sort((a, b) => 
+      a.projectName.localeCompare(b.projectName)
+    );
+  }
+  setSortedData(newData);
+}, [option, sharedProj, myProj, heading]);
 
   if (loadingMy || loadingShared) 
     return (
