@@ -32,18 +32,23 @@ useEffect(() => {
     ];
   }
   
-  // CRITICAL FIX: Filter out invalid entries and ensure valid dates
-  newData = newData.filter(item => {
-    if (!item || typeof item.projectName !== 'string') return false;
-    
-    // Ensure updatedAt is a valid string
-    if (!item.updatedAt || typeof item.updatedAt !== 'string') {
-      console.warn('Invalid updatedAt for project:', item);
-      return false;
-    }
-    
-    return true;
-  });
+  // CRITICAL FIX: Convert Unix timestamps to ISO strings
+  newData = newData.map(item => ({
+    ...item,
+    updatedAt: typeof item.updatedAt === 'number' 
+      ? new Date(item.updatedAt * 1000).toISOString() 
+      : item.updatedAt,
+    createdAt: typeof item.createdAt === 'number'
+      ? new Date(item.createdAt * 1000).toISOString()
+      : item.createdAt
+  }));
+  
+  // Filter out invalid entries
+  newData = newData.filter(item => 
+    item && 
+    typeof item.projectName === 'string' && 
+    item.updatedAt
+  );
   
   if (heading === "Recents" || option === "Date") {
     newData = newData.sort(
