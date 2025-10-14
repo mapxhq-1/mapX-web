@@ -31,13 +31,14 @@ const ProjectCard = ({data}) => {
 
   async function handleRename(){
     try{
+      const token = localStorage.getItem('bearerToken');
       await axios.patch(BASE_URL+'/update-project',{
         projectName : projname,
         ownerEmail : ownerEmail,
         projectId : data.id,
       }, {
         headers: {
-          'client_name': 'mapx'
+          'client_name': 'mapx',"Authorization": `Bearer ${token}`
         }
       });
       toast.success("Renamed successfully!!");
@@ -53,13 +54,14 @@ const ProjectCard = ({data}) => {
   async function handlePrivate(e){
     e.stopPropagation();
     try{
+      const token = localStorage.getItem('bearerToken');
       await axios.patch(BASE_URL+'/update-project',{
         accessorList : [],
         ownerEmail : ownerEmail,
         projectId : data.id,
       }, {
         headers: {
-          'client_name': 'mapx'
+          'client_name': 'mapx',"Authorization": `Bearer ${token}`
         }
       });
       toast.success("Your project is now private!!");
@@ -73,12 +75,13 @@ const ProjectCard = ({data}) => {
   async function handleDelete(e){
     e.stopPropagation();
     try{
+      const token = localStorage.getItem('bearerToken');
       await axios.delete(BASE_URL+'/delete-project/'+data.id,{
         params:{
           ownerEmail:ownerEmail
         },
         headers: {
-          'client_name': 'mapx'
+          'client_name': 'mapx',"Authorization": `Bearer ${token}`
         }
       });
       toast.success("Project deleted!!");
