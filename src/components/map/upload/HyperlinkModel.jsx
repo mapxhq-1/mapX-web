@@ -300,15 +300,15 @@ useEffect(() => {
         )}
         {/* Delete Confirmation Modal (scoped to this card only) */}
         {showConfirm && (
-          <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/60 backdrop-blur-sm">
-            <div className="w-[320px] p-5 rounded-2xl bg-white border border-gray-200 
-              shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.1)] text-center">
+          <div className="absolute inset-0 flex items-center justify-center z-20 backdrop-blur-sm">
+            <div className="w-[320px] p-5 rounded-2xl bg-white border border-gray-200 bg-white/90 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300
+              text-center">
               <h2 className="text-lg font-semibold text-black mb-3">Delete this hyperlink?</h2>
               <p className="text-gray-700 mb-5">This action cannot be undone.</p>
               <div className="flex justify-around">
                 <button
                   onClick={() => setShowConfirm(false)}
-                  className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white"
+                  className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-green-300/50 text-white"
                 >
                   Cancel
                 </button>
