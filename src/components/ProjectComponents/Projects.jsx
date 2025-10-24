@@ -25,7 +25,6 @@ const Projects = () => {
       // Exchange the code with your backend for tokens
       getUserInfo(code)
         .then((data) => {
-          console.log("Auth response:", data);
           const email = data.clientUserinfoResult.active_token.email;
           const token = data.clientUserinfoResult.active_token.identity;
           const bearer = data.clientUserinfoResult.active_token.token;
@@ -50,7 +49,6 @@ const Projects = () => {
     } else {
       // No code, check for existing token
       const token = localStorage.getItem('bearerToken');
-      console.log("No code, checking token:", token ? "found" : "not found");
       
       if (!token) {
         window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;

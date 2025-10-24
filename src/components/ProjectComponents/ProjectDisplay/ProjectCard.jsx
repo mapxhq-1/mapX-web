@@ -18,6 +18,8 @@ const ProjectCard = ({data}) => {
   const [projname,setProjname] = useState("");
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [addAccessorBt, setAddAccessorBt] = useState(false);
+  const [emailToShare, setEmailToShare] = useState("");
 
   function getDate(timestramp){
     return timestramp.split("T")[0]
@@ -27,7 +29,42 @@ const ProjectCard = ({data}) => {
     setDeleteBt(false);
     setPublicBt(false);
     setEditBt(false);
+    setAddAccessorBt(false);
   }
+
+  async function handleShareEmail(e) {
+  e.stopPropagation();
+  if (!emailToShare.trim()) {
+    toast.error("Please enter a valid email!");
+    return;
+  }
+  try {
+    const token = localStorage.getItem("bearerToken");
+
+    await axios.patch(
+      BASE_URL + "/update-project",
+      {
+        accessorList: [...(data.accessorList || []), emailToShare.trim()],
+        ownerEmail,
+        projectId: data.id,
+      },
+      {
+        headers: {
+          "client_name": "mapx",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    toast.success(`Access shared with ${emailToShare}`);
+    setEmailToShare("");
+    dispatch(myProjApiCall());
+    setAddAccessorBt(false);
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Error sharing project");
+  }
+}
+
 
   async function handleRename(){
     try{
@@ -141,6 +178,29 @@ const ProjectCard = ({data}) => {
                 <p>{isPrivate ? "Make Public" : "Make Private"}</p>
                 {/* Icons can be added here */}
               </div>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAllFalse();
+                  setAddAccessorBt(true);
+                }}
+                className="px-2 py-1 rounded-lg flex justify-between items-center text-sm hover:scale-105 hover:bg-blue-100"
+              >
+                <p>Add Accessor</p>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  className="ml-2"
+                >
+                  <path
+                    fill="#000"
+                    d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2m1 11h3a1 1 0 0 1 0 2h-3v3a1 1 0 0 1-2 0v-3H8a1 1 0 0 1 0-2h3V8a1 1 0 0 1 2 0z"
+                  />
+                </svg>
+              </div>
+
               <div onClick={(e)=>{e.stopPropagation();setAllFalse();setEditBt(true)}} className='px-2 py-1 rounded-lg flex justify-between items-center text-sm hover:scale-105 hover:bg-blue-100 '>
                 <p>Rename</p>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" className="ml-2"><path fill="#000" d="M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-2 2v-4.25L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.438.65T21 6.4q0 .4-.137.763t-.438.662L7.25 21zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z"/></svg>
@@ -176,18 +236,94 @@ const ProjectCard = ({data}) => {
         )}
 
         {publicBt && (
-            <div onClick={(e) => e.stopPropagation()} className='w-[95%] bg-zinc-800 text-white rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20'>
-                <div className='flex justify-between items-center py-2'>
-                    <p>{isPrivate ? "This project is private" : "Make this project private?"}</p>
-                    <button onClick={(e)=>{e.stopPropagation();setPublicBt(false)}} className="text-xl">&times;</button>
-                </div>
-                {!isPrivate && (
-                    <button onClick={handlePrivate} className='w-full rounded-full bg-red-200 text-[#ff2f03] px-2 py-1 items-center gap-1 justify-center cursor-pointer'>
-                        Remove public access
-                    </button>
-                )}
-            </div>
-        )}
+  <div
+    onClick={(e) => e.stopPropagation()}
+    className="w-[95%] bg-zinc-800 text-white rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20"
+  >
+    <div className="flex justify-between items-center py-2">
+      <p>{isPrivate ? "Share this project with others" : "Manage access"}</p>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setPublicBt(false);
+        }}
+        className="text-xl"
+      >
+        &times;
+      </button>
+    </div>
+
+    {isPrivate ? (
+      <>
+        <input
+          type="email"
+          placeholder="Enter email to share"
+          value={emailToShare}
+          onChange={(e) => setEmailToShare(e.target.value)}
+          className="bg-white text-black rounded-md text-sm p-1 w-full mb-2"
+        />
+        <button
+          onClick={handleShareEmail}
+          className="w-full rounded-full bg-blue-500 text-white px-2 py-1 text-sm cursor-pointer"
+        >
+          Share
+        </button>
+      </>
+    ) : (
+      <button
+        onClick={handlePrivate}
+        className="w-full rounded-full bg-red-200 text-[#ff2f03] px-2 py-1 items-center gap-1 justify-center cursor-pointer"
+      >
+        Make Private
+      </button>
+    )}
+  </div>
+)}
+
+{addAccessorBt && (
+  <div
+    onClick={(e) => e.stopPropagation()}
+    className="w-[95%] bg-zinc-800 text-white rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20"
+  >
+    <div className="flex justify-between items-center py-2">
+      <p>Add Accessor</p>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setAddAccessorBt(false);
+        }}
+        className="text-xl"
+      >
+        &times;
+      </button>
+    </div>
+    <input
+      type="email"
+      placeholder="Enter email to share"
+      value={emailToShare}
+      onChange={(e) => setEmailToShare(e.target.value)}
+      className="bg-white text-black rounded-md text-sm p-1 w-full mb-2"
+    />
+    <button
+      onClick={handleShareEmail}
+      className="w-full rounded-full bg-blue-500 text-white px-2 py-1 text-sm cursor-pointer"
+    >
+      Share
+    </button>
+
+    {data.accessorList?.length > 0 && (
+      <div className="mt-3 text-xs text-gray-300">
+        <p className="mb-1">Existing Accessors:</p>
+        <ul className="list-disc ml-4">
+          {data.accessorList.map((email) => (
+            <li key={email}>{email}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+)}
+
 
         {deleteBt && (
             <div onClick={(e) => e.stopPropagation()} className='w-[95%] bg-red-300 text-black rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20'>

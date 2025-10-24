@@ -11,12 +11,12 @@ export async function fetchAllNotes(projectId, year, era) {
     return res.data.notes;
 }
 
-export async function updateNote(noteId, year, era, email, htmlText) {
+export async function updateNote(noteId, year, era, email, htmlText, currentColor) {
     const token = localStorage.getItem('bearerToken');
     const res = await axios.patch(BASE_URL+'/update-note/' + noteId, {
         yearInTimeline: {
             year, era
-        }, htmlText
+        }, htmlText, backgroundColor:currentColor
     }, {
         headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
         params: {
