@@ -3139,7 +3139,7 @@ useEffect(() => {
 
 useEffect(() => {
     dispatch(fetchAllEmpirePolygons());
-  }, [dispatch]);
+  }, [dispatch,year]);
 
 	return (
 		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
