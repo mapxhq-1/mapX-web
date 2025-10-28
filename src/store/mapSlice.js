@@ -28,11 +28,14 @@ const convertYearToInteger = (yearObj) => {
 
 export const fetchAllEmpirePolygons = createAsyncThunk(
   "map/fetchAllEmpirePolygons",
-  async (_, { rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     try {
-      const detailsList = await loadAllEmpiresWithDetailsCached();
-      return detailsList; // each includes { startYear, endYear, content }
+      const state = getState();
+      const year = state.map.year;
+      const detailsList = await loadAllEmpiresWithDetailsCached(year, false, dispatch);
+      return detailsList;
     } catch (err) {
+      dispatch(setLoading(false)); // Ensure loading is false on error
       return rejectWithValue(err?.response?.data || "Failed to fetch empire polygons");
     }
   }
@@ -59,6 +62,9 @@ const mapSlice = createSlice({
     setYear: (state, action) => {
       state.year = action.payload;
       state.polygons = computePolygonsForYear(state.empires, state.year);
+    },
+    setLoading: (state, action) => {  // ADD THIS ACTION
+      state.loading = action.payload;
     },
     openNotes: (state, action) => {
       state.notesOpen = true;
@@ -98,12 +104,9 @@ const mapSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchAllEmpirePolygons.pending, (state) => {
-        state.loading = true;
         state.error = null;
       })
       .addCase(fetchAllEmpirePolygons.fulfilled, (state, action) => {
-        state.loading = false;
-        // Normalize and store empires compactly
         const empires = [];
         for (let i = 0; i < (action.payload || []).length; i++) {
           const empire = action.payload[i];
@@ -116,18 +119,18 @@ const mapSlice = createSlice({
           empires.push({ start, end, features });
         }
         state.empires = empires;
-        // Compute polygons for current year lazily
         state.polygons = computePolygonsForYear(state.empires, state.year);
       })
       .addCase(fetchAllEmpirePolygons.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      });
+      })
   },
 });
 
 export const {
   setYear,
+  setLoading,
   openNotes,
   closeNotes,
   openImages,

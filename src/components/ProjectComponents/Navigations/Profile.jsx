@@ -8,12 +8,21 @@ const Profile = ({ setProfileOpen, userId, email,profilePictureUrl,fetchProfile,
     const { register, handleSubmit, reset } = useForm();
     const divRef = useRef(null);
     const fileInputRef = useRef(null);
-    useEffect(() => {
+useEffect(() => {
     if (userData) {
+        let phone = userData.phone || '';
+        let country_code = '+91';
+
+        if (phone.startsWith('+')) {
+            country_code = phone.slice(0, 3);
+            phone = phone.slice(3);            
+        }
+
         reset({
             first_name: userData.first_name || '',
             last_name: userData.last_name || '',
-            phone: userData.phone || '',
+            phone: phone,
+            country_code: country_code,
             gender: userData.gender || '',
             birthdate: userData.birthdate || '',
             organization: userData.organization || '',
@@ -21,6 +30,7 @@ const Profile = ({ setProfileOpen, userId, email,profilePictureUrl,fetchProfile,
         });
     }
 }, [userData, reset]);
+
 
     useEffect(() => {
         const handleOutsideClick = (event) => {
@@ -33,15 +43,25 @@ const Profile = ({ setProfileOpen, userId, email,profilePictureUrl,fetchProfile,
     }, []);
 
     const formSubmit = async (data) => {
-        try {
-            await updateUserProfile(userId, data);
-            toast.success("Profile updated successfully!");
-            setProfileOpen(false)
-            await fetchProfile();
-        } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to update profile.");
-        }
+  try {
+    // Combine country code + phone, removing spaces
+    const fullPhone = `${data.country_code}${data.phone.replace(/\s+/g, '')}`;
+    
+    const payload = {
+      ...data,
+      phone: fullPhone, // replace phone field with full number
     };
+    delete payload.country_code; // we don’t need to send this separately
+
+    await updateUserProfile(userId, payload);
+    toast.success("Profile updated successfully!");
+    setProfileOpen(false);
+    await fetchProfile();
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to update profile.");
+  }
+};
+
     
     const handlePhotoUpload = async (event) => {
         const file = event.target.files[0];
@@ -106,9 +126,34 @@ const Profile = ({ setProfileOpen, userId, email,profilePictureUrl,fetchProfile,
                                 <input {...register("last_name")} type="text" id='last_name' className='bg-zinc-700 px-3 py-2 mt-1 w-full rounded-lg' />
                             </div>
                             <div>
-                                <label htmlFor="phone">Phone</label>
-                                <input {...register("phone")} type="text" id='phone' className='bg-zinc-700 px-3 py-2 mt-1 w-full rounded-lg' />
-                            </div>
+  <label htmlFor="phone">Phone</label>
+  <div className="flex mt-1">
+    {/* Country code dropdown */}
+    <select
+      id="country_code"
+      {...register("country_code")}
+      defaultValue={userData?.country_code || "+91"}
+      className="bg-zinc-700 px-2 py-2 rounded-l-lg border-r border-gray-600 focus:outline-none"
+    >
+      <option value="+44">+44 (UK)</option>
+      <option value="+91">+91 (India)</option>
+      <option value="+61">+61 (Australia)</option>
+      <option value="+81">+81 (Japan)</option>
+      <option value="+49">+49 (Germany)</option>
+      <option value="+33">+33 (France)</option>
+    </select>
+
+    {/* Phone number input */}
+    <input
+      {...register("phone")}
+      type="text"
+      id="phone"
+      placeholder="Enter phone number"
+      className="bg-zinc-700 px-3 py-2 w-full rounded-r-lg"
+    />
+  </div>
+</div>
+
                             <div>
                                 <label htmlFor="gender">Gender</label>
                                 <select {...register("gender")} id="gender" className='w-full bg-zinc-700 px-3 py-2 mt-1 rounded-lg'>

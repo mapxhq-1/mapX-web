@@ -1,6 +1,3 @@
-// Lightweight IndexedDB-backed cache and concurrency-limited loader for empire data
-// No external deps; designed to work with existing geoJson API without backend changes.
-
 import { getAllEmpires, getEmpireDetailsById } from "../components/api/geoJson";
 
 const DB_NAME = "mapx-cache";
@@ -19,8 +16,7 @@ function openDB() {
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
-    } catch (e) {
-      // Fallback: fail open (caller can continue without IDB)
+    } catch {
       resolve(null);
     }
   });
@@ -29,14 +25,14 @@ function openDB() {
 async function idbGet(storeName, key) {
   const db = await openDB();
   if (!db) return null;
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     try {
       const tx = db.transaction(storeName, "readonly");
       const store = tx.objectStore(storeName);
       const req = store.get(key);
       req.onsuccess = () => resolve(req.result ?? null);
       req.onerror = () => resolve(null);
-    } catch (_) {
+    } catch {
       resolve(null);
     }
   });
@@ -52,7 +48,7 @@ async function idbSet(storeName, key, value) {
       const req = store.put(value, key);
       req.onsuccess = () => resolve(true);
       req.onerror = () => resolve(false);
-    } catch (_) {
+    } catch {
       resolve(false);
     }
   });
@@ -68,13 +64,13 @@ async function idbKeys(storeName) {
       const req = store.getAllKeys();
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => resolve([]);
-    } catch (_) {
+    } catch {
       resolve([]);
     }
   });
 }
 
-// Simple concurrency limiter without extra deps
+// concurrency limiter
 async function mapWithConcurrency(items, limit, mapper) {
   const queue = items.slice();
   const results = [];
@@ -106,15 +102,16 @@ async function mapWithConcurrency(items, limit, mapper) {
   await done;
   return results;
 }
+
 const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
-
-export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
+export async function loadAllEmpiresWithDetailsCached(currentYear, forceRefresh = false, dispatch = null) {
   const now = Date.now();
+  const minYear = currentYear - 25;
+  const maxYear = currentYear + 25;
 
-  // 1️⃣ --- Load cached metadata (list of empires)
+  // 1️⃣ Load cached metadata
   let metadataList = null;
   const cachedMeta = await idbGet(STORE_META, "list");
-
   if (
     !forceRefresh &&
     cachedMeta &&
@@ -123,7 +120,6 @@ export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
   ) {
     metadataList = cachedMeta.data;
   } else {
-    // Cache expired or force refresh
     metadataList = await getAllEmpires();
     idbSet(STORE_META, "list", {
       timestamp: now,
@@ -131,9 +127,22 @@ export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
     }).catch(() => {});
   }
 
-  const ids = metadataList.map((e) => e.objectId).filter(Boolean);
+  
+  const toInt = (y) => {
+    if (!y || !y.year) return null;
+    return y.era === "BCE" ? -y.year : y.year;
+  };
 
-  // 2️⃣ --- Collect cached empire details
+  const filteredEmpires = metadataList.filter((e) => {
+    const start = toInt(e.startYear);
+    const end = toInt(e.endYear);
+    if (start === null || end === null) return false;
+    return end >= minYear && start <= maxYear;
+  });
+
+  const ids = filteredEmpires.map((e) => e.objectId).filter(Boolean);
+
+  // 3️⃣ Collect cached details
   const cachedIds = await idbKeys(STORE_DETAILS);
   const cachedIdSet = new Set(cachedIds);
 
@@ -146,19 +155,24 @@ export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
       cached.data &&
       now - cached.timestamp < CACHE_EXPIRY_MS
     ) {
-      return cached.data; // still valid
+      return cached.data;
     }
-    return null; // expired or missing
+    return null;
   });
 
   const cachedDetails = (await Promise.all(cachedDetailsPromises)).filter(Boolean);
   const cachedDetailIds = new Set(cachedDetails.map((d) => d?.objectId || d?.id || d?._id));
 
-  // 3️⃣ --- Fetch missing or expired details (limit concurrency)
+  // 4️⃣ Fetch missing/expired ones
   const missingIds = ids.filter((id) => !cachedDetailIds.has(id));
+  
+  // SET LOADING TO TRUE BEFORE API CALLS
+  if (missingIds.length > 0 && dispatch) {
+    dispatch({ type: 'map/setLoading', payload: true });
+  }
+  
   const fetchedDetails = await mapWithConcurrency(missingIds, 6, async (id) => {
     const detail = await getEmpireDetailsById(id);
-    // Store with timestamp
     idbSet(STORE_DETAILS, id, {
       timestamp: now,
       data: detail,
@@ -166,7 +180,12 @@ export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
     return detail;
   });
 
-  // 4️⃣ --- Merge and order results
+  // SET LOADING TO FALSE AFTER API CALLS
+  if (missingIds.length > 0 && dispatch) {
+    dispatch({ type: 'map/setLoading', payload: false });
+  }
+
+  // 5️⃣ Merge + return
   const detailsById = new Map(
     [...cachedDetails, ...fetchedDetails].map((d) => [
       d?.objectId || d?.id || d?._id,
@@ -177,6 +196,3 @@ export async function loadAllEmpiresWithDetailsCached(forceRefresh = false) {
   const ordered = ids.map((id) => detailsById.get(id)).filter(Boolean);
   return ordered;
 }
-
-
-

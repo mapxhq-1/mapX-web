@@ -59,7 +59,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
     const apiYear = getAbsoluteYear(year);
     if (!newNote) {
       try {
-        await updateNote(currentNote.id, apiYear, selectedEra, ownerEmail, htmlText);
+        await updateNote(currentNote.id, apiYear, selectedEra, ownerEmail, htmlText, currentColor);
         toast.success("Note updated successfully!!");
         onClose();
         queryClient.invalidateQueries(["notes"]);
@@ -97,6 +97,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
     if (currentNote) {
       setNewNote(currentNote.id == 'new');
     }
+    console.log(currentNote);
     setNotesTitle(currentNote?.title || "Enter title");
     setContent(currentNote?.content || "");
     setCurrentColor(currentNote?.backgroundColor || "#FFE299");

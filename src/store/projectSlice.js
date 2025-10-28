@@ -19,7 +19,6 @@ export const myProjApiCall = createAsyncThunk(
           }
         }
       );
-      console.log(res)
       return res.data.data;
     } catch (err) {
       return rejectWithValue(
@@ -47,7 +46,6 @@ export const sharedProjApiCall = createAsyncThunk(
           }
         }
       );
-      console.log(res)
       return res.data.data;
     } catch (err) {
       return rejectWithValue(

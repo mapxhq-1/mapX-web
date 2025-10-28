@@ -16,7 +16,6 @@ import saveIcon from "../../assets/icons/save_icon.png";
 import deleteIcon from "../../assets/icons/delete_icon.png";
 import cancelIcon from "../../assets/icons/cancel_icon.png";
 import noteIcon from "../../assets/icons/note_icon.png"
-import pencilIcon from "../../assets/icons/pencil_icon.png";
 import highlighterIcon from "../../assets/icons/highlighter_icon.png";
 import eraserIcon from "../../assets/icons/eraser_icon.png";
 import textIcon from "../../assets/icons/text_icon.png";
@@ -901,9 +900,18 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const NOTE_EXPAND_ZOOM = 6; // full box with content
 	const stopEvt = (ev) => ev.stopPropagation();
 
+	  const colorGradients = {
+		"#FFE299": "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)",
+		"#A8DAFF": "linear-gradient(135deg, #A8DAFF 0%, #D4EDFF 100%)",
+		"#ffffff": "linear-gradient(135deg, #FFFFFF 0%, #D9D9D9 100%)",
+		"#FFAFA3": "linear-gradient(135deg, #FFAFA3 0%, #FFD6CF 100%)",
+		"#B3EFBD": "linear-gradient(135deg, #B3EFBD 0%, #D9F8E0 100%)",
+		"#D3BDFF": "linear-gradient(135deg, #D3BDFF 0%, #E8DEFF 100%)",
+	};
+  
 	const styleBaseBox = (box,foldSize,state) => {
 		// console.log(state);
-		box.style.background = "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)";
+		box.style.background = colorGradients[state.backgroundColor];
 		box.style.boxShadow = "0 8px 20px rgba(0,0,0,0.18)";
 		box.style.color = "#111827";
 		box.style.fontSize = "13px";
@@ -978,7 +986,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		rootEl.appendChild(row);
 	};
 
-	const addFoldedCorner = (box,size) => {
+	const addFoldedCorner = (box,size,state) => {
 		let fold = box.querySelector('.mx-note-fold');
 		if (!fold) {
 			fold = document.createElement('div');
@@ -991,7 +999,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	
 			// triangle to simulate folded paper
 			fold.style.borderLeft = `${size}px solid transparent`;
-			fold.style.borderTop = `${size}px solid #FFD034`; // back side of the fold
+			fold.style.borderTop = `${size}px solid ${state.backgroundColor}`; // back side of the fold
 			fold.style.boxShadow = '-2px -2px 6px rgba(0,0,0,0.18)';
 			fold.style.zIndex = '5';
 			fold.style.pointerEvents = 'none';
@@ -1044,7 +1052,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 		if (z >= NOTE_ICON_ZOOM && z < NOTE_EXPAND_ZOOM) {
 			// medium rectangle (higher zoom)
 			styleBaseBox(rootEl,10,state);
-			addFoldedCorner(rootEl,10);
+			addFoldedCorner(rootEl,10,state);
 			rootEl.style.minWidth = '222px';
 			rootEl.style.maxWidth = '222px';
 			rootEl.style.minHeight = '37px';
@@ -1089,7 +1097,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 		// full mode (very zoomed in)
 		styleBaseBox(rootEl,20,state);
-		addFoldedCorner(rootEl,25);
+		addFoldedCorner(rootEl,25,state);
 		rootEl.style.minWidth = '250px';
 		rootEl.style.maxWidth = '250px';
 		rootEl.style.minHeight = '250px';
@@ -3131,7 +3139,7 @@ useEffect(() => {
 
 useEffect(() => {
     dispatch(fetchAllEmpirePolygons());
-  }, [dispatch]);
+  }, [dispatch,year]);
 
 	return (
 		<div style={{ position: "relative", width: "100%", height: "100vh" }}>
