@@ -2986,6 +2986,34 @@ const syncNotesWithZoom = () => {
 		map.current.addControl(new MeasureDistanceControl(), "bottom-left");
 		map.current.addControl(new PhotonSearchControl(), "bottom-left");
 
+		// Expose a simple flyTo helper for external panels (e.g., RightPanelData)
+		try {
+			window.mapxFlyTo = (input) => {
+				try {
+					if (!map.current) return;
+					let lng = null, lat = null, zoom = null;
+					if (Array.isArray(input)) {
+						[lng, lat] = input;
+					} else if (input && typeof input === 'object') {
+						lng = Number(input.lng);
+						lat = Number(input.lat);
+						if (Number.isFinite(input.zoom)) zoom = Number(input.zoom);
+					}
+					if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+					const currentZoom = Number(map.current.getZoom?.() || 2);
+					const targetZoom = Number.isFinite(zoom) ? zoom : Math.max(currentZoom, 5);
+					map.current.flyTo({
+						center: [lng, lat],
+						zoom: targetZoom,
+						speed: 0.7,
+						curve: 1.5,
+						essential: false,
+						padding: { right: 350 } // Add padding to account for note preview width
+					});
+				} catch(_) {}
+			};
+		} catch(_) {}
+
 		// Load shapes from backend initially
 		try { loadMapShapesByContext({ year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') }); } catch (_) {}
 

@@ -83,7 +83,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
     return () => window.removeEventListener("resize", update);
   }, []);
   return (
-    <div ref={panelRef} className="z-50 w-[300px] bg-[#2A2929] text-white h-screen overflow-auto flex flex-col justify-between" >
+    <div ref={panelRef} className="z-50 w-[300px] bg-[#2A2929] text-white h-dvh overflow-auto flex flex-col justify-between" >
       <div>
       <div className="py-[20px] px-5 flex items-center justify-between">
         <p className=" potta-one  text-white text-2xl tracking-[0.05em] ml-5">MAPX</p>
@@ -365,7 +365,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
 
 const Closed = ({ setIsOpen }) => {
   return (
-    <div className=" z-50 h-screen  w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
+    <div className=" z-50 h-dvh  w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
       <div className=" cursor-pointer" onClick={() => setIsOpen(true)}>
         <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 20 20"><path fill="#fff" d="M7.5 3v14h9.25A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3ZM3.25 3H6v14H3.25A2.25 2.25 0 0 1 1 14.75v-9.5A2.25 2.25 0 0 1 3.25 3"></path></svg>
       </div>

@@ -7,7 +7,7 @@ import { fetchAllImagesByProject,fetchImageById } from '../api/image';
 import { fetchAllHyperlinksByProject } from '../api/hyperlink';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { openHyperlink, openImages, openNotes } from '../../store/mapSlice';
+import { openHyperlink, openImages, openNotes, setYear } from '../../store/mapSlice';
 import { prefetchEmbed } from '../api/embed';
 
 function RightPanelData() {
@@ -51,15 +51,42 @@ function RightPanelData() {
         return era === 'BCE' ? -Math.abs(y) : Math.abs(y);
     };
 
-    const sortedByProximity = combinedItems.slice().sort((a, b) => {
-        const ay = toSignedYear(a.item?.yearInTimeline?.year, a.item?.yearInTimeline?.era);
-        const by = toSignedYear(b.item?.yearInTimeline?.year, b.item?.yearInTimeline?.era);
-        const ad = ay === null ? Number.POSITIVE_INFINITY : Math.abs(ay - year);
-        const bd = by === null ? Number.POSITIVE_INFINITY : Math.abs(by - year);
-        return ad - bd;
+    /// Commented out: Original proximity-based sorting
+    /// const sortedByProximity = combinedItems.slice().sort((a, b) => {
+    ///     const ay = toSignedYear(a.item?.yearInTimeline?.year, a.item?.yearInTimeline?.era);
+    ///     const by = toSignedYear(b.item?.yearInTimeline?.year, b.item?.yearInTimeline?.era);
+    ///     const ad = ay === null ? Number.POSITIVE_INFINITY : Math.abs(ay - year);
+    ///     const bd = by === null ? Number.POSITIVE_INFINITY : Math.abs(by - year);
+    ///     return ad - bd;
+    /// });
+
+    // NEW: Simple one-time sort by createdAt (assuming each item has 'createdAt' ISO timestamp, newest first)
+    // If field name differs, replace 'createdAt' accordingly
+    const sortedByCreation = combinedItems.slice().sort((a, b) => {
+        const aDate = new Date(a.item.createdAt || 0); // Fallback to 0 if no timestamp
+        const bDate = new Date(b.item.createdAt || 0);
+        return bDate - aDate; // Descending (newer dates first)
     });
 
+    const flyToIfPossible = (lat, lng) => {
+        try {
+            if (window.mapxFlyTo && Number.isFinite(lat) && Number.isFinite(lng)) {
+                window.mapxFlyTo({ lng, lat });
+            }
+        } catch (_) {}
+    };
+
+    const setTimelineIfAvailable = (item) => {
+        try {
+            const y = toSignedYear(item?.yearInTimeline?.year, item?.yearInTimeline?.era);
+            if (y !== null && Number.isFinite(y)) dispatch(setYear(y));
+        } catch (_) {}
+    };
+
     const handleOpenHyperlink = (h) => {
+        // Fly and set year in background
+        flyToIfPossible(h?.latitude, h?.longitude);
+        setTimelineIfAvailable(h);
         dispatch(openHyperlink({
             id: h.hyperlinkId,
             hyperlinkUrl: h.hyperlink,
@@ -70,6 +97,9 @@ function RightPanelData() {
     };
 
     const handleOpenImage = async (img) => {
+        // Fly and set year in background (no need to wait for image fetch)
+        flyToIfPossible(img?.latitude, img?.longitude);
+        setTimelineIfAvailable(img);
         const imageUrl = await fetchImageById(img.imageFileId + "." + img.format);
         dispatch(openImages({
             id: img.id,
@@ -81,6 +111,9 @@ function RightPanelData() {
     };
 
     const handleOpenNote = (note) => {
+        // Fly and set year in background
+        flyToIfPossible(note?.latitude, note?.longitude);
+        setTimelineIfAvailable(note);
         dispatch(openNotes({
             id: note.noteId,
             title: note.noteTitle,
@@ -92,7 +125,7 @@ function RightPanelData() {
 
     return (
         <div className="max-h-[68dvh] overflow-y-auto overflow-x-visible">
-            {sortedByProximity.map(({ type, item, key }) => {
+            {sortedByCreation.map(({ type, item, key }) => { // Changed to sortedByCreation
                 const yi = item?.yearInTimeline || {};
                 const yearLabel = `${yi.year} ${yi.era || 'CE'}`;
 

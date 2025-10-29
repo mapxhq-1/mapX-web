@@ -163,11 +163,11 @@ const Notes = ({ onClose = null, isOpen = false }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-50 " onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
-      <div className="relative">
+      <div className="relative pointer-events-none">
 
         {/* === SETTINGS BAR === */}
-        <div className={`${showSettings ? "" : "opacity-0 pointer-events-none"}`}>
-          <div ref={colorRef} className={`${showColor ? '' : 'opacity-0 pointer-events-none'} w-[160px] h-[25px] rounded-md flex justify-around items-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300`}>
+        <div className={`absolute ml-[220px] mt-[-150px] ${showSettings ? "pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
+          <div ref={colorRef} className={`${showColor ? '' : 'opacity-0 pointer-events-none'} w-[160px] h-[25px] rounded-md flex justify-around items-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2`}>
             {Object.keys(colorGradients).map((c) => (
               <div key={c} className="rounded-full h-[18px] w-[18px] cursor-pointer"
                 style={{ backgroundColor: c }}
@@ -175,7 +175,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
             ))}
           </div>
 
-          <div ref={settingsRef} className='text-black my-6 w-[600px] h-[35px] rounded-md flex divide-x-2 divide-white/60 justify-between [&>*]:px-3 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300'>
+          <div ref={settingsRef} className='text-black w-[600px] h-[35px] rounded-md flex divide-x-2 divide-white/60 justify-between [&>*]:px-3 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2'>
 
             {/* COLOR PICKER */}
             <div className='flex items-center cursor-pointer' onClick={() => setShowColor(!showColor)}>
@@ -248,7 +248,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
 
         {/* === CONFIRM DELETE MODAL === */}
         {showConfirm && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60]">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-auto">
             <div className=" rounded-2xl p-6 shadow-lg w-[320px] text-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300">
               <h2 className="text-lg font-semibold mb-2 text-gray-800">Delete this note?</h2>
               <p className="text-gray-500 mb-5 text-sm">This action cannot be undone.</p>
@@ -271,7 +271,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
         )}
 
         {/* === NOTE CONTENT === */}
-        <div ref={editorRef} className='ml-[300px] w-[400px]' onClick={() => setShowSettings(true)}>
+        <div ref={editorRef} className='ml-[350px] mt-[-70px] w-[400px] pointer-events-auto' onClick={() => setShowSettings(true)}>
           <div className='w-[400px] h-[35px] bg-[#D9D9D9] flex items-center'>
             <div title={!newNote ? "Title cannot be edited for existing notes" : ""}>
   <input
