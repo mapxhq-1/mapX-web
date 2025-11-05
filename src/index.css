@@ -14,8 +14,9 @@ html, body, #root {
   height: 100vh;
   background-color: #000;
   overscroll-behavior-y: contain;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 

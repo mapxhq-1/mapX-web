@@ -83,7 +83,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
     return () => window.removeEventListener("resize", update);
   }, []);
   return (
-    <div ref={panelRef} className="z-50 w-[300px] bg-[#2A2929] text-white h-screen overflow-auto flex flex-col justify-between" >
+    <div ref={panelRef} className="z-50 w-[300px] bg-[#2A2929] text-white h-dvh overflow-auto flex flex-col justify-between" >
       <div>
       <div className="py-[20px] px-5 flex items-center justify-between">
         <p className=" potta-one  text-white text-2xl tracking-[0.05em] ml-5">MAPX</p>
@@ -222,7 +222,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
         </div>
         </div>
         <div onClick={() => { 
-          console.log("Notes button clicked"); 
           setSelectedMode('note');
           try { 
             window.mapxDrawSetMode && window.mapxDrawSetMode('note'); 
@@ -239,7 +238,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
         {/* <MenuButton menuText="Hyperlink" Tag={HyperlinkSvg} /> */}
 
         <div onClick={() => { 
-          console.log("Image button clicked"); 
           setSelectedMode('hyperlink');
           try { 
             window.mapxDrawSetMode && window.mapxDrawSetMode('hyperlink'); 
@@ -255,7 +253,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
         </div>
 
         <div onClick={() => { 
-          console.log("Image button clicked"); 
           setSelectedMode('image');
           try { 
             window.mapxDrawSetMode && window.mapxDrawSetMode('image'); 
@@ -331,7 +328,8 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
               <img src={styleIcons.satellite} alt="Satellite" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
               <span className="text-sm">Satellite</span>
             </button>
-            <button
+            {/* COMMENTED: Original OpenFreeMap URL handlers (kept for easy rollback) */}
+            {/* <button
               type="button"
               className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
               onClick={() => { window.mapxSetStyle && window.mapxSetStyle("https://tiles.openfreemap.org/styles/liberty"); setShowMapMenu(false); }}
@@ -354,6 +352,32 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
             >
               <img src={styleIcons.dark} alt="Dark" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
               <span className="text-sm">Dark</span>
+            </button> */}
+            
+            {/* Updated handlers: use theme names instead of URLs */}
+            <button
+              type="button"
+              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('basic'); setShowMapMenu(false); }}
+            >
+              <img src={styleIcons.basic} alt="Basic" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Basic</span>
+            </button>
+            <button
+              type="button"
+              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('light'); setShowMapMenu(false); }}
+            >
+              <img src={styleIcons.light} alt="Light" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Light</span>
+            </button>
+            <button
+              type="button"
+              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('dark'); setShowMapMenu(false); }}
+            >
+              <img src={styleIcons.dark} alt="Dark" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Dark</span>
             </button>
           </div>
         )}
@@ -365,7 +389,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
 
 const Closed = ({ setIsOpen }) => {
   return (
-    <div className=" z-50 h-screen  w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
+    <div className=" z-50 h-dvh  w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
       <div className=" cursor-pointer" onClick={() => setIsOpen(true)}>
         <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 20 20"><path fill="#fff" d="M7.5 3v14h9.25A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3ZM3.25 3H6v14H3.25A2.25 2.25 0 0 1 1 14.75v-9.5A2.25 2.25 0 0 1 3.25 3"></path></svg>
       </div>
