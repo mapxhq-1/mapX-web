@@ -222,7 +222,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
         </div>
         </div>
         <div onClick={() => { 
-          console.log("Notes button clicked"); 
           setSelectedMode('note');
           try { 
             window.mapxDrawSetMode && window.mapxDrawSetMode('note'); 
@@ -239,7 +238,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
         {/* <MenuButton menuText="Hyperlink" Tag={HyperlinkSvg} /> */}
 
         <div onClick={() => { 
-          console.log("Image button clicked"); 
           setSelectedMode('hyperlink');
           try { 
             window.mapxDrawSetMode && window.mapxDrawSetMode('hyperlink'); 
@@ -255,7 +253,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
         </div>
 
         <div onClick={() => { 
-          console.log("Image button clicked"); 
           setSelectedMode('image');
           try { 
             window.mapxDrawSetMode && window.mapxDrawSetMode('image'); 
@@ -331,7 +328,8 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
               <img src={styleIcons.satellite} alt="Satellite" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
               <span className="text-sm">Satellite</span>
             </button>
-            <button
+            {/* COMMENTED: Original OpenFreeMap URL handlers (kept for easy rollback) */}
+            {/* <button
               type="button"
               className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
               onClick={() => { window.mapxSetStyle && window.mapxSetStyle("https://tiles.openfreemap.org/styles/liberty"); setShowMapMenu(false); }}
@@ -351,6 +349,32 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
               type="button"
               className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
               onClick={() => { window.mapxSetStyle && window.mapxSetStyle("https://tiles.openfreemap.org/styles/dark"); setShowMapMenu(false); }}
+            >
+              <img src={styleIcons.dark} alt="Dark" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Dark</span>
+            </button> */}
+            
+            {/* Updated handlers: use theme names instead of URLs */}
+            <button
+              type="button"
+              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('basic'); setShowMapMenu(false); }}
+            >
+              <img src={styleIcons.basic} alt="Basic" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Basic</span>
+            </button>
+            <button
+              type="button"
+              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('light'); setShowMapMenu(false); }}
+            >
+              <img src={styleIcons.light} alt="Light" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Light</span>
+            </button>
+            <button
+              type="button"
+              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('dark'); setShowMapMenu(false); }}
             >
               <img src={styleIcons.dark} alt="Dark" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
               <span className="text-sm">Dark</span>

@@ -28,6 +28,137 @@ import { fetchAllEmpirePolygons } from "../../store/mapSlice";
 import { colorPolygonsFourColor, colorIndexToHex, colorIndexToHexDark } from "../../utils/polygonColoring";
 import { getEraForYear, getAbsoluteYear } from "../../utils/era";
 import * as turf from "@turf/turf";
+
+// ============================================================================
+// MapTiler Integration - Style Management
+// ============================================================================
+
+// Style configuration for MapTiler and OpenFreeMap providers
+const STYLE_CONFIG = {
+	maptiler: {
+		basic: (key) => `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}`,
+		light: (key) => `https://api.maptiler.com/maps/bright-v2/style.json?key=${key}`,
+		dark: (key) => `https://api.maptiler.com/maps/darkmatter/style.json?key=${key}`,
+	},
+	openfreemap: {
+		basic: 'https://tiles.openfreemap.org/styles/liberty',
+		light: 'https://tiles.openfreemap.org/styles/positron',
+		dark: 'https://tiles.openfreemap.org/styles/dark',
+	}
+};
+
+// Cache for fetched style JSONs (to avoid redundant network requests)
+const styleCache = new Map();
+
+// Read environment variables once at module load
+const MAP_PROVIDER = import.meta.env.VITE_MAP_PROVIDER || 'maptiler';
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || '';
+const DEFAULT_THEME = import.meta.env.VITE_MAPTILER_DEFAULT_THEME || 'basic';
+
+// Debug logging (only in development)
+if (import.meta.env.DEV) {
+	console.log('[MapView] Environment variables:', {
+		MAP_PROVIDER,
+		MAPTILER_KEY: MAPTILER_KEY ? `${MAPTILER_KEY.substring(0, 8)}...` : '(empty)',
+		DEFAULT_THEME,
+		allEnvKeys: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
+	});
+}
+
+// Validate environment variables (non-blocking warnings)
+if (MAP_PROVIDER === 'maptiler' && !MAPTILER_KEY) {
+	console.warn('[MapView] ⚠️ VITE_MAPTILER_KEY is missing. Falling back to OpenFreeMap.');
+	console.warn('[MapView] 💡 Create a .env file with: VITE_MAPTILER_KEY=your_key_here');
+}
+
+/**
+ * Fetches and returns a map style (URL string or JSON object) based on provider and theme.
+ * Implements caching, retry logic, and fallback chain for robustness.
+ * 
+ * @param {string} provider - 'maptiler' or 'openfreemap'
+ * @param {string} theme - 'basic', 'light', or 'dark'
+ * @param {string} apiKey - MapTiler API key (required for maptiler provider)
+ * @returns {Promise<string|Object>} Style URL string or style JSON object
+ */
+async function getBaseStyle(provider, theme, apiKey) {
+	const cacheKey = `${provider}-${theme}-${apiKey || 'none'}`;
+	
+	// Check cache first
+	if (styleCache.has(cacheKey)) {
+		return styleCache.get(cacheKey);
+	}
+
+	// Validate theme
+	const validThemes = ['basic', 'light', 'dark'];
+	if (!validThemes.includes(theme)) {
+		console.warn(`[MapView] Invalid theme "${theme}". Using "basic".`);
+		theme = 'basic';
+	}
+
+	// Handle OpenFreeMap (simple URL strings, no fetch needed)
+	if (provider === 'openfreemap') {
+		const styleUrl = STYLE_CONFIG.openfreemap[theme] || STYLE_CONFIG.openfreemap.basic;
+		styleCache.set(cacheKey, styleUrl);
+		return styleUrl;
+	}
+
+	// Handle MapTiler (needs API key and fetch)
+	if (provider === 'maptiler') {
+		if (!apiKey) {
+			console.warn('[MapView] MapTiler API key missing. Falling back to OpenFreeMap.');
+			return getBaseStyle('openfreemap', theme, null);
+		}
+
+		const styleUrl = STYLE_CONFIG.maptiler[theme](apiKey);
+		
+		// Fetch style JSON with retry logic
+		let lastError = null;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			try {
+				const response = await fetch(styleUrl, {
+					headers: { Accept: 'application/json' },
+				});
+
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+				}
+
+				const styleJson = await response.json();
+
+				// Validate style JSON structure
+				if (!styleJson || typeof styleJson !== 'object' || !styleJson.version || !styleJson.sources || !styleJson.layers) {
+					throw new Error('Invalid style JSON structure');
+				}
+
+				// Ensure glyphs are available (MapTiler styles usually include them, but verify)
+				if (!styleJson.glyphs) {
+					console.warn('[MapView] Style JSON missing glyphs. Injecting fallback.');
+					styleJson.glyphs = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
+				}
+
+				// Cache and return
+				styleCache.set(cacheKey, styleJson);
+				return styleJson;
+
+			} catch (error) {
+				lastError = error;
+				if (attempt === 0) {
+					// Wait before retry (exponential backoff: 100ms)
+					await new Promise(resolve => setTimeout(resolve, 100));
+				}
+			}
+		}
+
+		// If all retries failed, fallback to OpenFreeMap
+		console.warn(`[MapView] Failed to fetch MapTiler style after retries: ${lastError?.message}. Falling back to OpenFreeMap.`);
+		return getBaseStyle('openfreemap', theme, null);
+	}
+
+	// Unknown provider, default to OpenFreeMap
+	console.warn(`[MapView] Unknown provider "${provider}". Using OpenFreeMap.`);
+	return getBaseStyle('openfreemap', theme, null);
+}
+
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const mapContainer = useRef(null);
 	const map = useRef(null);
@@ -286,14 +417,46 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
 	useEffect(() => {
 		if (map.current) return;
-		map.current = new maplibregl.Map({
-			container: mapContainer.current,
-			style: "https://tiles.openfreemap.org/styles/liberty",
-			center: [78.9629, 20.5937],
-			zoom: 2,
-			projection: { type: "globe" },
-			attributionControl: false,
-		});
+		
+		// Initialize map with style based on provider and theme
+		// COMMENTED: Original OpenFreeMap style initialization (kept for easy rollback)
+		// map.current = new maplibregl.Map({
+		// 	container: mapContainer.current,
+		// 	style: "https://tiles.openfreemap.org/styles/liberty",
+		// 	center: [78.9629, 20.5937],
+		// 	zoom: 2,
+		// 	projection: { type: "globe" },
+		// 	attributionControl: false,
+		// });
+		
+		// Initialize map asynchronously with proper style
+		(async () => {
+			try {
+				// Get the base style URL/JSON based on provider and theme
+				const effectiveProvider = MAP_PROVIDER === 'maptiler' && !MAPTILER_KEY ? 'openfreemap' : MAP_PROVIDER;
+				const initialStyle = await getBaseStyle(effectiveProvider, DEFAULT_THEME, MAPTILER_KEY);
+				
+				// Create map with the fetched style
+				map.current = new maplibregl.Map({
+					container: mapContainer.current,
+					style: initialStyle, // Can be URL string or style JSON object
+					center: [78.9629, 20.5937],
+					zoom: 2,
+					projection: { type: "globe" },
+					attributionControl: false,
+				});
+			} catch (error) {
+				// Fallback to OpenFreeMap if style loading fails
+				console.error('[MapView] Failed to load initial style, using OpenFreeMap fallback:', error);
+				map.current = new maplibregl.Map({
+					container: mapContainer.current,
+					style: "https://tiles.openfreemap.org/styles/liberty", // Fallback
+					center: [78.9629, 20.5937],
+					zoom: 2,
+					projection: { type: "globe" },
+					attributionControl: false,
+				});
+			}
 
 		// Add attribution control in compact mode (collapsed by default)
 		try {
@@ -320,16 +483,16 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				});
 			}
 
-
 			// Add empty source for dynamic polygons (only if it doesn't exist)
 			if (!map.current.getSource("polygons-source")) {
-			map.current.addSource("polygons-source", {
-				type: "geojson",
-				data: {
-					type: "FeatureCollection",
-					features: [],
-				},
-			});
+				map.current.addSource("polygons-source", {
+					type: "geojson",
+					data: {
+						type: "FeatureCollection",
+						features: [],
+					},
+				});
+			}
 			// If polygons already loaded before map 'load', seed the source now
 			try {
 				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
@@ -339,7 +502,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 					map.current.getSource("polygons-source")?.setData({ type: "FeatureCollection", features: colored });
 				}
 			} catch(_) {}
-			}
 
 			// Add a separate point source for centroid-based empire labels
 			if (!map.current.getSource("empire-labels-source")) {
@@ -2707,18 +2869,40 @@ const syncNotesWithZoom = () => {
 		// Ensure custom data layers survive style changes
 		const ensurePolygonLayers = () => {
 			try {
+				// Always restore from polygonsRef to ensure we have the latest data
+				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+				let colored = basePolys;
+				try { 
+					colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" }); 
+				} catch(_) {}
+				
 				if (!map.current.getSource("polygons-source")) {
 					map.current.addSource("polygons-source", {
 						type: "geojson",
-						data: { type: "FeatureCollection", features: [] },
+						data: { type: "FeatureCollection", features: colored },
 					});
+				} else {
+					// Source exists - restore data immediately to prevent flickering
+					try {
+						map.current.getSource("polygons-source").setData({
+							type: "FeatureCollection",
+							features: colored,
+						});
+					} catch (_) {}
 				}
 					// Ensure label point source exists after style changes
 					if (!map.current.getSource("empire-labels-source")) {
+						const labelFC = buildEmpireLabelPoints(colored || []);
 						map.current.addSource("empire-labels-source", {
 							type: "geojson",
-							data: { type: "FeatureCollection", features: [] },
+							data: labelFC,
 						});
+					} else {
+						// Source exists - restore data immediately
+						try {
+							const labelFC = buildEmpireLabelPoints(colored || []);
+							map.current.getSource("empire-labels-source").setData(labelFC);
+						} catch (_) {}
 					}
             if (!map.current.getLayer("polygon-fill")) {
                 map.current.addLayer({
@@ -2790,31 +2974,8 @@ const syncNotesWithZoom = () => {
 						});
 					}
 				// refresh data if present (use latest polygons via ref to avoid stale closure)
-				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
-				let colored = basePolys;
-				try {
-					colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" });
-				} catch (_) {}
-				if (map.current.getSource("polygons-source")) {
-	map.current.getSource("polygons-source").setData({
-						type: "FeatureCollection",
-						features: colored,
-					});
-		// update empire centroid labels as well
-		try {
-			if (map.current.getSource("empire-labels-source")) {
-				const labelFC = buildEmpireLabelPoints(colored || []);
-				map.current.getSource("empire-labels-source").setData(labelFC);
-			}
-		} catch(_) {}
-				}
-				// also rebuild label points
-				try {
-					if (map.current.getSource("empire-labels-source")) {
-						const labelFC = buildEmpireLabelPoints(colored || []);
-						map.current.getSource("empire-labels-source").setData(labelFC);
-					}
-				} catch(_) {}
+				// Note: Data restoration is now handled in ensurePolygonLayers() above to prevent flickering
+				// This section is kept for backward compatibility but may be redundant
 				// Ensure paint and label expressions applied after style reload
 				try {
 					if (map.current.getLayer("polygon-fill")) {
@@ -2868,6 +3029,7 @@ const syncNotesWithZoom = () => {
 		};
 
         // Recreate layers and globe when a new style is applied
+        // IMPORTANT: styledata fires MULTIPLE times during style loading, so we need to restore data each time
         map.current.on("styledata", () => {
 			try { enforceGlobe(); } catch (_) {}
 			try { ensurePolygonLayers(); } catch (_) {}
@@ -2942,6 +3104,29 @@ const syncNotesWithZoom = () => {
 				} catch(_) {}
 			} catch (_) {}
 		});
+		
+		// Additional safety: Restore polygon data when style.load event fires (once per style load)
+		// This ensures data is restored even if styledata events miss it
+		map.current.on("style.load", () => {
+			try {
+				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
+				if (basePolys && basePolys.length > 0 && map.current.getSource("polygons-source")) {
+					let colored = basePolys;
+					try { 
+						colored = colorPolygonsFourColor(basePolys || [], { minSharedMeters: 25, maxColors: 6, adjacencyMode: "touch" }); 
+					} catch(_) {}
+					map.current.getSource("polygons-source").setData({
+						type: "FeatureCollection",
+						features: colored,
+					});
+					// Restore labels
+					if (map.current.getSource("empire-labels-source")) {
+						const labelFC = buildEmpireLabelPoints(colored || []);
+						map.current.getSource("empire-labels-source").setData(labelFC);
+					}
+				}
+			} catch (_) {}
+		});
 
 		// Expose a small API for external UI to switch styles
 		try {
@@ -2969,9 +3154,42 @@ const syncNotesWithZoom = () => {
 				};
 			};
 
-			window.mapxSetStyle = (styleUrl) => {
-				if (map.current && typeof styleUrl === "string" && styleUrl) {
-					map.current.setStyle(styleUrl);
+			// COMMENTED: Original window.mapxSetStyle that accepted URL strings (kept for easy rollback)
+			// window.mapxSetStyle = (styleUrl) => {
+			// 	if (map.current && typeof styleUrl === "string" && styleUrl) {
+			// 		map.current.setStyle(styleUrl);
+			// 	}
+			// };
+			
+			// Updated window.mapxSetStyle: accepts theme name ('basic', 'light', 'dark')
+			window.mapxSetStyle = async (themeName) => {
+				if (!map.current) return;
+				
+				// Support both old URL format (for backward compatibility) and new theme names
+				if (typeof themeName === 'string' && themeName.startsWith('http')) {
+					// Legacy URL format - use directly
+					map.current.setStyle(themeName);
+					return;
+				}
+				
+				// New theme name format
+				const validThemes = ['basic', 'light', 'dark'];
+				if (!validThemes.includes(themeName)) {
+					console.warn(`[MapView] Invalid theme name "${themeName}". Use 'basic', 'light', or 'dark'.`);
+					return;
+				}
+				
+				try {
+					// Get current provider (use effective provider logic)
+					const effectiveProvider = MAP_PROVIDER === 'maptiler' && !MAPTILER_KEY ? 'openfreemap' : MAP_PROVIDER;
+					const style = await getBaseStyle(effectiveProvider, themeName, MAPTILER_KEY);
+					
+					if (style) {
+						map.current.setStyle(style);
+					}
+				} catch (error) {
+					console.error(`[MapView] Failed to load style for theme "${themeName}":`, error);
+					// Keep current style on error (don't break the map)
 				}
 			};
 
@@ -3016,7 +3234,9 @@ const syncNotesWithZoom = () => {
 
 		// Load shapes from backend initially
 		try { loadMapShapesByContext({ year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') }); } catch (_) {}
-
+		
+		})(); // Close async IIFE
+		
 		return () => {
 			if (map.current) {
 				map.current.remove();

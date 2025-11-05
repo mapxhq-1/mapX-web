@@ -15,7 +15,7 @@ export const myProjApiCall = createAsyncThunk(
             ownerEmail: getState().project.ownerEmail,
           },
           headers: {
-            'client_name': 'mapx',"Authorization": `Bearer ${token}`
+            'client_name': 'mapx', "Authorization": `Bearer ${token}`
           }
         }
       );
@@ -42,14 +42,14 @@ export const sharedProjApiCall = createAsyncThunk(
             email: getState().project.ownerEmail,
           },
           headers: {
-            'client_name': 'mapx',"Authorization": `Bearer ${token}`
+            'client_name': 'mapx', "Authorization": `Bearer ${token}`
           }
         }
       );
       return res.data.data;
     } catch (err) {
       return rejectWithValue(
-        err.response.data.message || err.response?.statusText || "Server Error"
+        err.response?.data?.message || err.response?.statusText || "Server Error"
       );
     }
   }
