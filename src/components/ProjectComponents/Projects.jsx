@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { getUserInfo } from '../api/auth';
 import { setEmail, setUserToken } from '../../store/projectSlice';
 import { useDispatch } from 'react-redux';
+import ShareAccept from './ProjectDisplay/ShareAccept';
 
 const Projects = () => {
   const location = useLocation();
@@ -91,6 +92,7 @@ const Projects = () => {
             <Route path="allProjects" element={<ProjectGrid />} />
             <Route path="recents" element={<ProjectGrid />} />
             <Route path="clone/:projectId" element={<CloneProjectPage />} />
+            <Route path="/share/:projectId" element={<ShareAccept />} />
           </Routes>
         </div>
       </div>
