@@ -90,9 +90,9 @@ const ImageModel = () => {
 
       setTimeout(() => {
         if (window.mapxImagesLoadByContext) {
-          window.mapxImagesLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxImagesLoadByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         } else if (window.mapxImagesloadImagesByContext) {
-          window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         }
       }, 500);
     } catch (e) {
@@ -109,9 +109,9 @@ const ImageModel = () => {
       queryClient.invalidateQueries(["images"]);
       setTimeout(() => {
         if (window.mapxImagesLoadByContext) {
-          window.mapxImagesLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxImagesLoadByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         } else if (window.mapxImagesloadImagesByContext) {
-          window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxImagesloadImagesByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         }
       }, 500);
     } catch (e) {

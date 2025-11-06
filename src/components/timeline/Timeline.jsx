@@ -2,26 +2,118 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { setYear } from "../../store/mapSlice";
 import { Box } from "@mui/material";
+import { isMaRange, maBinToYear, yearToMaBin, MA_BINS, MA_MIN_YEAR } from "../../utils/era";
 
-// Format year with CE/BCE suffix
-const formatYear = (year) => {
-  if (year > 0) {
-    return `${year} CE`;
-  } else if (year < 0) {
-    return `${Math.abs(year)} BCE`;
-  } else {
-    return '1 CE'; // Skip year 0, go to 1 CE
+const BCE_BOUNDARY_YEAR = -4500;
+const MAX_YEAR = 2025;
+const BCE_MAX_YEAR = 4500;
+const MIN_YEAR = MA_MIN_YEAR;
+const FIRST_MA_YEAR = maBinToYear(MA_BINS[0]);
+const TICK_SPACING_PX = 20;
+
+const clampYear = (value) => Math.max(MIN_YEAR, Math.min(MAX_YEAR, value));
+
+const snapToMaBin = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  if (!MA_BINS.length) return null;
+
+  let best = MA_BINS[0];
+  let bestDiff = Math.abs(best - numeric);
+  for (let i = 1; i < MA_BINS.length; i++) {
+    const candidate = MA_BINS[i];
+    const diff = Math.abs(candidate - numeric);
+    if (diff < bestDiff || (diff === bestDiff && candidate > best)) {
+      bestDiff = diff;
+      best = candidate;
+    }
   }
+  return best;
 };
 
-// Helper function to get next valid year (skipping year 0)
-const getNextValidYear = (year, direction) => {
-  const next = year + direction;
-  if (next === 0) {
-    // Skip year 0, go directly to 1 CE or -1 BCE
-    return direction > 0 ? 1 : -1;
+const getMaIndex = (year) => {
+  const maBin = yearToMaBin(year);
+  if (maBin === null) return null;
+  const idx = MA_BINS.indexOf(maBin);
+  if (idx !== -1) return idx;
+
+  let bestIdx = 0;
+  let bestDiff = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < MA_BINS.length; i++) {
+    const diff = Math.abs(MA_BINS[i] - maBin);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
   }
-  return next;
+  return bestIdx;
+};
+
+const stepYear = (year, direction) => {
+  const dir = direction > 0 ? 1 : -1;
+
+  if (dir === 0) return clampYear(year);
+
+  if (isMaRange(year)) {
+    const index = getMaIndex(year);
+    if (index === null) return clampYear(year);
+
+    if (dir > 0) {
+      if (index > 0) {
+        return maBinToYear(MA_BINS[index - 1]);
+      }
+      return BCE_BOUNDARY_YEAR;
+    }
+
+    if (index < MA_BINS.length - 1) {
+      return maBinToYear(MA_BINS[index + 1]);
+    }
+    return clampYear(year);
+  }
+
+  if (year === BCE_BOUNDARY_YEAR && dir < 0) {
+    return FIRST_MA_YEAR;
+  }
+
+  let next = year + dir;
+  if (next === 0) {
+    next += dir;
+  }
+
+  return clampYear(next);
+};
+
+const getNextValidYear = (year, delta) => {
+  if (!Number.isFinite(delta) || delta === 0) {
+    return clampYear(year);
+  }
+
+  const dir = delta > 0 ? 1 : -1;
+  let steps = Math.abs(Math.trunc(delta));
+  if (steps === 0) steps = 1;
+
+  let current = year;
+  for (let i = 0; i < steps; i++) {
+    const next = stepYear(current, dir);
+    if (next === current) break;
+    current = next;
+  }
+
+  return clampYear(current);
+};
+
+const formatYear = (year) => {
+  if (isMaRange(year)) {
+    const maBin = yearToMaBin(year);
+    return maBin ? `${maBin} Ma` : `${MA_BINS[0]} Ma`;
+  }
+  if (year > 0) {
+    return `${year} CE`;
+  }
+  if (year < 0) {
+    return `${Math.abs(year)} BCE`;
+  }
+  return "1 CE";
 };
 
 export default function Timeline() {
@@ -32,13 +124,6 @@ export default function Timeline() {
   const [localYear, setLocalYear] = useState(globalYear);
   const [inputValue, setInputValue] = useState(formatYear(globalYear));
   const [showGoButton, setShowGoButton] = useState(false);
-
-  // Constants
-  const MIN_YEAR = 0;
-  const MAX_YEAR = 2025;
-  const BCE_MAX_YEAR = 4500; // For BCE years (0 to 4500 BCE)
-  const TICK_SPACING_PX = 20;
-
 
   // Refs & State
   const containerRef = useRef(null);
@@ -91,22 +176,31 @@ export default function Timeline() {
   }, [localYear]);
 
 
-  // Precompute years (BCE years from -4500 to -1, then CE years from 1 to 2025)
+  // Precompute years: Ma bins (oldest to newest), then BCE, then CE
   const years = useMemo(() => {
-    const bceYears = Array.from({ length: BCE_MAX_YEAR }, (_, i) => -(BCE_MAX_YEAR - i)); // -4500, -4499, ..., -1
-    const ceYears = Array.from({ length: MAX_YEAR }, (_, i) => i + 1); // 1, 2, ..., 2025
-    return [...bceYears, ...ceYears];
+    const maYears = MA_BINS.slice().reverse().map((bin) => maBinToYear(bin));
+    const bceYears = Array.from({ length: BCE_MAX_YEAR }, (_, i) => BCE_BOUNDARY_YEAR + i);
+    const ceYears = Array.from({ length: MAX_YEAR }, (_, i) => i + 1);
+    return [...maYears, ...bceYears, ...ceYears];
   }, []);
 
   // Virtualization setup
   const getYearIndex = (year) => {
-    if (year > 0) {
-      // CE years: index = BCE_MAX_YEAR + year - 1 (since we start from 1 CE, not 0)
-      return BCE_MAX_YEAR + year - 1;
-    } else {
-      // BCE years: index = BCE_MAX_YEAR + year (year is negative)
-      return BCE_MAX_YEAR + year;
+    if (isMaRange(year)) {
+      const index = getMaIndex(year);
+      if (index === null) return 0;
+      return MA_BINS.length - 1 - index;
     }
+
+    if (year < 0) {
+      return MA_BINS.length + (year - BCE_BOUNDARY_YEAR);
+    }
+
+    if (year > 0) {
+      return MA_BINS.length + BCE_MAX_YEAR + year - 1;
+    }
+
+    return MA_BINS.length + BCE_MAX_YEAR;
   };
   
   const index = Math.max(0, Math.min(years.length - 1, getYearIndex(localYear)));
@@ -152,29 +246,39 @@ export default function Timeline() {
   // Drag end — final sync
   const handleMouseUp = () => {
     setIsDragging(false);
-    // final confirm
-    if (localYear !== globalYear) dispatch(setYear(localYear));
+
+    let finalYear = clampYear(localYear);
+    if (isMaRange(finalYear)) {
+      const index = getMaIndex(finalYear);
+      if (index !== null) {
+        const snappedYear = maBinToYear(MA_BINS[index]);
+        if (snappedYear !== finalYear) {
+          finalYear = snappedYear;
+          setLocalYear(snappedYear);
+        }
+      }
+    }
+
+    if (finalYear !== globalYear) dispatch(setYear(finalYear));
+
     buttonOffsetRef.current = 0;
     if (sliderRef.current) {
       sliderRef.current.style.transform = "translateX(-50%)";
     }
     dragAccumulatorRef.current = 0;
 
-    // If the drag was tiny, interpret as a single step year
     if (maxDragAbsRef.current <= 6) {
       const dir = Math.sign(velocityRef.current || 0);
       if (dir !== 0) {
-        const next = Math.max(
-          -BCE_MAX_YEAR,
-          Math.min(MAX_YEAR, getNextValidYear(localYear, dir))
-        );
-        if (next !== localYear) {
+        const next = getNextValidYear(finalYear, dir);
+        if (next !== finalYear) {
           setLocalYear(next);
-          // commit once; avoid extra churn
           if (next !== globalYear) dispatch(setYear(next));
         }
       }
     }
+
+    maxDragAbsRef.current = 0;
   };
 
   useEffect(() => {
@@ -232,42 +336,49 @@ const speedLookup = useMemo(() => {
       const offset = buttonOffsetRef.current;
 
       if (isDragging && offset !== 0) {
-        const t = Math.abs(offset) / 40;
+        const t = Math.min(1, Math.abs(offset) / 40);
         const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
 
-        // accumulate fractional movement for smooth, slow start
         dragAccumulatorRef.current += speed;
-        const step = Math.floor(dragAccumulatorRef.current);
-        if (step > 0) {
-          const dir = offset > 0 ? 1 : -1;
-          const target = Math.max(
-            -BCE_MAX_YEAR,
-            Math.min(MAX_YEAR, getNextValidYear(localYear, dir * step))
-          );
-          if (target !== localYear) {
-            setLocalYear(target);
-            // Always dispatch immediately during dragging
-            dispatch(setYear(target));
-            dragAccumulatorRef.current -= step;
+        const steps = Math.floor(dragAccumulatorRef.current);
+        if (steps > 0) {
+          const direction = offset > 0 ? 1 : -1;
+          let current = localYear;
+          for (let i = 0; i < steps; i++) {
+            const candidate = getNextValidYear(current, direction);
+            if (candidate === current) break;
+            current = candidate;
           }
-          dragAccumulatorRef.current -= step;
+
+          if (current !== localYear) {
+            setLocalYear(current);
+            dispatch(setYear(current));
+          }
+
+          dragAccumulatorRef.current -= steps;
         }
 
         velocityRef.current = offset * 0.12;
       } else if (!isDragging && Math.abs(velocityRef.current) > 0.1) {
         const inertiaSpeed = velocityRef.current * 0.15;
-        const next =
-          velocityRef.current > 0
-            ? Math.min(MAX_YEAR, Math.round(getNextValidYear(localYear, inertiaSpeed)))
-            : Math.max(-BCE_MAX_YEAR, Math.round(getNextValidYear(localYear, inertiaSpeed)));
+        const steps = Math.abs(Math.round(inertiaSpeed));
+        if (steps > 0) {
+          const direction = velocityRef.current > 0 ? 1 : -1;
+          let current = localYear;
+          for (let i = 0; i < steps; i++) {
+            const candidate = getNextValidYear(current, direction);
+            if (candidate === current) break;
+            current = candidate;
+          }
 
-        if (next !== localYear) {
-          setLocalYear(next);
-          // during inertia, still debounce global updates
-          scheduleCommit(next);
+          if (current !== localYear) {
+            setLocalYear(current);
+            scheduleCommit(current);
+          }
         }
 
         velocityRef.current *= friction;
+        if (Math.abs(velocityRef.current) < 0.01) velocityRef.current = 0;
       }
 
       frameId = requestAnimationFrame(animate);
@@ -310,11 +421,16 @@ const speedLookup = useMemo(() => {
       const wholeSteps = Math.floor(stepAccumulatorRef.current);
       if (wholeSteps > 0) {
         stepAccumulatorRef.current -= wholeSteps;
-        const delta = holdDirRef.current * wholeSteps;
-        const next = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, getNextValidYear(localYear, delta)));
-        if (next !== localYear) {
-          setLocalYear(next);
-          dispatch(setYear(next));
+        let current = localYear;
+        for (let i = 0; i < wholeSteps; i++) {
+          const candidate = getNextValidYear(current, holdDirRef.current);
+          if (candidate === current) break;
+          current = candidate;
+        }
+
+        if (current !== localYear) {
+          setLocalYear(current);
+          dispatch(setYear(current));
         }
       }
 
@@ -324,7 +440,7 @@ const speedLookup = useMemo(() => {
   };
 
   const handleArrowClick = (dir) => {
-    const next = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, getNextValidYear(localYear, dir)));
+    const next = getNextValidYear(localYear, dir);
     if (next !== localYear) {
       setLocalYear(next);
       if (next !== globalYear) dispatch(setYear(next));
@@ -334,40 +450,50 @@ const speedLookup = useMemo(() => {
   // Parse input and set year
   const parseAndSetYear = (inputValue) => {
     const trimmedValue = inputValue.trim();
-    
+
+    const maMatch = trimmedValue.match(/^(\d{1,3})\s*Ma/i);
+    if (maMatch) {
+      const maValue = Number(maMatch[1]);
+      if (Number.isFinite(maValue) && maValue >= 1) {
+        const snapped = maValue === 1 ? 1 : snapToMaBin(maValue);
+        if (snapped !== null) {
+          const year = maBinToYear(snapped);
+          setLocalYear(year);
+          if (year !== globalYear) dispatch(setYear(year));
+          setInputValue(formatYear(year));
+          setShowGoButton(false);
+          return;
+        }
+      }
+    }
+
     // Match patterns like "400 BCE", "2023 CE", "400", "-400", etc.
     const bceMatch = trimmedValue.match(/(\d+)\s*BCE/i);
     const ceMatch = trimmedValue.match(/(\d+)\s*CE/i);
     const numberMatch = trimmedValue.match(/-?\d+/);
-    
+
     let parsedYear = null;
-    
+
     if (bceMatch) {
-      // Parse BCE year (e.g., "400 BCE" -> -400)
-      parsedYear = -parseInt(bceMatch[1]);
+      parsedYear = -parseInt(bceMatch[1], 10);
     } else if (ceMatch) {
-      // Parse CE year (e.g., "2023 CE" -> 2023)
-      parsedYear = parseInt(ceMatch[1]);
+      parsedYear = parseInt(ceMatch[1], 10);
     } else if (numberMatch) {
-      // Parse direct number (e.g., "400", "-400")
-      parsedYear = parseInt(numberMatch[0]);
+      parsedYear = parseInt(numberMatch[0], 10);
     }
-    
-    if (parsedYear !== null && !isNaN(parsedYear)) {
-      // Skip year 0 - convert to 1 CE
+
+    if (parsedYear !== null && Number.isFinite(parsedYear)) {
       if (parsedYear === 0) {
         parsedYear = 1;
       }
-      // Clamp to valid range
-      const clampedYear = Math.max(-BCE_MAX_YEAR, Math.min(MAX_YEAR, parsedYear));
+      const clampedYear = clampYear(parsedYear);
       setLocalYear(clampedYear);
       if (clampedYear !== globalYear) dispatch(setYear(clampedYear));
       setInputValue(formatYear(clampedYear));
-      setShowGoButton(false); // Hide Go button after successful navigation
+      setShowGoButton(false);
     } else {
-      // Reset to current year if parsing fails
       setInputValue(formatYear(localYear));
-      setShowGoButton(false); // Hide Go button on parse failure
+      setShowGoButton(false);
     }
   };
 
@@ -411,7 +537,7 @@ const speedLookup = useMemo(() => {
               width: `${Math.max(formatYear(localYear).length + 3, 8)}ch`,
               minWidth: "8ch",
               pointerEvents: "auto",
-              placeholder: "e.g. 400 BCE or 2023 CE",
+              placeholder: "e.g. 100 Ma, 400 BCE, or 2023 CE",
               transition: "border-color 0.2s ease",
             }}
           />
@@ -490,14 +616,20 @@ const speedLookup = useMemo(() => {
             top: 0,
             left: 0,
             height: "100%",
-            width: (BCE_MAX_YEAR + MAX_YEAR) * TICK_SPACING_PX,
+            width: (MA_BINS.length + BCE_MAX_YEAR + MAX_YEAR) * TICK_SPACING_PX,
             transform: `translateX(${translateX}px)`,
             pointerEvents: "none",
           }}
         >
           {visibleYears.map(({ y, left }) => {
-            const isDecade = y % 5 === 0;
-            const tickHeight = isDecade ? 30 : 15;
+            let isMajorTick = false;
+            if (isMaRange(y)) {
+              const maBin = yearToMaBin(y);
+              isMajorTick = maBin !== null && maBin % 50 === 0;
+            } else {
+              isMajorTick = y % 5 === 0;
+            }
+            const tickHeight = isMajorTick ? 30 : 15;
             return (
               <Box key={y} sx={{ position: "absolute", left, pointerEvents: "none" }}>
                 <Box sx={{ width: 2, height: tickHeight, background: "#fff" }} />

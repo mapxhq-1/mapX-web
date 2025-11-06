@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { loadAllEmpiresWithDetailsCached } from "../utils/dataManager";
+import { maBinToYear } from "../utils/era";
 
 const initialState = {
   year: 2000,
@@ -20,10 +21,21 @@ const initialState = {
 
 // Helper function to convert year object to integer
 const convertYearToInteger = (yearObj) => {
-  if (!yearObj || !yearObj.year) return null;
-  
-  // BCE years become negative, CE years stay positive
-  return yearObj.era === 'BCE' ? -yearObj.year : yearObj.year;
+  if (!yearObj || typeof yearObj.year === 'undefined' || yearObj.year === null) return null;
+
+  const rawYear = Number(yearObj.year);
+  if (!Number.isFinite(rawYear)) return null;
+
+  const era = String(yearObj.era || '').trim().toUpperCase();
+  if (era === 'MA') {
+    return maBinToYear(rawYear);
+  }
+
+  if (era === 'BCE') {
+    return -Math.abs(rawYear);
+  }
+
+  return Math.abs(rawYear);
 };
 
 export const fetchAllEmpirePolygons = createAsyncThunk(

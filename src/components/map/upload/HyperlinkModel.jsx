@@ -124,9 +124,9 @@ useEffect(() => {
 
       setTimeout(() => {
         if (window.mapxHyperlinksLoadByContext) {
-          window.mapxHyperlinksLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxHyperlinksLoadByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         } else if (window.mapxHyperlinksloadHyperlinksByContext) {
-          window.mapxHyperlinksloadHyperlinksByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxHyperlinksloadHyperlinksByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         }
       }, 500);
 
@@ -148,9 +148,9 @@ useEffect(() => {
       queryClient.invalidateQueries(["hyperlink"]);
       setTimeout(() => {
         if (window.mapxHyperlinksLoadByContext) {
-          window.mapxHyperlinksLoadByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxHyperlinksLoadByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         } else if (window.mapxHyperlinksloadHyperlinksByContext) {
-          window.mapxHyperlinksloadHyperlinksByContext({ projectIdParam: projectId, year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') });
+          window.mapxHyperlinksloadHyperlinksByContext({ projectIdParam: projectId, year: getAbsoluteYear(year), era: getEraForYear(year) });
         }
       }, 500);
       dispatch(closeHyperlink());

@@ -1,4 +1,5 @@
 import { getAllEmpires, getEmpireDetailsById } from "../components/api/geoJson";
+import { maBinToYear } from "./era";
 
 const DB_NAME = "mapx-cache";
 const DB_VERSION = 1;
@@ -129,8 +130,17 @@ export async function loadAllEmpiresWithDetailsCached(currentYear, forceRefresh 
 
   
   const toInt = (y) => {
-    if (!y || !y.year) return null;
-    return y.era === "BCE" ? -y.year : y.year;
+    if (!y || typeof y.year === "undefined" || y.year === null) return null;
+    const raw = Number(y.year);
+    if (!Number.isFinite(raw)) return null;
+    const era = String(y.era || "").trim().toUpperCase();
+    if (era === "MA") {
+      return maBinToYear(raw);
+    }
+    if (era === "BCE") {
+      return -Math.abs(raw);
+    }
+    return Math.abs(raw);
   };
 
   const filteredEmpires = metadataList.filter((e) => {

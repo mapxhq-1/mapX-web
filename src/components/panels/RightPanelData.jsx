@@ -9,6 +9,7 @@ import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { openHyperlink, openImages, openNotes, setYear } from '../../store/mapSlice';
 import { prefetchEmbed } from '../api/embed';
+import { yearFromDbFormat } from '../../utils/era';
 
 function RightPanelData() {
     const { id: projectId } = useParams();
@@ -45,10 +46,15 @@ function RightPanelData() {
 
     // Sort items by proximity to selected year
     const toSignedYear = (yVal, eraVal) => {
-        const y = Number(yVal);
-        if (!Number.isFinite(y)) return null;
+        const converted = yearFromDbFormat(yVal, eraVal);
+        return Number.isFinite(converted) ? converted : null;
+    };
+
+    const toDisplayLabel = (yVal, eraVal) => {
+        if (yVal === null || typeof yVal === 'undefined') return 'Unknown';
         const era = (eraVal || 'CE').toUpperCase();
-        return era === 'BCE' ? -Math.abs(y) : Math.abs(y);
+        if (era === 'MA') return `${yVal} Ma`;
+        return `${yVal} ${era}`;
     };
 
     /// Commented out: Original proximity-based sorting
@@ -127,7 +133,7 @@ function RightPanelData() {
         <div className="max-h-[68dvh] overflow-y-auto overflow-x-visible">
             {sortedByCreation.map(({ type, item, key }) => { // Changed to sortedByCreation
                 const yi = item?.yearInTimeline || {};
-                const yearLabel = `${yi.year} ${yi.era || 'CE'}`;
+                const yearLabel = toDisplayLabel(yi.year, yi.era);
 
                 if (type === 'note') {
                     return (

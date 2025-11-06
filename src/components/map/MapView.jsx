@@ -27,6 +27,8 @@ import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshape
 import { fetchAllEmpirePolygons } from "../../store/mapSlice";
 import { colorPolygonsFourColor, colorIndexToHex, colorIndexToHexDark } from "../../utils/polygonColoring";
 import { getEraForYear, getAbsoluteYear } from "../../utils/era";
+import { createMaOverlayManager } from "./maOverlayManager";
+import { isMaEra, maybeHandleMaMapShapes, handleInitialMaContext, createMaSafeLoader } from "./maEraGuards";
 import * as turf from "@turf/turf";
 
 // ============================================================================
@@ -363,13 +365,19 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 	const polygonsRef = useRef(polygons);
 	useEffect(() => { polygonsRef.current = polygons; }, [polygons]);
 	const year = useSelector((state) => state.map.year);
+const yearRef = useRef(year);
+useEffect(() => {
+	yearRef.current = year;
+}, [year]);
+const maOverlayManagerRef = useRef(null);
 	const { id: projectIdParam } = useParams?.() || {};
 	const ownerEmail = useSelector((state) => state.project.ownerEmail);
 	const { id: projectId } = useParams();
 
 	// Load shapes from backend and hydrate draw layer
-    const loadMapShapesByContext = async ({ year, era }) => {
+	const loadMapShapesByContext = async ({ year, era }) => {
 		if (!projectId) return;
+		if (maybeHandleMaMapShapes({ era, mapRef: map, finalFeaturesRef })) return;
 		try {
 			const response = await getAllMapShapes(projectId, year, era);
 			const shapesFromBackend = (response && (response.mapShapes || response)) || [];
@@ -458,6 +466,8 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 				});
 			}
 
+		maOverlayManagerRef.current = createMaOverlayManager(map, yearRef);
+
 		// Add attribution control in compact mode (collapsed by default)
 		try {
 			map.current.addControl(
@@ -466,8 +476,9 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 			);
 		} catch (_) {}
 
-		map.current.on("load", () => {
-			map.current.setProjection({ type: "globe" });
+	map.current.on("load", () => {
+		maOverlayManagerRef.current?.handleMapLoad();
+		map.current.setProjection({ type: "globe" });
 			// Ensure the WebGL canvas is transparent so the galaxy background shows
 			try {
 				const canvas = map.current.getCanvas();
@@ -959,11 +970,13 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 								}
 								try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){}
 							} else {
-								const newFeature = finalizeTextFeature([textToolbarLngLatRef.current.lng, textToolbarLngLatRef.current.lat], vText.trim(), vSize, color.value || "#ffffff");
-								try {
-									const latestYearFromStore = reduxStore?.getState?.().map?.year ?? year;
-									const geojson = { type: 'FeatureCollection', features: [newFeature] };
-                            const res = await createMapShape(projectId, Math.abs(latestYearFromStore), (latestYearFromStore < 0 ? 'BCE' : 'CE'), ownerEmail, geojson);
+                                const newFeature = finalizeTextFeature([textToolbarLngLatRef.current.lng, textToolbarLngLatRef.current.lat], vText.trim(), vSize, color.value || "#ffffff");
+                                try {
+                                    const latestYearFromStore = reduxStore?.getState?.().map?.year ?? year;
+                                    const geojson = { type: 'FeatureCollection', features: [newFeature] };
+                                    const yearForApi = getAbsoluteYear(latestYearFromStore);
+                                    const eraForApi = getEraForYear(latestYearFromStore);
+                                    const res = await createMapShape(projectId, yearForApi, eraForApi, ownerEmail, geojson);
 									const permanentId = res && res.shapeId;
 									if (permanentId) {
 										newFeature.properties.id = permanentId;
@@ -995,7 +1008,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){ }
                             try {
                                 const latestY = (reduxStore?.getState?.().map?.year ?? year);
-                                await loadMapShapesByContext({ year: Math.abs(latestY), era: (latestY < 0 ? 'BCE' : 'CE') });
+                                await loadMapShapesByContext({ year: getAbsoluteYear(latestY), era: getEraForYear(latestY) });
                             } catch(_) {}
 							hideTextToolbar();
 						}
@@ -1548,6 +1561,11 @@ const syncNotesWithZoom = () => {
 			const eraVal = (opts && opts.era) || getEraForYear(yearVal);
 			// Convert to absolute year for API
 			const absYear = getAbsoluteYear(yearVal);
+			if (isMaEra(eraVal)) {
+				clearAllNotes();
+				lastLoaded = { projectId, year: null, era: 'MA' };
+				return;
+			}
 			if (projectId && (yearVal !== undefined)) {
 				// Prevent unnecessary API calls (but allow re-fetch if markers are cleared)
 				if (loading) return;
@@ -2012,10 +2030,10 @@ const syncNotesWithZoom = () => {
 									const featuresToSave = finalFeaturesRef.current.filter((f) => f.properties && f.properties.id === id);
 									if (featuresToSave.length > 0) {
 										const geojson = { type: 'FeatureCollection', features: featuresToSave };
-										const latestYearFromStore = reduxStore?.getState?.().map?.year ?? year;
-                                        try {
-                                            const computedEra = (latestYearFromStore < 0 ? 'BCE' : 'CE');
-                                            const computedYear = Math.abs(latestYearFromStore);
+                                    const latestYearFromStore = reduxStore?.getState?.().map?.year ?? year;
+                                       try {
+                                            const computedEra = getEraForYear(latestYearFromStore);
+                                            const computedYear = getAbsoluteYear(latestYearFromStore);
                                             const res = await createMapShape(projectId, computedYear, computedEra, ownerEmail, geojson);
 											const permanentId = res && res.shapeId;
 											if (permanentId) {
@@ -2060,10 +2078,10 @@ const syncNotesWithZoom = () => {
 							selectedFeatureIdRef.current = null;
 							try { map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch(_){ }
 							try { window.mapxDrawSaveAllToLocal && window.mapxDrawSaveAllToLocal(); } catch(_){ }
-							try { 
-								const latestY = reduxStore?.getState?.().map?.year ?? year;
-								await loadMapShapesByContext({ year: Math.abs(latestY), era: (latestY < 0 ? 'BCE' : 'CE') }); 
-							} catch(_) {}
+                            try { 
+                                const latestY = reduxStore?.getState?.().map?.year ?? year;
+                                await loadMapShapesByContext({ year: getAbsoluteYear(latestY), era: getEraForYear(latestY) }); 
+                            } catch(_) {}
 						};
 						const onCancel = () => { hideSelectionOverlay(); try { selectedFeatureIdRef.current = null; map.current.setFilter("draw-final-line-selected", ["==", ["get", "id"], "__none__"]); } catch (_) {} };
 
@@ -2217,16 +2235,35 @@ const syncNotesWithZoom = () => {
 			} catch (_) {}
 
 			//Initializing image container
-			
-			manager.loadImagesByContext({ year: Math.abs(year), projectIdParam, era: (year < 0 ? 'BCE' : 'CE') }); 
-			try { 
-				window.mapxImagesLoadByContext = manager.loadImagesByContext; 
+			const initialImageContext = { year: getAbsoluteYear(year), projectIdParam, era: getEraForYear(year) };
+			handleInitialMaContext({
+				context: initialImageContext,
+				onLoad: manager.loadImagesByContext,
+				onClear: () => { try { manager.clearAllImages(); } catch (_) {} },
+			});
+			const loadImagesSafely = createMaSafeLoader({
+				onLoad: manager.loadImagesByContext,
+				onClear: () => { try { manager.clearAllImages(); } catch (_) {} },
+			});
+			try {
+				window.mapxImagesLoadByContext = loadImagesSafely;
+				window.mapxImagesloadImagesByContext = loadImagesSafely;
 				window.mapxImagesClearAll = manager.clearAllImages;
 			} catch (_) {}
 
-			hyperlinker.loadHyperlinksByContext({ year: Math.abs(year), projectIdParam, era: (year < 0 ? 'BCE' : 'CE') }); 
-			try { 
-				window.mapxHyperlinksLoadByContext = hyperlinker.loadHyperlinksByContext; 
+			const initialHyperlinkContext = { year: getAbsoluteYear(year), projectIdParam, era: getEraForYear(year) };
+			handleInitialMaContext({
+				context: initialHyperlinkContext,
+				onLoad: hyperlinker.loadHyperlinksByContext,
+				onClear: () => { try { hyperlinker.clearAllHyperlinks && hyperlinker.clearAllHyperlinks(); } catch (_) {} },
+			});
+			const loadHyperlinksSafely = createMaSafeLoader({
+				onLoad: hyperlinker.loadHyperlinksByContext,
+				onClear: () => { try { hyperlinker.clearAllHyperlinks && hyperlinker.clearAllHyperlinks(); } catch (_) {} },
+			});
+			try {
+				window.mapxHyperlinksLoadByContext = loadHyperlinksSafely;
+				window.mapxHyperlinksloadHyperlinksByContext = loadHyperlinksSafely;
 			} catch (_) {}
 		});
 
@@ -3030,7 +3067,8 @@ const syncNotesWithZoom = () => {
 
         // Recreate layers and globe when a new style is applied
         // IMPORTANT: styledata fires MULTIPLE times during style loading, so we need to restore data each time
-        map.current.on("styledata", () => {
+	map.current.on("styledata", () => {
+		maOverlayManagerRef.current?.handleStyleChange();
 			try { enforceGlobe(); } catch (_) {}
 			try { ensurePolygonLayers(); } catch (_) {}
 			// Ensure drawing layers and their data persist across style changes
@@ -3107,7 +3145,8 @@ const syncNotesWithZoom = () => {
 		
 		// Additional safety: Restore polygon data when style.load event fires (once per style load)
 		// This ensures data is restored even if styledata events miss it
-		map.current.on("style.load", () => {
+	map.current.on("style.load", () => {
+		maOverlayManagerRef.current?.handleStyleChange();
 			try {
 				const basePolys = (polygonsRef && polygonsRef.current) ? polygonsRef.current : [];
 				if (basePolys && basePolys.length > 0 && map.current.getSource("polygons-source")) {
@@ -3233,11 +3272,13 @@ const syncNotesWithZoom = () => {
 		} catch(_) {}
 
 		// Load shapes from backend initially
-		try { loadMapShapesByContext({ year: Math.abs(year), era: (year < 0 ? 'BCE' : 'CE') }); } catch (_) {}
+		try { loadMapShapesByContext({ year: getAbsoluteYear(year), era: getEraForYear(year) }); } catch (_) {}
 		
 		})(); // Close async IIFE
 		
 		return () => {
+			maOverlayManagerRef.current?.dispose();
+			maOverlayManagerRef.current = null;
 			if (map.current) {
 				map.current.remove();
 				map.current = null;
@@ -3338,6 +3379,11 @@ const syncNotesWithZoom = () => {
 		} catch (_) {}
 	}, [leftOffset, rightOffset]);
 
+ 
+	useEffect(() => {
+	if (!map.current) return;
+	maOverlayManagerRef.current?.handleYearChange();
+	}, [year]);
 
 	// Refetch notes whenever year changes (Redux timeline)
 useEffect(() => {
@@ -3346,8 +3392,8 @@ useEffect(() => {
         if (window.mapxNotesLoadByContext) {
             const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
             t = setTimeout(() => {
-                window.mapxNotesLoadByContext({ year: Math.abs(latestYear), era: (latestYear < 0 ? 'BCE' : 'CE') });
-                try { loadMapShapesByContext({ year: Math.abs(latestYear), era: (latestYear < 0 ? 'BCE' : 'CE') }); } catch (_) {}
+				window.mapxNotesLoadByContext({ year: getAbsoluteYear(latestYear), era: getEraForYear(latestYear) });
+				try { loadMapShapesByContext({ year: getAbsoluteYear(latestYear), era: getEraForYear(latestYear) }); } catch (_) {}
             }, 1000);
         }
     } catch (_) {}
@@ -3360,9 +3406,9 @@ useEffect(() => {
         if (window.mapxHyperlinksLoadByContext) {
             const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
             t = setTimeout(() => window.mapxHyperlinksLoadByContext({ 
-                year: Math.abs(latestYear), 
+				year: getAbsoluteYear(latestYear), 
                 projectIdParam, 
-                era: (latestYear < 0 ? 'BCE' : 'CE') 
+				era: getEraForYear(latestYear) 
             }), 1000);
         }
     } catch (_) {}
@@ -3376,9 +3422,9 @@ useEffect(() => {
             const latestYear = (reduxStore && reduxStore.getState && reduxStore.getState().map?.year) ?? year;
             try { window.mapxImagesClearAll && window.mapxImagesClearAll(); } catch(_) {}
             t = setTimeout(() => window.mapxImagesLoadByContext({ 
-                year: Math.abs(latestYear), 
+				year: getAbsoluteYear(latestYear), 
                 projectIdParam, 
-                era: (latestYear < 0 ? 'BCE' : 'CE') 
+				era: getEraForYear(latestYear) 
             }), 300);
         }
     } catch (_) {}
