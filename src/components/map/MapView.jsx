@@ -626,6 +626,60 @@ const maOverlayManagerRef = useRef(null);
 				});
 			}
 
+			// Track which empire labels are currently visible
+const visibleEmpireLabels = new Set();
+
+// Add click handler on polygon layers to toggle empire name
+map.current.on("click", "polygon-fill", (e) => {
+    if (e.features && e.features.length > 0) {
+        const feature = e.features[0];
+        const empireName = getEmpireName(feature.properties);
+        
+        if (empireName) {
+            // Toggle this specific empire's label
+            if (visibleEmpireLabels.has(empireName)) {
+                // Hide this empire's label
+                visibleEmpireLabels.delete(empireName);
+            } else {
+                // Show this empire's label
+                visibleEmpireLabels.add(empireName);
+            }
+            
+            // Update filter to show all visible empires
+            if (visibleEmpireLabels.size > 0) {
+                map.current.setLayoutProperty("empire-labels", "visibility", "visible");
+                map.current.setFilter("empire-labels", ["in", ["get", "name"], ["literal", Array.from(visibleEmpireLabels)]]);
+            } else {
+                map.current.setLayoutProperty("empire-labels", "visibility", "none");
+                map.current.setFilter("empire-labels", null);
+            }
+        }
+    }
+});
+
+// Add cursor pointer on hover
+map.current.on("mouseenter", "polygon-fill", () => {
+    map.current.getCanvas().style.cursor = "pointer";
+});
+
+map.current.on("mouseleave", "polygon-fill", () => {
+    map.current.getCanvas().style.cursor = "";
+});
+
+// Click elsewhere to hide ALL labels
+map.current.on("click", (e) => {
+    const features = map.current.queryRenderedFeatures(e.point, {
+        layers: ["polygon-fill"]
+    });
+    
+    if (features.length === 0) {
+        // Clicked outside any polygon - hide all labels
+        visibleEmpireLabels.clear();
+        map.current.setLayoutProperty("empire-labels", "visibility", "none");
+        map.current.setFilter("empire-labels", null);
+    }
+});
+
 			// Fill layer
 			if (!map.current.getLayer("polygon-fill")) {
 				map.current.addLayer({
@@ -690,7 +744,8 @@ const maOverlayManagerRef = useRef(null);
 						"symbol-avoid-edges": true,
 						"text-max-width": 10,
 						"text-transform": "uppercase",
-						"text-letter-spacing": 0.1
+						"text-letter-spacing": 0.1,
+						"visibility": "none"  // Hide labels by default
 					},
 					paint: {
 						"text-color": "#1a1a1a",
