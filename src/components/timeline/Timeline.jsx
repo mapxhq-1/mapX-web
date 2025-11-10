@@ -13,6 +13,10 @@ const TICK_SPACING_PX = 20;
 
 const clampYear = (value) => Math.max(MIN_YEAR, Math.min(MAX_YEAR, value));
 
+const getSpeedScale = (year) => {
+  return isMaRange(year) ? 0.2 : 1; // tune 0.08 → 0.05 if you want it even slower
+};
+
 const snapToMaBin = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
@@ -337,7 +341,10 @@ const speedLookup = useMemo(() => {
 
       if (isDragging && offset !== 0) {
         const t = Math.min(1, Math.abs(offset) / 40);
-        const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
+        //const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
+        const baseSpeed = speedLookup[Math.min(100, Math.floor(t * 100))];
+        const scale = getSpeedScale(localYear);
+        const speed = baseSpeed * scale;
 
         dragAccumulatorRef.current += speed;
         const steps = Math.floor(dragAccumulatorRef.current);
@@ -360,7 +367,10 @@ const speedLookup = useMemo(() => {
 
         velocityRef.current = offset * 0.12;
       } else if (!isDragging && Math.abs(velocityRef.current) > 0.1) {
-        const inertiaSpeed = velocityRef.current * 0.15;
+        //const inertiaSpeed = velocityRef.current * 0.15;
+        const scale = getSpeedScale(localYear);
+        const inertiaSpeed = velocityRef.current * 0.15 * scale;
+
         const steps = Math.abs(Math.round(inertiaSpeed));
         if (steps > 0) {
           const direction = velocityRef.current > 0 ? 1 : -1;
@@ -415,7 +425,11 @@ const speedLookup = useMemo(() => {
       // Acceleration profile: starts slow, ramps to fast over ~1200ms
       // Compute steps per second between 4 and 40
       const t = Math.min(1, elapsed / 1200);
-      const stepsPerSec = 4 + Math.pow(t, 1.8) * (40 - 4);
+      //const stepsPerSec = 4 + Math.pow(t, 1.8) * (40 - 4);
+      const baseStepsPerSec = 4 + Math.pow(t, 1.8) * (40 - 4);
+      const scale = getSpeedScale(localYear);
+      const stepsPerSec = baseStepsPerSec * scale;
+
       const stepsThisFrame = stepsPerSec * dt;
       stepAccumulatorRef.current += stepsThisFrame;
       const wholeSteps = Math.floor(stepAccumulatorRef.current);
