@@ -5,8 +5,10 @@ import { maBinToYear } from "../utils/era";
 const initialState = {
   year: 2000,
   polygons: [],
-  // Store normalized empires and compute polygons lazily per year to avoid huge pre-expansion
   empires: [],
+  // Add index for O(1) lookups instead of O(n) loops
+  yearToEmpireIds: {}, // { year: [empireId1, empireId2, ...] }
+  empireIdToFeatures: {}, // { empireId: features[] }
   notesOpen: false,
   currentNote: null,
   imageOpen: false,
@@ -19,7 +21,6 @@ const initialState = {
   error: null,
 };
 
-// Helper function to convert year object to integer
 const convertYearToInteger = (yearObj) => {
   if (!yearObj || typeof yearObj.year === 'undefined' || yearObj.year === null) return null;
 
@@ -47,24 +48,58 @@ export const fetchAllEmpirePolygons = createAsyncThunk(
       const detailsList = await loadAllEmpiresWithDetailsCached(year, false, dispatch);
       return detailsList;
     } catch (err) {
-      dispatch(setLoading(false)); // Ensure loading is false on error
+      dispatch(setLoading(false));
       return rejectWithValue(err?.response?.data || "Failed to fetch empire polygons");
     }
   }
 );
 
-// Helper: compute polygons active for a given year from normalized empires
-function computePolygonsForYear(empires, year) {
-  if (!Array.isArray(empires) || !empires.length) return [];
+// OPTIMIZED: Use indexed lookup instead of loops
+// OPTIMIZED: Use indexed lookup instead of loops
+function computePolygonsForYear(yearToEmpireIds, empireIdToFeatures, year) {
+  // Normalise key to string (index keys are stored as strings)
+  const key = String(Number(year));
+  const empireIds = yearToEmpireIds[key];
+  if (!empireIds || !empireIds.length) return [];
+
   const out = [];
-  for (let i = 0; i < empires.length; i++) {
-    const e = empires[i];
-    if (year >= e.start && year <= e.end && e.features && e.features.length) {
-      // Append references; Maplibre expects plain arrays, so copy container only
-      for (let j = 0; j < e.features.length; j++) out.push(e.features[j]);
+  for (let i = 0; i < empireIds.length; i++) {
+    const features = empireIdToFeatures[empireIds[i]];
+    if (features) {
+      for (let j = 0; j < features.length; j++) {
+        out.push(features[j]);
+      }
     }
   }
   return out;
+}
+
+// Build index once when empires are loaded
+// Build index once when empires are loaded
+function buildYearIndex(empires) {
+  const yearToEmpireIds = {};
+  const empireIdToFeatures = {};
+
+  for (let i = 0; i < empires.length; i++) {
+    const e = empires[i];
+    const empireId = `empire_${i}`;
+
+    if (e.features && e.features.length) {
+      empireIdToFeatures[empireId] = e.features;
+
+      // Index every year this empire exists
+      // Store keys as strings for consistent lookups later
+      for (let year = e.start; year <= e.end; year++) {
+        const key = String(year);
+        if (!yearToEmpireIds[key]) {
+          yearToEmpireIds[key] = [];
+        }
+        yearToEmpireIds[key].push(empireId);
+      }
+    }
+  }
+
+  return { yearToEmpireIds, empireIdToFeatures };
 }
 
 const mapSlice = createSlice({
@@ -72,10 +107,20 @@ const mapSlice = createSlice({
   initialState,
   reducers: {
     setYear: (state, action) => {
-      state.year = action.payload;
-      state.polygons = computePolygonsForYear(state.empires, state.year);
+      const newYear = Number(action.payload);
+      if (state.year === newYear) return; // Skip if same year
+
+      state.year = newYear;
+      // FAST: O(1) lookup instead of O(n) loop
+      const newPolygons = computePolygonsForYear(
+        state.yearToEmpireIds,
+        state.empireIdToFeatures,
+        newYear
+      );
+      // Force new reference to trigger re-render
+      state.polygons = newPolygons.length > 0 ? newPolygons : [];
     },
-    setLoading: (state, action) => {  // ADD THIS ACTION
+    setLoading: (state, action) => {
       state.loading = action.payload;
     },
     openNotes: (state, action) => {
@@ -116,9 +161,11 @@ const mapSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchAllEmpirePolygons.pending, (state) => {
+        state.loading = true; // Set loading true when fetching starts
         state.error = null;
       })
       .addCase(fetchAllEmpirePolygons.fulfilled, (state, action) => {
+        state.loading = false; // Set loading false when done
         const empires = [];
         for (let i = 0; i < (action.payload || []).length; i++) {
           const empire = action.payload[i];
@@ -130,8 +177,21 @@ const mapSlice = createSlice({
           if (!features.length) continue;
           empires.push({ start, end, features });
         }
+        
         state.empires = empires;
-        state.polygons = computePolygonsForYear(state.empires, state.year);
+        
+        // BUILD INDEX ONCE
+        const { yearToEmpireIds, empireIdToFeatures } = buildYearIndex(empires);
+        state.yearToEmpireIds = yearToEmpireIds;
+        state.empireIdToFeatures = empireIdToFeatures;
+        
+        // Compute initial polygons - force new array reference
+        const newPolygons = computePolygonsForYear(
+          yearToEmpireIds,
+          empireIdToFeatures,
+          state.year
+        );
+        state.polygons = [...newPolygons]; // Spread to ensure new reference
       })
       .addCase(fetchAllEmpirePolygons.rejected, (state, action) => {
         state.loading = false;

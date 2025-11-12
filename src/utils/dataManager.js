@@ -5,6 +5,13 @@ const DB_NAME = "mapx-cache";
 const DB_VERSION = 1;
 const STORE_META = "empireMeta";
 const STORE_DETAILS = "empireDetails";
+const STORE_CENTURY = "centuryBatch";
+
+// In-memory cache
+let metadataCache = null;
+let metadataCacheTime = 0;
+const loadedCenturies = new Map(); // centuryKey -> empireDetails[]
+const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -12,8 +19,12 @@ function openDB() {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains(STORE_META)) db.createObjectStore(STORE_META);
-        if (!db.objectStoreNames.contains(STORE_DETAILS)) db.createObjectStore(STORE_DETAILS);
+        if (!db.objectStoreNames.contains(STORE_META))
+          db.createObjectStore(STORE_META);
+        if (!db.objectStoreNames.contains(STORE_DETAILS))
+          db.createObjectStore(STORE_DETAILS);
+        if (!db.objectStoreNames.contains(STORE_CENTURY))
+          db.createObjectStore(STORE_CENTURY);
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -29,8 +40,7 @@ async function idbGet(storeName, key) {
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(storeName, "readonly");
-      const store = tx.objectStore(storeName);
-      const req = store.get(key);
+      const req = tx.objectStore(storeName).get(key);
       req.onsuccess = () => resolve(req.result ?? null);
       req.onerror = () => resolve(null);
     } catch {
@@ -45,8 +55,7 @@ async function idbSet(storeName, key, value) {
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(storeName, "readwrite");
-      const store = tx.objectStore(storeName);
-      const req = store.put(value, key);
+      const req = tx.objectStore(storeName).put(value, key);
       req.onsuccess = () => resolve(true);
       req.onerror = () => resolve(false);
     } catch {
@@ -55,23 +64,6 @@ async function idbSet(storeName, key, value) {
   });
 }
 
-async function idbKeys(storeName) {
-  const db = await openDB();
-  if (!db) return [];
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction(storeName, "readonly");
-      const store = tx.objectStore(storeName);
-      const req = store.getAllKeys();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
-    } catch {
-      resolve([]);
-    }
-  });
-}
-
-// concurrency limiter
 async function mapWithConcurrency(items, limit, mapper) {
   const queue = items.slice();
   const results = [];
@@ -90,7 +82,7 @@ async function mapWithConcurrency(items, limit, mapper) {
       Promise.resolve()
         .then(() => mapper(item))
         .then((res) => {
-          if (typeof res !== "undefined") results.push(res);
+          if (res !== undefined) results.push(res);
         })
         .catch(() => {})
         .finally(() => {
@@ -99,51 +91,86 @@ async function mapWithConcurrency(items, limit, mapper) {
         });
     }
   };
+
   startNext();
   await done;
   return results;
 }
 
-const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
-export async function loadAllEmpiresWithDetailsCached(currentYear, forceRefresh = false, dispatch = null) {
-  const now = Date.now();
-  const minYear = currentYear - 25;
-  const maxYear = currentYear + 25;
-
-  // 1️⃣ Load cached metadata
-  let metadataList = null;
-  const cachedMeta = await idbGet(STORE_META, "list");
-  if (
-    !forceRefresh &&
-    cachedMeta &&
-    cachedMeta.data &&
-    now - cachedMeta.timestamp < CACHE_EXPIRY_MS
-  ) {
-    metadataList = cachedMeta.data;
+function getCenturyKey(year) {
+  if (year >= 1) {
+    const start = Math.floor((year - 1) / 100) * 100 + 1;
+    return `${start}-${start + 99}`;
   } else {
-    metadataList = await getAllEmpires();
-    idbSet(STORE_META, "list", {
-      timestamp: now,
-      data: metadataList,
-    }).catch(() => {});
+    const end = Math.ceil(year / 100) * 100;
+    return `${end - 99}-${end}`;
+  }
+}
+
+function parseCenturyKey(key) {
+  const [start, end] = key.split('-').map(Number);
+  return { start, end };
+}
+
+const toInt = (y) => {
+  if (!y || typeof y.year === "undefined" || y.year === null) return null;
+  const raw = Number(y.year);
+  if (!Number.isFinite(raw)) return null;
+  const era = String(y.era || "").trim().toUpperCase();
+  if (era === "MA") return maBinToYear(raw);
+  if (era === "BCE") return -Math.abs(raw);
+  return Math.abs(raw);
+};
+
+export async function loadAllEmpiresWithDetailsCached(
+  currentYear,
+  forceRefresh = false,
+  dispatch = null
+) {
+  const now = Date.now();
+  const centuryKey = getCenturyKey(currentYear);
+
+  // Check in-memory cache first
+  if (!forceRefresh && loadedCenturies.has(centuryKey)) {
+    return loadedCenturies.get(centuryKey);
   }
 
-  
-  const toInt = (y) => {
-    if (!y || typeof y.year === "undefined" || y.year === null) return null;
-    const raw = Number(y.year);
-    if (!Number.isFinite(raw)) return null;
-    const era = String(y.era || "").trim().toUpperCase();
-    if (era === "MA") {
-      return maBinToYear(raw);
-    }
-    if (era === "BCE") {
-      return -Math.abs(raw);
-    }
-    return Math.abs(raw);
-  };
+  // Check IndexedDB for this century batch
+  const cached = await idbGet(STORE_CENTURY, centuryKey);
+  if (
+    !forceRefresh &&
+    cached &&
+    cached.data &&
+    now - cached.timestamp < CACHE_EXPIRY_MS
+  ) {
+    loadedCenturies.set(centuryKey, cached.data);
+    return cached.data;
+  }
 
-  const filteredEmpires = metadataList.filter((e) => {
+  // Load metadata (once, in memory)
+  if (!metadataCache || now - metadataCacheTime > CACHE_EXPIRY_MS || forceRefresh) {
+    const cachedMeta = await idbGet(STORE_META, "list");
+    if (
+      !forceRefresh &&
+      cachedMeta &&
+      cachedMeta.data &&
+      now - cachedMeta.timestamp < CACHE_EXPIRY_MS
+    ) {
+      metadataCache = cachedMeta.data;
+      metadataCacheTime = cachedMeta.timestamp;
+    } else {
+      metadataCache = await getAllEmpires();
+      metadataCacheTime = now;
+      idbSet(STORE_META, "list", {
+        timestamp: now,
+        data: metadataCache,
+      }).catch(() => {});
+    }
+  }
+
+  // Filter empires for this century
+  const { start: minYear, end: maxYear } = parseCenturyKey(centuryKey);
+  const filteredEmpires = metadataCache.filter((e) => {
     const start = toInt(e.startYear);
     const end = toInt(e.endYear);
     if (start === null || end === null) return false;
@@ -151,58 +178,89 @@ export async function loadAllEmpiresWithDetailsCached(currentYear, forceRefresh 
   });
 
   const ids = filteredEmpires.map((e) => e.objectId).filter(Boolean);
-
-  // 3️⃣ Collect cached details
-  const cachedIds = await idbKeys(STORE_DETAILS);
-  const cachedIdSet = new Set(cachedIds);
-
-  const cachedDetailsPromises = ids.map(async (id) => {
-    if (!cachedIdSet.has(id)) return null;
-    const cached = await idbGet(STORE_DETAILS, id);
-    if (
-      !forceRefresh &&
-      cached &&
-      cached.data &&
-      now - cached.timestamp < CACHE_EXPIRY_MS
-    ) {
-      return cached.data;
-    }
-    return null;
-  });
-
-  const cachedDetails = (await Promise.all(cachedDetailsPromises)).filter(Boolean);
-  const cachedDetailIds = new Set(cachedDetails.map((d) => d?.objectId || d?.id || d?._id));
-
-  // 4️⃣ Fetch missing/expired ones
-  const missingIds = ids.filter((id) => !cachedDetailIds.has(id));
-  
-  // SET LOADING TO TRUE BEFORE API CALLS
-  if (missingIds.length > 0 && dispatch) {
-    dispatch({ type: 'map/setLoading', payload: true });
-  }
-  
-  const fetchedDetails = await mapWithConcurrency(missingIds, 6, async (id) => {
-    const detail = await getEmpireDetailsById(id);
-    idbSet(STORE_DETAILS, id, {
+  if (ids.length === 0) {
+    const emptyResult = [];
+    loadedCenturies.set(centuryKey, emptyResult);
+    idbSet(STORE_CENTURY, centuryKey, {
       timestamp: now,
-      data: detail,
-    }).catch(() => {});
-    return detail;
-  });
-
-  // SET LOADING TO FALSE AFTER API CALLS
-  if (missingIds.length > 0 && dispatch) {
-    dispatch({ type: 'map/setLoading', payload: false });
+      data: emptyResult,
+    });
+    return emptyResult;
   }
 
-  // 5️⃣ Merge + return
-  const detailsById = new Map(
-    [...cachedDetails, ...fetchedDetails].map((d) => [
-      d?.objectId || d?.id || d?._id,
-      d,
-    ])
-  );
+  // Batch fetch all details from IndexedDB
+  const db = await openDB();
+  const cachedDetails = [];
+  const missingIds = [];
 
-  const ordered = ids.map((id) => detailsById.get(id)).filter(Boolean);
-  return ordered;
+  if (db) {
+    try {
+      const tx = db.transaction(STORE_DETAILS, "readonly");
+      const store = tx.objectStore(STORE_DETAILS);
+      
+      for (const id of ids) {
+        const req = store.get(id);
+        await new Promise((resolve) => {
+          req.onsuccess = () => {
+            const cached = req.result;
+            if (
+              !forceRefresh &&
+              cached &&
+              cached.data &&
+              now - cached.timestamp < CACHE_EXPIRY_MS
+            ) {
+              cachedDetails.push(cached.data);
+            } else {
+              missingIds.push(id);
+            }
+            resolve();
+          };
+          req.onerror = () => {
+            missingIds.push(id);
+            resolve();
+          };
+        });
+      }
+    } catch {
+      missingIds.push(...ids);
+    }
+  } else {
+    missingIds.push(...ids);
+  }
+
+  // Fetch missing details
+  let fetchedDetails = [];
+  if (missingIds.length > 0) {
+    if (dispatch) dispatch({ type: "map/setLoading", payload: true });
+
+    fetchedDetails = await mapWithConcurrency(missingIds, 10, async (id) => {
+      const detail = await getEmpireDetailsById(id);
+      if (detail) {
+        idbSet(STORE_DETAILS, id, {
+          timestamp: now,
+          data: detail,
+        }).catch(() => {});
+      }
+      return detail;
+    });
+
+    if (dispatch) dispatch({ type: "map/setLoading", payload: false });
+  }
+
+  const allDetails = [...cachedDetails, ...fetchedDetails].filter(Boolean);
+
+  // Cache entire century batch
+  loadedCenturies.set(centuryKey, allDetails);
+  idbSet(STORE_CENTURY, centuryKey, {
+    timestamp: now,
+    data: allDetails,
+  }).catch(() => {});
+
+  return allDetails;
+}
+
+export function resetLoadedCenturies() {
+  loadedCenturies.clear();
+  metadataCache = null;
+  metadataCacheTime = 0;
 }

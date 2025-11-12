@@ -383,7 +383,7 @@ const speedLookup = useMemo(() => {
 
           if (current !== localYear) {
             setLocalYear(current);
-            scheduleCommit(current);
+            dispatch(setYear(current));
           }
         }
 
