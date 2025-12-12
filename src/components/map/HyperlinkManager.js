@@ -4,8 +4,7 @@ import { useDispatch } from "react-redux";
 import { openHyperlink } from '../../store/mapSlice';
 import hyperlink_icon from '../../assets/icons/hyperlink_icon.png'
 import { resolveEmbedHtml, normalizeUrl, prefetchEmbed } from "../api/embed";
-export const hyperlinkManager = (mapRef) => {
-    const dispatch = useDispatch();
+export const hyperlinkManager = (mapRef,dispatch) => {
     const map = mapRef;
     let active = false;
     let cursorEl = null;

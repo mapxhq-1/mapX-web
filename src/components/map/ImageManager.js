@@ -6,8 +6,7 @@ import image_icon from '../../assets/icons/image_icon.png'
 import { deleteImage } from "../api/image";
 import { store as reduxStore } from '../../store/store';
 
-export const imageManager = (mapRef) => {
-    const dispatch = useDispatch();
+export const imageManager = (mapRef,dispatch) => {
     const map = mapRef;
     let active = false;
     let cursorEl = null;
