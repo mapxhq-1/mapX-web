@@ -353,10 +353,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
     }, 200);
   }, [updateMapPolygons]);
 
-  // ========================================================================
-  // INITIALIZE MAP LAYERS
-  // ========================================================================
-
   const initializeMapLayers = useCallback(() => {
     if (!map.current) return;
     
@@ -407,7 +403,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
             ],
             "#B8860B" 
           ],
-          "fill-opacity": 0.3, // Keeps the fill transparent
+          "fill-opacity": 0.15, // Transparent fill
         },
       });
     }
@@ -418,7 +414,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
         id: "polygon-border",
         type: "line",
         source: "polygons-source",
-        // REMOVED "minzoom: 3" so you see borders even when fully zoomed out
         paint: {
           "line-color": [
             "case",
@@ -436,12 +431,11 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
             ],
             "#8B6914" 
           ],
-          // UPDATED: Starts thick (2px) at Zoom 1, gets very thick (8px) at Zoom 10
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
-            1, 2.0,   // At global view (Zoom 1), border is 2px (thick)
-            4, 3.5,   // At country view (Zoom 4), border is 3.5px
-            10, 8.0   // At city view (Zoom 10), border is 8px
+            1, 2.0, 
+            4, 3.5, 
+            10, 8.0 
           ],
           "line-opacity": 1,
         },
@@ -459,14 +453,26 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
         layout: {
           "text-field": ["get", "name"],
           "text-font": ["Noto Sans Bold"],
+          
           "text-size": [
             "interpolate", ["linear"], ["zoom"],
-            2, 9, 4, 11, 6, 13, 8, 15, 14, 11, 16, 13, 18
+            2, 7,
+            4, 9,
+            6, 11,
+            8, 12,
+            10, 14,
+            12, 16,
+            14, 18
           ],
+          
           "text-anchor": "center",
           "text-allow-overlap": false,
           "text-ignore-placement": false,
+          
+          // UPDATED: Changed back to 10.
+          // This allows text to wrap to multiple lines if the name is long.
           "text-max-width": 10,
+          
           "text-transform": "uppercase",
           "text-letter-spacing": 0.1,
           "symbol-sort-key": ["*", -1, ["coalesce", ["get", "area"], 0]],
