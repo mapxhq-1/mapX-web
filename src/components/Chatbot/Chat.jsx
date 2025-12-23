@@ -1,16 +1,22 @@
 import { useState, useRef, useEffect } from "react";
+import { useDispatch } from "react-redux"; 
+import { setYear } from "../../store/mapSlice"; 
+import { yearFromDbFormat } from "../../utils/era";
+import { getEmpireDetailsById } from "../api/geoJson"; 
 
 const API_URL = "https://quantumbit-mapx-rag-chatbot.hf.space/chat";
 const BEARER_TOKEN = "XnCHJlrDFJBgsdZsSFlSYCRrVk3_zxS8JXwRMp5Ufoo";
 
 export default function Chat() {
+  const dispatch = useDispatch();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeCitations, setActiveCitations] = useState(null);
   
-  // New State for Full Screen Mode
-  const [activeCitations, setActiveCitations] = useState(null); // Stores the citations array to show
-  
+  // --- NEW STATE: Track Auto-Fly Count ---
+  const [autoFlyCount, setAutoFlyCount] = useState(0); 
+
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -20,6 +26,47 @@ export default function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading]);
+
+  const toSignedYear = (yVal, eraVal) => {
+    const converted = yearFromDbFormat(yVal, eraVal);
+    return Number.isFinite(converted) ? converted : null;
+  };
+
+  const handleFlyTo = async (empireMatch) => {
+    if (!empireMatch || !empireMatch.objectId) return;
+
+    try {
+      const empireDetails = await getEmpireDetailsById(empireMatch.objectId);
+      
+      let targetCoords = null;
+      
+      if (empireDetails.content) {
+         targetCoords = getCentroidFromGeoJSON(empireDetails.content);
+      } 
+      else if (empireDetails.lat && empireDetails.lng) {
+         targetCoords = { lat: empireDetails.lat, lng: empireDetails.lng };
+      }
+
+      if (targetCoords && window.mapxFlyTo) {
+        console.log("Flying to Calculated Center:", targetCoords);
+        window.mapxFlyTo({ lng: targetCoords.lng, lat: targetCoords.lat });
+      }
+
+      const startYear = empireMatch.startYear || empireMatch.time; 
+      if (startYear) {
+         const y = typeof startYear === 'object' 
+            ? toSignedYear(startYear.year, startYear.era)
+            : parseInt(startYear);
+
+         if (y !== null && Number.isFinite(y)) {
+             dispatch(setYear(y));
+         }
+      }
+
+    } catch (err) {
+      console.error("FlyTo Error:", err);
+    }
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -46,10 +93,21 @@ export default function Chat() {
         role: "assistant",
         content: data.answer || "No response received.",
         citations: citations,
+        empire_match: data.empire_match || null, 
       };
 
       setMessages((prev) => [...prev, botMessage]);
+
+      // --- UPDATED LOGIC: Auto-Fly only for first 2 occurrences ---
+      if (data.empire_match) {
+        if (autoFlyCount < 2) {
+          handleFlyTo(data.empire_match);
+          setAutoFlyCount(prev => prev + 1); // Increment count
+        }
+      }
+
     } catch (err) {
+      console.error(err);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Error contacting server." },
@@ -67,7 +125,7 @@ export default function Chat() {
       width: "100%", 
       backgroundColor: "transparent", 
       boxSizing: "border-box",
-      position: "relative" // Needed for the overlay
+      position: "relative"
     }}>
       
       {/* --- MAIN CHAT AREA --- */}
@@ -117,36 +175,40 @@ export default function Chat() {
                {msg.content}
             </div>
             
-            {/* Citation Trigger Button */}
-            {msg.citations && msg.citations.length > 0 && (
+            {/* Action Buttons Area */}
+            {( (msg.citations && msg.citations.length > 0) || msg.empire_match ) && (
                <div style={{ 
                  marginTop: "6px", 
                  textAlign: msg.role === "user" ? "right" : "left",
-                 paddingLeft: msg.role === "user" ? 0 : "10px"
+                 paddingLeft: msg.role === "user" ? 0 : "10px",
+                 display: "flex",
+                 gap: "8px",
+                 justifyContent: msg.role === "user" ? "flex-end" : "flex-start"
                }}>
-                  <button
-                    onClick={() => setActiveCitations(msg.citations)}
-                    style={{
-                      background: "rgba(255,255,255,0.5)",
-                      border: "1px solid rgba(255,255,255,0.8)",
-                      borderRadius: "12px",
-                      padding: "4px 10px",
-                      fontSize: "11px",
-                      color: "#2563eb",
-                      fontWeight: "600",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      backdropFilter: "blur(4px)",
-                      transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.8)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.5)"}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                    View {msg.citations.length} Sources
-                  </button>
+                  
+                  {msg.citations && msg.citations.length > 0 && (
+                    <button
+                      onClick={() => setActiveCitations(msg.citations)}
+                      style={buttonStyle}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.8)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.5)"}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                      Sources ({msg.citations.length})
+                    </button>
+                  )}
+
+                  {msg.empire_match && (
+                    <button
+                      onClick={() => handleFlyTo(msg.empire_match)}
+                      style={buttonStyle}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.8)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.5)"}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                      Fly to Location
+                    </button>
+                  )}
                </div>
             )}
           </div>
@@ -196,24 +258,20 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* ----------------------------------------------
-        FULL SCREEN CITATIONS OVERLAY (Apple Glass) 
-        ----------------------------------------------
-      */}
+      {/* --- OVERLAY FOR CITATIONS --- */}
       {activeCitations && (
         <div 
           style={{
             position: "absolute",
             top: 0, left: 0, width: "100%", height: "100%",
             zIndex: 100,
-            backgroundColor: "rgba(255, 255, 255, 0.85)", // Heavy frost
+            backgroundColor: "rgba(255, 255, 255, 0.85)", 
             backdropFilter: "blur(25px) saturate(180%)",
             display: "flex",
             flexDirection: "column",
             animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
           }}
         >
-          {/* Overlay Header */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "16px 20px",
@@ -235,7 +293,6 @@ export default function Chat() {
             </button>
           </div>
 
-          {/* List of Sources */}
           <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
             {activeCitations.map((cite, index) => (
               <div 
@@ -249,40 +306,9 @@ export default function Chat() {
                   boxShadow: "0 4px 6px rgba(0,0,0,0.02)"
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                   <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "#e0f2fe", display: "flex", alignItems: "center", justifyContent: "center", color: "#0ea5e9", fontSize: "12px", fontWeight: "bold" }}>
-                      {index + 1}
-                   </div>
-                   <span style={{ fontSize: "12px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      {typeof cite === "string" && cite.startsWith("http") ? "Web Source" : "Text Source"}
-                   </span>
-                </div>
-                
-                {typeof cite === "string" && cite.startsWith("http") ? (
-                   <a 
-                     href={cite} 
-                     target="_blank" 
-                     rel="noopener noreferrer"
-                     style={{ 
-                       color: "#2563eb", 
-                       fontWeight: "500", 
-                       textDecoration: "none", 
-                       fontSize: "14px",
-                       wordBreak: "break-all",
-                       display: "block",
-                       lineHeight: "1.4"
-                     }}
-                   >
-                     {cite}
-                     <span style={{ display: "inline-block", marginLeft: "6px", verticalAlign: "middle" }}>
-                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                     </span>
-                   </a>
-                ) : (
-                  <div style={{ fontSize: "14px", color: "#333", lineHeight: "1.5" }}>
-                    {JSON.stringify(cite)}
-                  </div>
-                )}
+                 <div style={{ fontSize: "14px", color: "#333", lineHeight: "1.5" }}>
+                   {typeof cite === "string" ? cite : `Page ${cite.page} - ${cite.lesson}`}
+                 </div>
               </div>
             ))}
           </div>
@@ -300,3 +326,57 @@ export default function Chat() {
     </div>
   );
 }
+
+// Helper Function placed outside component
+function getCentroidFromGeoJSON(content) {
+  try {
+    const features = content.features || (content.type === "FeatureCollection" ? content.features : [content]);
+    if (!features || features.length === 0) return null;
+
+    const geometry = features[0].geometry;
+    if (!geometry || !geometry.coordinates) return null;
+
+    const flattenCoordinates = (coords) => {
+      if (coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+        return [coords];
+      }
+      return coords.reduce((acc, val) => acc.concat(flattenCoordinates(val)), []);
+    };
+
+    const allPoints = flattenCoordinates(geometry.coordinates);
+    if (allPoints.length === 0) return null;
+
+    let sumLng = 0;
+    let sumLat = 0;
+
+    allPoints.forEach(point => {
+      sumLng += point[0]; 
+      sumLat += point[1];
+    });
+
+    return {
+      lng: sumLng / allPoints.length,
+      lat: sumLat / allPoints.length
+    };
+
+  } catch (err) {
+    console.error("Error calculating centroid:", err);
+    return null;
+  }
+}
+
+const buttonStyle = {
+  background: "rgba(255,255,255,0.5)",
+  border: "1px solid rgba(255,255,255,0.8)",
+  borderRadius: "12px",
+  padding: "4px 10px",
+  fontSize: "11px",
+  color: "#2563eb",
+  fontWeight: "600",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  backdropFilter: "blur(4px)",
+  transition: "all 0.2s"
+};
