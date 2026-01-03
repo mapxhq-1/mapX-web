@@ -1,0 +1,474 @@
+import { useState, useRef, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux"; 
+import { setYear } from "../../store/mapSlice"; 
+import { yearFromDbFormat } from "../../utils/era";
+import { toast } from 'react-toastify'; 
+import ReactMarkdown from 'react-markdown'; // ✅ IMPORTED
+import remarkGfm from 'remark-gfm';         // ✅ IMPORTED
+
+import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
+import { getEmpireDetailsById } from "../api/geoJson"; 
+
+export default function Chat() {
+  const dispatch = useDispatch();
+  
+  // --- STATE ---
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [activeCitations, setActiveCitations] = useState(null);
+  
+  // Session & UI State
+  const [sessionId, setSessionId] = useState(null); 
+  const [autoFlyCount, setAutoFlyCount] = useState(0); 
+  const [sidebarOpen, setSidebarOpen] = useState(false); 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [chatHistoryList, setChatHistoryList] = useState([]);
+  
+  // Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const email = useSelector((state)=>state.project.ownerEmail);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading]);
+
+  useEffect(() => {
+    if (email) {
+        loadHistoryList();
+    }
+  }, [email]);
+
+  const loadHistoryList = async () => {
+    try {
+        const chats = await fetchAllChats(email);
+        
+        // SORTING: Recent chats (Newest) at the TOP
+        const sortedChats = chats.sort((a, b) => {
+            const dateA = new Date(a.timestamp || a.updatedAt || a.createdAt || 0);
+            const dateB = new Date(b.timestamp || b.updatedAt || b.createdAt || 0);
+            return dateB - dateA; 
+        });
+
+        const formatted = sortedChats.map(c => ({
+            id: c.sessionId, 
+            title: c.chatTitle || c.title || (c.createdAt ? `Chat ${new Date(c.createdAt).toLocaleDateString()}` : "New Chat")
+        }));
+        setChatHistoryList(formatted);
+    } catch (error) {
+        console.error("Error loading history list", error);
+    }
+  };
+
+  const handleDeleteClick = () => setShowDeleteModal(true);
+
+  const confirmDeleteChat = async () => {
+    if (!sessionId) return;
+    setShowDeleteModal(false);
+    try {
+        await deleteChatSession(sessionId);
+        toast.success("Chat deleted successfully");
+        setChatHistoryList(prev => prev.filter(c => c.id !== sessionId));
+        startNewChat(); 
+    } catch (error) {
+        console.error("Delete failed", error);
+        toast.error("Failed to delete chat");
+    }
+  };
+
+  const mapHistoryToUi = (historyItem) => {
+      const uiMsgs = [];
+      uiMsgs.push({ role: "user", content: historyItem.userInput, timestamp: historyItem.timestamp });
+
+      let empireData = null;
+      if (historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
+          empireData = {
+              name: historyItem.flyToPosition.location || "Location",
+              lat: historyItem.flyToPosition.lat,
+              lng: historyItem.flyToPosition.lng,
+              startYear: historyItem.flyToPosition.year, 
+              era: historyItem.flyToPosition.era,
+              zoom: historyItem.flyToPosition.zoom
+          };
+      }
+
+      const citations = historyItem.citations?.sources || historyItem.citations?.data || [];
+
+      uiMsgs.push({ 
+          role: "assistant", 
+          content: historyItem.modelResponse,
+          citations: citations, 
+          empire_match: empireData,
+          timestamp: historyItem.timestamp
+      });
+
+      return uiMsgs;
+  };
+
+  const loadOldChat = async (id) => {
+    try {
+        setLoading(true);
+        setSessionId(id);
+        setMobileMenuOpen(false); 
+        
+        const data = await getChatHistory(id);
+        if (data && data.history) {
+            const sortedHistory = data.history.sort((a, b) => {
+                const tA = new Date(a.timestamp || 0);
+                const tB = new Date(b.timestamp || 0);
+                return tA - tB; 
+            });
+
+            const uiMessages = [];
+            sortedHistory.forEach(h => {
+                const mapped = mapHistoryToUi(h);
+                uiMessages.push(...mapped);
+            });
+            setMessages(uiMessages);
+        }
+    } catch (e) {
+        console.error("Failed to load chat", e);
+        toast.error("Could not load chat history");
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const toSignedYear = (yVal, eraVal) => {
+    const converted = yearFromDbFormat(yVal, eraVal);
+    return Number.isFinite(converted) ? converted : null;
+  };
+
+  const handleFlyTo = async (empireMatch) => {
+    if (!empireMatch) return;
+
+    try {
+      let targetCoords = null;
+      if (empireMatch.lat !== undefined && empireMatch.lng !== undefined) {
+          targetCoords = { lat: empireMatch.lat, lng: empireMatch.lng };
+      } else if (empireMatch.objectId) {
+          const empireDetails = await getEmpireDetailsById(empireMatch.objectId);
+          if (empireDetails.content) {
+             targetCoords = getCentroidFromGeoJSON(empireDetails.content);
+          } else if (empireDetails.lat && empireDetails.lng) {
+             targetCoords = { lat: empireDetails.lat, lng: empireDetails.lng };
+          }
+      }
+
+      if (targetCoords && window.mapxFlyTo) {
+        window.mapxFlyTo({ lng: targetCoords.lng, lat: targetCoords.lat, zoom: empireMatch.zoom || 6 });
+      }
+
+      const startYear = empireMatch.startYear || empireMatch.time || empireMatch.year; 
+      if (startYear !== undefined && startYear !== null) {
+         const y = typeof startYear === 'object' 
+            ? toSignedYear(startYear.year, startYear.era)
+            : toSignedYear(startYear, empireMatch.era); 
+
+         if (y !== null && Number.isFinite(y)) {
+             dispatch(setYear(y));
+         }
+      }
+    } catch (err) {
+      console.error("FlyTo Error:", err);
+    }
+  };
+
+  const startNewChat = () => {
+    setSessionId(null);
+    setMessages([]);
+    setAutoFlyCount(0);
+    if (window.innerWidth < 768) setMobileMenuOpen(false);
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+
+    const currentInput = input;
+    setInput(""); 
+    setLoading(true);
+
+    const userMessage = { role: "user", content: currentInput };
+    setMessages((prev) => [...prev, userMessage]);
+
+    try {
+      const data = await sendChatMessage(email, sessionId, currentInput, "8th Grade");
+      
+      if (!sessionId && data.sessionId) {
+          setSessionId(data.sessionId);
+          loadHistoryList(); 
+      }
+
+      if (data.history) {
+          const sortedHistory = data.history.sort((a, b) => {
+              const tA = new Date(a.timestamp || 0);
+              const tB = new Date(b.timestamp || 0);
+              return tA - tB;
+          });
+
+          const newUiMessages = [];
+          sortedHistory.forEach(h => {
+              newUiMessages.push(...mapHistoryToUi(h));
+          });
+          setMessages(newUiMessages);
+
+          const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
+          if (lastHistoryItem.flyToPosition && autoFlyCount < 2) {
+              const flyData = lastHistoryItem.flyToPosition;
+              const empireMatchData = {
+                  lat: flyData.lat,
+                  lng: flyData.lng,
+                  location: flyData.location,
+                  startYear: flyData.year,
+                  era: flyData.era,
+                  zoom: flyData.zoom
+              };
+              handleFlyTo(empireMatchData);
+              setAutoFlyCount(prev => prev + 1);
+          }
+      }
+
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Error contacting server. Please try again." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- ICONS ---
+  const UserIcon = () => (
+    <div style={{ width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "#007bff", display: "flex", alignItems: "center", justifyContent: "center", color: "white", flexShrink: 0 }}>
+       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+    </div>
+  );
+
+  const BotIcon = () => (
+    <div style={{ width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "#10a37f", display: "flex", alignItems: "center", justifyContent: "center", color: "white", flexShrink: 0 }}>
+       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"></path><path d="M4 8h16"></path><path d="M4 8v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M9 14h6"></path></svg>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", height: "100%", width: "100%", backgroundColor: "#f9fafb", overflow: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+      
+      {/* --- SIDEBAR --- */}
+      <div style={{
+          width: sidebarOpen ? "250px" : "0px",
+          backgroundColor: "#f3f4f6",
+          transition: "width 0.3s ease",
+          overflow: "hidden",
+          display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid #e5e7eb"
+      }} className="desktop-sidebar">
+        
+        <div style={{ padding: "16px" }}>
+            <button onClick={startNewChat} style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "white", color: "#374151", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "10px 14px", cursor: "pointer", fontSize: "14px", fontWeight: "500", width: "100%", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                <span style={{ fontSize: "18px" }}>+</span> New Chat
+            </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 10px" }}>
+            <div style={{ fontSize: "11px", textTransform: "uppercase", color: "#6b7280", padding: "10px 6px", fontWeight: "600" }}>Recent</div>
+            {chatHistoryList.map(chat => (
+                <div key={chat.id} onClick={() => loadOldChat(chat.id)} style={{ padding: "8px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "4px", backgroundColor: sessionId === chat.id ? "#e5e7eb" : "transparent" }} className="history-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    {chat.title}
+                </div>
+            ))}
+        </div>
+      </div>
+
+      {/* --- MOBILE OVERLAY --- */}
+      {mobileMenuOpen && (
+        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 200, background: "rgba(0,0,0,0.5)" }} onClick={() => setMobileMenuOpen(false)}>
+            <div style={{ width: "260px", height: "100%", background: "#f9fafb", padding: "20px", boxShadow: "2px 0 10px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
+                <button onClick={startNewChat} style={{ marginBottom: "20px", padding: "12px", width: "100%", border: "1px solid #ddd", background: "white", borderRadius: "8px" }}>+ New Chat</button>
+                <div style={{ marginTop: "20px" }}>
+                    {chatHistoryList.map(chat => (
+                        <div key={chat.id} onClick={() => loadOldChat(chat.id)} style={{ padding: "10px", borderBottom: "1px solid #eee", cursor: "pointer", fontSize: "14px" }}>
+                            {chat.title}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- MAIN CONTENT --- */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%", position: "relative", backgroundColor: "#fff" }}>
+        
+        {/* Top Bar */}
+        <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ display: "flex", alignItems: "center" }}>
+                <button onClick={() => { if (window.innerWidth < 768) setMobileMenuOpen(true); else setSidebarOpen(!sidebarOpen); }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "6px", marginRight: "12px", color: "#555" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <span style={{ fontSize: "16px", fontWeight: "600", color: "#333" }}>Happy Dino</span>
+            </div>
+            {sessionId && (
+                <button onClick={handleDeleteClick} title="Delete Chat" style={{ background: "transparent", border: "none", cursor: "pointer", padding: "8px", color: "#dc2626", display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "500" }} className="hover-bg">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <span style={{ display: window.innerWidth < 600 ? "none" : "block" }}>Delete</span>
+                </button>
+            )}
+        </div>
+
+        {/* Chat List */}
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "0 10px" }}>
+            <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto", padding: "20px 0", display: "flex", flexDirection: "column", gap: "24px" }}>
+                
+                {messages.length === 0 && (
+                    <div style={{ marginTop: "15%", textAlign: "center", padding: "0 20px" }}>
+                          <div style={{ fontSize: "24px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>Dino here!!</div>
+                          <div style={{ fontSize: "16px", color: "#666" }}>Ask about history, geography, or specific empires.</div>
+                    </div>
+                )}
+
+                {messages.map((msg, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "12px", width: "100%" }}>
+                        {msg.role === "user" ? <UserIcon /> : <BotIcon />}
+                        
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", color: "#111" }}>{msg.role === "user" ? "You" : "Assistant"}</div>
+                            
+                            {/* ✅ MARKDOWN RENDERING HERE */}
+                            <div style={{ fontSize: "15px", color: "#374151" }}>
+                                <ReactMarkdown 
+                                    children={msg.content}
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        // Override default elements to fit chat bubbles better
+                                        p: ({node, ...props}) => <p style={{margin: '0 0 10px 0', lineHeight: '1.6'}} {...props} />,
+                                        ul: ({node, ...props}) => <ul style={{margin: '0 0 10px 0', paddingLeft: '20px'}} {...props} />,
+                                        ol: ({node, ...props}) => <ol style={{margin: '0 0 10px 0', paddingLeft: '20px'}} {...props} />,
+                                        li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
+                                        code: ({node, inline, className, children, ...props}) => {
+                                            return inline ? (
+                                                <code style={{background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '90%'}} {...props}>{children}</code>
+                                            ) : (
+                                                <code style={{display: 'block', background: '#f3f4f6', padding: '10px', borderRadius: '8px', overflowX: 'auto', marginBottom: '10px'}} {...props}>{children}</code>
+                                            )
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            {((msg.citations && msg.citations.length > 0) || msg.empire_match) && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                                    {msg.citations && msg.citations.length > 0 && (
+                                        <button onClick={() => setActiveCitations(msg.citations)} style={chipStyle}>
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+                                            View Sources ({msg.citations.length})
+                                        </button>
+                                    )}
+                                    {/* {msg.empire_match && (
+                                        <button onClick={() => handleFlyTo(msg.empire_match)} style={chipStyle}>
+                                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                                            Fly to Location
+                                        </button>
+                                    )} */}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+
+                {loading && (
+                    <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+                        <BotIcon />
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", height: "32px" }}>
+                             <div className="dot-pulse"></div>
+                        </div>
+                    </div>
+                )}
+                <div ref={messagesEndRef} style={{ height: "1px" }} />
+            </div>
+        </div>
+
+        {/* Input Area */}
+        <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "20px", background: "white", borderTop: "1px solid #f0f0f0" }}>
+            <div style={{ width: "100%", maxWidth: "768px", position: "relative" }}>
+                <input 
+                    type="text" 
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    placeholder="Type your question..."
+                    style={{ width: "100%", padding: "12px 48px 12px 16px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "15px", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+                />
+                <button 
+                    onClick={sendMessage}
+                    disabled={!input.trim() || loading}
+                    style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: input.trim() ? "#10a37f" : "#ccc", border: "none", borderRadius: "4px", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", cursor: input.trim() ? "pointer" : "default", transition: "background 0.2s" }}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </div>
+      </div>
+
+      {/* --- MODALS --- */}
+      {showDeleteModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease-out" }} onClick={() => setShowDeleteModal(false)}>
+            <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", width: "90%", maxWidth: "400px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)", animation: "slideUp 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
+                <h3 style={{ marginTop: 0, marginBottom: "8px", fontSize: "18px", color: "#1f2937", fontWeight: "600" }}>Delete Chat?</h3>
+                <p style={{ color: "#6b7280", fontSize: "14px", lineHeight: "1.5", marginBottom: "24px" }}>This will permanently delete the current conversation. This action cannot be undone.</p>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+                    <button onClick={() => setShowDeleteModal(false)} style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #e5e7eb", background: "white", color: "#374151", cursor: "pointer", fontWeight: "500" }}>Cancel</button>
+                    <button onClick={confirmDeleteChat} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", background: "#dc2626", color: "white", cursor: "pointer", fontWeight: "500" }}>Delete</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {activeCitations && (
+        <div style={{ position: "absolute", right: "20px", top: "60px", width: "280px", background: "white", boxShadow: "0 4px 15px rgba(0,0,0,0.1)", borderRadius: "8px", zIndex: 100, maxHeight: "50%", display: "flex", flexDirection: "column", border: "1px solid #eee" }}>
+             <div style={{ padding: "12px", borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f9fafb", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
+                 <span style={{ fontWeight: "600", fontSize: "13px" }}>References</span>
+                 <button onClick={() => setActiveCitations(null)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "18px", color: "#666" }}>&times;</button>
+             </div>
+             <div style={{ padding: "12px", overflowY: "auto" }}>
+                 {activeCitations.map((c, i) => (
+                     <div key={i} style={{ marginBottom: "8px", padding: "8px", background: "#f3f4f6", borderRadius: "4px", fontSize: "12px", color: "#333" }}>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson}`}</div>
+                 ))}
+             </div>
+        </div>
+      )}
+
+      <style>{`
+        .history-item:hover { background-color: #e5e7eb !important; }
+        .hover-bg:hover { background-color: rgba(220, 38, 38, 0.1) !important; }
+        .dot-pulse { width: 6px; height: 6px; background: #888; border-radius: 50%; animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @media (max-width: 768px) { .desktop-sidebar { display: none !important; } }
+      `}</style>
+    </div>
+  );
+}
+
+function getCentroidFromGeoJSON(content) {
+  try {
+    const features = content.features || (content.type === "FeatureCollection" ? content.features : [content]);
+    if (!features || features.length === 0) return null;
+    const geometry = features[0].geometry;
+    if (!geometry || !geometry.coordinates) return null;
+    const flattenCoordinates = (coords) => {
+      if (coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') { return [coords]; }
+      return coords.reduce((acc, val) => acc.concat(flattenCoordinates(val)), []);
+    };
+    const allPoints = flattenCoordinates(geometry.coordinates);
+    if (allPoints.length === 0) return null;
+    let sumLng = 0; let sumLat = 0;
+    allPoints.forEach(point => { sumLng += point[0]; sumLat += point[1]; });
+    return { lng: sumLng / allPoints.length, lat: sumLat / allPoints.length };
+  } catch (err) { console.error("Error calculating centroid:", err); return null; }
+}
+
+const chipStyle = { background: "white", border: "1px solid #ddd", borderRadius: "16px", padding: "6px 12px", fontSize: "12px", color: "#555", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "background 0.2s" };

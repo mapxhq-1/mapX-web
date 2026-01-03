@@ -14,6 +14,9 @@ import { toast } from "react-toastify";
 import HyperlinkModel from "../map/upload/HyperlinkModel";
 import MapLoader from "../loaders/MapLoader"; // Import the loader
 import { setEmail,setUserToken } from "../../store/projectSlice";
+import ResizableWindow from "../Chatbot/ResizableWindow";
+import Chat from "../Chatbot/Chat";
+
 export default function MainLayout() {
   const BASE_URL = import.meta.env.VITE_URL_PROJECT +  "/project-management-service";
   const [leftExpanded, setLeftExpanded] = useState(false);
@@ -72,6 +75,9 @@ export default function MainLayout() {
         flexDirection: "column",
       }}
     >
+      <ResizableWindow>
+        <Chat />
+      </ResizableWindow>
       {/* Map and overlays */}
       <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
         {/* Map */}
