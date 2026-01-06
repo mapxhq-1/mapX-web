@@ -222,20 +222,34 @@ export default function Timeline() {
       .map((y, i) => ({ y, left: (startIndex + i) * TICK_SPACING_PX }));
   }, [years, index, containerWidth]);
 
-  // Drag start
-  const handleMouseDown = (e) => {
+  // Unified drag handlers that work with both mouse and touch
+  const getClientX = (e) => {
+    // Handle both mouse and touch events
+    if (e.touches && e.touches.length > 0) {
+      return e.touches[0].clientX;
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return e.changedTouches[0].clientX;
+    }
+    return e.clientX;
+  };
+
+  // Drag start - unified for mouse and touch
+  const handleDragStart = (e) => {
     e.preventDefault();
     setIsDragging(true);
-    dragStartX.current = e.clientX;
+    dragStartX.current = getClientX(e);
     velocityRef.current = 0;
     maxDragAbsRef.current = 0;
     dragAccumulatorRef.current = 0;
   };
 
-  // Drag move
-  const handleMouseMove = (e) => {
+  // Drag move - unified for mouse and touch
+  const handleDragMove = (e) => {
     if (!isDragging) return;
-    const deltaX = e.clientX - dragStartX.current;
+    e.preventDefault();
+    const currentX = getClientX(e);
+    const deltaX = currentX - dragStartX.current;
     const maxOffset = 40;
     const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, deltaX));
 
@@ -247,8 +261,9 @@ export default function Timeline() {
     maxDragAbsRef.current = Math.max(maxDragAbsRef.current, Math.abs(clampedOffset));
   };
 
-  // Drag end — final sync
-  const handleMouseUp = () => {
+  // Drag end — final sync - unified for mouse and touch
+  const handleDragEnd = (e) => {
+    if (e) e.preventDefault();
     setIsDragging(false);
 
     let finalYear = clampYear(localYear);
@@ -285,17 +300,52 @@ export default function Timeline() {
     maxDragAbsRef.current = 0;
   };
 
+  // Legacy mouse handlers for backward compatibility
+  const handleMouseDown = handleDragStart;
+  const handleMouseMove = handleDragMove;
+  const handleMouseUp = handleDragEnd;
+
+  // Touch handlers for slider (direct wrappers)
+  const handleTouchStart = (e) => {
+    handleDragStart(e);
+  };
+
+  const handleTouchMove = (e) => {
+    handleDragMove(e);
+  };
+
+  const handleTouchEnd = (e) => {
+    handleDragEnd(e);
+  };
+
+  // Global event listeners for dragging
   useEffect(() => {
-    const handleGlobalMouseMove = (e) => handleMouseMove(e);
-    const handleGlobalMouseUp = () => handleMouseUp();
+    const handleGlobalMouseMove = (e) => handleDragMove(e);
+    const handleGlobalMouseUp = (e) => handleDragEnd(e);
+    const handleGlobalTouchMove = (e) => {
+      if (isDragging) {
+        handleDragMove(e);
+      }
+    };
+    const handleGlobalTouchEnd = (e) => {
+      if (isDragging) {
+        handleDragEnd(e);
+      }
+    };
 
     if (isDragging) {
-      document.addEventListener("mousemove", handleGlobalMouseMove);
-      document.addEventListener("mouseup", handleGlobalMouseUp);
+      document.addEventListener("mousemove", handleGlobalMouseMove, { passive: false });
+      document.addEventListener("mouseup", handleGlobalMouseUp, { passive: false });
+      document.addEventListener("touchmove", handleGlobalTouchMove, { passive: false });
+      document.addEventListener("touchend", handleGlobalTouchEnd, { passive: false });
+      document.addEventListener("touchcancel", handleGlobalTouchEnd, { passive: false });
     }
     return () => {
       document.removeEventListener("mousemove", handleGlobalMouseMove);
       document.removeEventListener("mouseup", handleGlobalMouseUp);
+      document.removeEventListener("touchmove", handleGlobalTouchMove);
+      document.removeEventListener("touchend", handleGlobalTouchEnd);
+      document.removeEventListener("touchcancel", handleGlobalTouchEnd);
     };
   }, [isDragging]);
 
@@ -458,6 +508,26 @@ const speedLookup = useMemo(() => {
     if (next !== localYear) {
       setLocalYear(next);
       if (next !== globalYear) dispatch(setYear(next));
+    }
+  };
+
+  // Unified arrow button handlers for touch and mouse
+  const handleArrowStart = (dir, e) => {
+    if (e) e.preventDefault();
+    startHold(dir);
+  };
+
+  const handleArrowEnd = (e) => {
+    if (e) e.preventDefault();
+    stopHold();
+  };
+
+  const handleArrowClickOrTouch = (dir, e) => {
+    if (e) e.preventDefault();
+    // Only trigger click action if hold hasn't started (very brief touch)
+    const timeSinceStart = performance.now() - holdStartTsRef.current;
+    if (timeSinceStart < 150) {
+      handleArrowClick(dir);
     }
   };
 
@@ -679,12 +749,22 @@ const speedLookup = useMemo(() => {
             color: "rgba(255,255,255,0.6)",
             fontSize: "24px",
             fontWeight: "bold",
-            top : "0"
+            top : "0",
+            cursor: "pointer",
+            userSelect: "none",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
           }}
-          onMouseDown={(e)=>{ e.preventDefault(); startHold(-1); }}
-          onMouseUp={()=> stopHold()}
-          onMouseLeave={()=> stopHold()}
-          onClick={()=> handleArrowClick(-1)}
+          onMouseDown={(e) => handleArrowStart(-1, e)}
+          onMouseUp={handleArrowEnd}
+          onMouseLeave={handleArrowEnd}
+          onClick={(e) => handleArrowClickOrTouch(-1, e)}
+          onTouchStart={(e) => handleArrowStart(-1, e)}
+          onTouchEnd={(e) => {
+            handleArrowEnd(e);
+            handleArrowClickOrTouch(-1, e);
+          }}
+          onTouchCancel={handleArrowEnd}
         >
           ‹
         </Box>
@@ -696,12 +776,22 @@ const speedLookup = useMemo(() => {
             color: "rgba(255,255,255,0.6)",
             fontSize: "24px",
             fontWeight: "bold",
-            top : "0.4px"
+            top : "0.4px",
+            cursor: "pointer",
+            userSelect: "none",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "transparent",
           }}
-          onMouseDown={(e)=>{ e.preventDefault(); startHold(1); }}
-          onMouseUp={()=> stopHold()}
-          onMouseLeave={()=> stopHold()}
-          onClick={()=> handleArrowClick(1)}
+          onMouseDown={(e) => handleArrowStart(1, e)}
+          onMouseUp={handleArrowEnd}
+          onMouseLeave={handleArrowEnd}
+          onClick={(e) => handleArrowClickOrTouch(1, e)}
+          onTouchStart={(e) => handleArrowStart(1, e)}
+          onTouchEnd={(e) => {
+            handleArrowEnd(e);
+            handleArrowClickOrTouch(1, e);
+          }}
+          onTouchCancel={handleArrowEnd}
         >
           ›
         </Box>
@@ -716,16 +806,22 @@ const speedLookup = useMemo(() => {
             borderRadius: "16px",
             border: "2px solid rgba(255,255,255,0.3)",
             boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-            cursor: "grab",
+            cursor: isDragging ? "grabbing" : "grab",
             transition: isDragging ? "none" : "transform 100ms ease-out",
+            touchAction: "none",
+            userSelect: "none",
+            WebkitTapHighlightColor: "transparent",
             "&:active": {
-              cursor: "grabbing",
               boxShadow: "0 6px 12px rgba(0,0,0,0.4)",
             },
             left: "50%",
             transform: "translateX(-50%)",
           }}
           onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
         />
       </Box>
     </Box>
