@@ -24,7 +24,7 @@ export const sendMessage = async (userId, sessionId, message, grade = "8th Grade
     payload = {
       userId: userId,
       sessionId,
-      grade: grade,
+      // grade: grade,
       message: message
     };
 console.log(payload);
