@@ -44,6 +44,7 @@ import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNo
 
 // Components
 import GalaxyCanvas from "../common/GalaxyCanvas";
+import { attachMapViewCollector } from "./utils/mapViewState";
 
 // ============================================================================
 // PERFORMANCE CONSTANTS
@@ -862,7 +863,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
           refreshExpiredTiles: false,
         });
       }
-
+      attachMapViewCollector(map.current);
       maOverlayManagerRef.current = createMaOverlayManager(map, yearRef);
 
       map.current.addControl(

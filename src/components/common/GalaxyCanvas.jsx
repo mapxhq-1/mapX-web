@@ -1,252 +1,268 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import * as THREE from "three";
+import { mapViewState } from "../map/utils/mapViewState";
 
-const GalaxyCanvas = () => {
-  const canvasRef = useRef(null);
-  const stars = useRef([]);
-  const mouse = useRef({ x: null, y: null });
+function createSoftTexture() {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
 
-  // Galaxy background effect
+  const center = size / 2;
+  const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
+  
+  gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+  gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.8)"); // Harder core
+  gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.2)");
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+export default function DeepSpaceBackground() {
+  const containerRef = useRef(null);
+
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!containerRef.current) return;
 
-    const ctx = canvas.getContext("2d");
-    let rafId;
-    let nebulaCanvas = null;
-    let nebulaCtx = null;
+    // --- SCENE SETUP ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+    camera.position.z = 0; 
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      recreateNebula();
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x020202, 1); 
+    containerRef.current.appendChild(renderer.domElement);
+
+    const universeGroup = new THREE.Group();
+    scene.add(universeGroup);
+
+    const texture = createSoftTexture();
+
+    // --- LAYER 1: STAR DUST (Background) ---
+    const DUST_COUNT = 8000;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPos = new Float32Array(DUST_COUNT * 3);
+    
+    for (let i = 0; i < DUST_COUNT; i++) {
+        const r = 1000 + Math.random() * 1000;
+        const theta = 2 * Math.PI * Math.random();
+        const phi = Math.acos(2 * Math.random() - 1);
+        dustPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        dustPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        dustPos[i*3+2] = r * Math.cos(phi);
     }
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
+    dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+    const dustMat = new THREE.PointsMaterial({
+        color: 0xaaaaaa,
+        size: 3, // Slightly bigger
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+    });
+    const starDust = new THREE.Points(dustGeo, dustMat);
+    universeGroup.add(starDust);
 
-    // ---------- STARS ----------
-    function createStars() {
-      const total = 400;
-      const arr = [];
-      for (let i = 0; i < total; i++) {
-        let brightnessType;
-        if (i < total * 0.3) brightnessType = "bright";
-        else if (i < total * 0.5) brightnessType = "mid";
-        else brightnessType = "faint";
+    // --- LAYER 2: BRIGHT STARS (Foreground) ---
+    const STAR_COUNT = 1500;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(STAR_COUNT * 3);
+    const starColors = new Float32Array(STAR_COUNT * 3);
+    const starSizes = new Float32Array(STAR_COUNT);
 
-        let shapeType;
-        const shapeRand = Math.random();
-        if (shapeRand < 0.5) shapeType = "round";
-        else if (shapeRand < 0.7) shapeType = "oval";
-        else shapeType = "fourpoint";
+    const starPalette = [
+        new THREE.Color(0xffffff), 
+        new THREE.Color(0xaaddff), // Blue
+        new THREE.Color(0xffddaa), // Gold
+    ];
 
-        let color;
-        if (brightnessType === "bright") {
-          color = [220 + Math.random() * 20, 220 + Math.random() * 20, 255, 1];
-        } else if (brightnessType === "mid") {
-          color = [180 + Math.random() * 40, 180 + Math.random() * 40, 255, 0.7];
-        } else {
-          const faintRand = Math.random();
-          if (faintRand < 0.5) color = [160 + Math.random() * 40, 170 + Math.random() * 40, 220 + Math.random() * 35, 0.4];
-          else if (faintRand < 0.8) color = [180 + Math.random() * 30, 160 + Math.random() * 30, 200 + Math.random() * 40, 0.3];
-          else color = [220 + Math.random() * 20, 210 + Math.random() * 30, 170 + Math.random() * 30, 0.3];
-        }
+    for (let i = 0; i < STAR_COUNT; i++) {
+        const r = 800 + Math.random() * 700;
+        const theta = 2 * Math.PI * Math.random();
+        const phi = Math.acos(2 * Math.random() - 1);
 
-        let radius = (i < total * 0.3 ? (Math.random() * 0.7 + 0.5) : (Math.random() * 1.1 + 0.7)) * 0.7;
-        let ovalRatio = shapeType === "oval" ? 0.5 + Math.random() * 0.5 : 1;
+        starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        starPos[i*3+2] = r * Math.cos(phi);
 
-        let flickerSpeed = 0, canBlink = false, canDrift = false;
-        if (i < total * 0.1) {
-          flickerSpeed = (Math.random() * 0.003 + 0.001);
-          canBlink = true;
-          canDrift = true;
-        }
+        const color = starPalette[Math.floor(Math.random() * starPalette.length)];
+        starColors[i*3] = color.r;
+        starColors[i*3+1] = color.g;
+        starColors[i*3+2] = color.b;
 
-        arr.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          radius,
-          ovalRatio,
-          baseDx: canDrift ? (Math.random() - 0.5) * 0.05 : 0,
-          baseDy: canDrift ? (Math.random() - 0.5) * 0.05 : 0,
-          vx: 0,
-          vy: 0,
-          opacity: color[3],
-          flickerSpeed,
-          canBlink,
-          canDrift,
-          brightnessType,
-          shapeType,
-          color,
-        });
-      }
-
-      return arr;
+        starSizes[i] = Math.random() * 2 + 1; 
     }
-    stars.current = createStars();
 
-    const handleMouseMove = (e) => {
-      mouse.current.x = e.clientX;
-      mouse.current.y = e.clientY;
+    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+    starGeo.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
+
+    const starMat = new THREE.PointsMaterial({
+        map: texture,
+        vertexColors: true,
+        size: 9, // INCREASED SIZE (Was 5)
+        transparent: true,
+        opacity: 1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+    const brightStars = new THREE.Points(starGeo, starMat);
+    universeGroup.add(brightStars);
+
+    // --- LAYER 3: NEBULAS ---
+    const NEBULA_COUNT = 100;
+    const nebulaGeo = new THREE.BufferGeometry();
+    const nebulaPos = new Float32Array(NEBULA_COUNT * 3);
+    const nebulaColors = new Float32Array(NEBULA_COUNT * 3);
+    const nebulaPalette = [ new THREE.Color(0x220066), new THREE.Color(0x001133) ];
+
+    for (let i = 0; i < NEBULA_COUNT; i++) {
+        const r = 1200 + Math.random() * 800;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        nebulaPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        nebulaPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        nebulaPos[i*3+2] = r * Math.cos(phi);
+        const color = nebulaPalette[Math.floor(Math.random() * nebulaPalette.length)];
+        nebulaColors[i*3] = color.r; nebulaColors[i*3+1] = color.g; nebulaColors[i*3+2] = color.b;
+    }
+    nebulaGeo.setAttribute("position", new THREE.BufferAttribute(nebulaPos, 3));
+    nebulaGeo.setAttribute("color", new THREE.BufferAttribute(nebulaColors, 3));
+    
+    const nebulaMat = new THREE.PointsMaterial({
+        map: texture,
+        vertexColors: true,
+        size: 500, // INCREASED SIZE (Was 300)
+        transparent: true,
+        opacity: 0.12, 
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+    universeGroup.add(new THREE.Points(nebulaGeo, nebulaMat));
+
+    // --- LAYER 4: SHOOTING STARS ---
+    const shootingStars = [];
+    const trailGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array([0,0,0, -80,0,0]); // Longer trail
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    // Reduced pool size (from 8 to 3)
+    for(let i=0; i<3; i++) { 
+        const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+        const mesh = new THREE.Line(trailGeo, mat);
+        universeGroup.add(mesh);
+        shootingStars.push({ mesh, active: false, speed: 0, life: 0 });
+    }
+
+    const spawnShootingStar = () => {
+        const star = shootingStars.find(s => !s.active);
+        if(!star) return;
+
+        star.active = true;
+        star.life = 1;
+        star.mesh.material.opacity = 1;
+
+        const r = 900;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        
+        star.mesh.position.set(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.sin(phi) * Math.sin(theta),
+            r * Math.cos(phi)
+        );
+        star.mesh.lookAt(0,0,0);
+        star.mesh.rotateY(Math.random() * Math.PI);
+        star.mesh.rotateZ(Math.random() * Math.PI);
+        star.speed = 15 + Math.random() * 20; // Faster shooting stars
     };
-    window.addEventListener("mousemove", handleMouseMove);
 
-    // ---------- NEBULA / DUST (offscreen canvas) ----------
-    function createNebulaLayer() {
-      nebulaCanvas = document.createElement("canvas");
-      nebulaCanvas.width = canvas.width;
-      nebulaCanvas.height = canvas.height;
-      nebulaCtx = nebulaCanvas.getContext("2d");
-      nebulaCtx.clearRect(0, 0, nebulaCanvas.width, nebulaCanvas.height);
-      nebulaCtx.globalCompositeOperation = "lighter";
-
-      const cx = nebulaCanvas.width * 0.55;
-      const cy = nebulaCanvas.height * 0.45;
-      const rxBase = nebulaCanvas.width * 0.504;
-      const ryBase = nebulaCanvas.height * 0.105;
-      const angle = -Math.PI / 5;
-
-      const layers = [
-        { spread: 1.00, alpha0: 0.25, alpha1: 0.10, blur: 24 },
-        { spread: 0.85, alpha0: 0.18, alpha1: 0.08, blur: 36 },
-        { spread: 0.70, alpha0: 0.12, alpha1: 0.06, blur: 48 },
-        { spread: 0.55, alpha0: 0.08, alpha1: 0.04, blur: 64 },
-      ];
-
-      nebulaCtx.save();
-      nebulaCtx.translate(cx, cy);
-      nebulaCtx.rotate(angle);
-
-      layers.forEach((layer) => {
-        const rx = rxBase * layer.spread;
-        const ry = ryBase * layer.spread;
-        const grad = nebulaCtx.createRadialGradient(0, 0, 0, 0, 0, Math.max(rx, ry));
-        grad.addColorStop(0.0, `rgba(120,80,180,${layer.alpha0.toFixed(3)})`);
-        grad.addColorStop(0.5, `rgba(120,80,180,${(layer.alpha1 * 0.7).toFixed(3)})`);
-        grad.addColorStop(1.0, `rgba(120,80,180,0.0)`);
-
-        nebulaCtx.save();
-        nebulaCtx.filter = `blur(${Math.round(layer.blur)}px)`;
-        nebulaCtx.beginPath();
-        nebulaCtx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-        nebulaCtx.closePath();
-        nebulaCtx.fillStyle = grad;
-        nebulaCtx.globalAlpha = 1.0;
-        nebulaCtx.fill();
-        nebulaCtx.restore();
-      });
-
-      nebulaCtx.restore();
-    }
-
-    function recreateNebula() {
-      createNebulaLayer();
-    }
-    recreateNebula();
-
-    function drawStarShape(s) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.globalAlpha = s.opacity;
-      ctx.shadowColor = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${s.opacity * 0.7})`;
-      ctx.shadowBlur = s.brightnessType === "bright" ? 12 : s.brightnessType === "mid" ? 6 : 2;
-      ctx.fillStyle = `rgba(${s.color[0]},${s.color[1]},${s.color[2]},${s.opacity})`;
-
-      if (s.shapeType === "round") {
-        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (s.shapeType === "oval") {
-        const rotation = (s.baseDx + s.baseDy) * 3;
-        ctx.translate(s.x, s.y);
-        ctx.rotate(rotation);
-        ctx.ellipse(0, 0, s.radius, s.radius * s.ovalRatio, 0, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        const r = s.radius;
-        ctx.translate(s.x, s.y);
-        const rot = (s.baseDx + s.baseDy) * 5;
-        ctx.rotate(rot);
-        ctx.moveTo(0, -r);
-        ctx.quadraticCurveTo(r * 0.35, -r * 0.35, r, 0);
-        ctx.quadraticCurveTo(r * 0.35, r * 0.35, 0, r);
-        ctx.quadraticCurveTo(-r * 0.35, r * 0.35, -r, 0);
-        ctx.quadraticCurveTo(-r * 0.35, -r * 0.35, 0, -r);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-    }
+    // --- ANIMATION LOOP ---
+    let rafId;
+    let time = 0;
 
     function animate() {
-      ctx.fillStyle = "#000009";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      if (nebulaCanvas) ctx.drawImage(nebulaCanvas, 0, 0, canvas.width, canvas.height);
+        rafId = requestAnimationFrame(animate);
+        time += 0.005;
 
-      stars.current.forEach((star) => {
-        if (star.canBlink && star.flickerSpeed !== 0) {
-          star.opacity += star.flickerSpeed;
-          if (star.opacity > 1) { star.opacity = 1; star.flickerSpeed *= -1; }
-          if (star.opacity < 0.25) { star.opacity = 0.25; star.flickerSpeed *= -1; }
+        // --- FIXED ROTATION LOGIC ---
+        // Increase sensitivity (0.0003 -> 0.0008) for faster reaction
+        const targetRotY = mapViewState.lng * 0.0008; 
+        const targetRotX = mapViewState.lat * 0.0008;
+
+        // CHECK FOR WRAP-AROUND JUMP
+        // If the difference between current and target is massive (e.g. crossing 180/-180)
+        // we snap immediately instead of easing, preventing the "rewind spin"
+        if (Math.abs(targetRotY - universeGroup.rotation.y) > 0.5) {
+            universeGroup.rotation.y = targetRotY;
         } else {
-          star.opacity += (Math.random() - 0.5) * 0.002;
-          star.opacity = Math.max(0.15, Math.min(1, star.opacity));
+            // Smooth ease
+            universeGroup.rotation.y += (targetRotY - universeGroup.rotation.y) * 0.1;
         }
 
-        if (mouse.current.x && mouse.current.y) {
-          const dx = star.x - mouse.current.x;
-          const dy = star.y - mouse.current.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const minDist = 130 / 4;
-          if (dist < minDist && dist > 0.1) {
-            const force = (minDist - dist) / minDist;
-            const angle = Math.atan2(dy, dx);
-            star.vx += Math.cos(angle) * force * 0.10;
-            star.vy += Math.sin(angle) * force * 0.10;
-          }
+        if (Math.abs(targetRotX - universeGroup.rotation.x) > 0.5) {
+            universeGroup.rotation.x = targetRotX;
+        } else {
+            universeGroup.rotation.x += (targetRotX - universeGroup.rotation.x) * 0.1;
         }
 
-        if (star.canDrift) {
-          star.vx += star.baseDx * 0.04;
-          star.vy += star.baseDy * 0.04;
-        }
+        // FASTER IDLE MOVEMENT
+        universeGroup.rotation.z += 0.0005; // Was 0.0001
 
-        star.x += star.vx;
-        star.y += star.vy;
-        star.vx *= 0.95;
-        star.vy *= 0.95;
+        // Twinkle
+        brightStars.material.opacity = 0.8 + Math.sin(time * 2) * 0.2;
 
-        if (star.x < -40) star.x = canvas.width + 40;
-        if (star.x > canvas.width + 40) star.x = -40;
-        if (star.y < -40) star.y = canvas.height + 40;
-        if (star.y > canvas.height + 40) star.y = -40;
+        // Shooting Stars (Reduced frequency 0.03 -> 0.01)
+        if (Math.random() < 0.01) spawnShootingStar();
+        
+        shootingStars.forEach(s => {
+            if(s.active) {
+                s.mesh.translateX(-s.speed);
+                s.life -= 0.02; // Faster fade out
+                s.mesh.material.opacity = s.life;
+                if(s.life <= 0) s.active = false;
+            }
+        });
 
-        drawStarShape(star);
-      });
-
-      rafId = requestAnimationFrame(animate);
+        renderer.render(scene, camera);
     }
 
     animate();
 
+    function handleResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener("resize", handleResize);
+
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("resize", resizeCanvas);
-      cancelAnimationFrame(rafId);
+        cancelAnimationFrame(rafId);
+        window.removeEventListener("resize", handleResize);
+        renderer.dispose();
+        dustGeo.dispose(); dustMat.dispose();
+        starGeo.dispose(); starMat.dispose();
+        nebulaGeo.dispose(); nebulaMat.dispose();
+        trailGeo.dispose();
+        containerRef.current?.removeChild(renderer.domElement);
     };
   }, []);
 
   return (
-    <canvas 
-      ref={canvasRef} 
-      style={{ 
-        position: "absolute", 
-        top: 0, 
-        left: 0, 
-        width: "100%", 
-        height: "100%", 
-        zIndex: 0
-      }} 
+    <div
+      ref={containerRef}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        background: "#020202",
+        pointerEvents: "none"
+      }}
     />
   );
-};
-
-export default GalaxyCanvas;
+}
