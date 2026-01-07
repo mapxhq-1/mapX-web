@@ -3,11 +3,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { setYear } from "../../store/mapSlice"; 
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify'; 
-import ReactMarkdown from 'react-markdown'; // ✅ IMPORTED
-import remarkGfm from 'remark-gfm';         // ✅ IMPORTED
+import ReactMarkdown from 'react-markdown'; 
+import remarkGfm from 'remark-gfm'; 
 
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
-import { getEmpireDetailsById } from "../api/geoJson"; 
+// Removed getEmpireDetailsById import as it is no longer used
 
 export default function Chat() {
   const dispatch = useDispatch();
@@ -18,6 +18,9 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [activeCitations, setActiveCitations] = useState(null);
   
+  // Grade Selection State (Default: null)
+  const [selectedGrade, setSelectedGrade] = useState(null);
+
   // Session & UI State
   const [sessionId, setSessionId] = useState(null); 
   const [autoFlyCount, setAutoFlyCount] = useState(0); 
@@ -91,6 +94,8 @@ export default function Chat() {
               name: historyItem.flyToPosition.location || "Location",
               lat: historyItem.flyToPosition.lat,
               lng: historyItem.flyToPosition.lng,
+              // ✅ Updated to capture 'time' from your data structure
+              time: historyItem.flyToPosition.time,      
               startYear: historyItem.flyToPosition.year, 
               era: historyItem.flyToPosition.era,
               zoom: historyItem.flyToPosition.zoom
@@ -144,38 +149,51 @@ export default function Chat() {
     return Number.isFinite(converted) ? converted : null;
   };
 
-  const handleFlyTo = async (empireMatch) => {
+  // ✅ Simplified flyTo implementation
+  const flyToIfPossible = (lat, lng) => {
+     try {
+         if (window.mapxFlyTo && Number.isFinite(lat) && Number.isFinite(lng)) {
+             window.mapxFlyTo({ lng, lat });
+         }
+     } catch (_) {}
+  };
+
+  // ✅ UPDATED: Strictly uses passed data, ignores objectId/centroids
+  const handleFlyTo = (empireMatch) => {
     if (!empireMatch) return;
 
-    try {
-      let targetCoords = null;
-      if (empireMatch.lat !== undefined && empireMatch.lng !== undefined) {
-          targetCoords = { lat: empireMatch.lat, lng: empireMatch.lng };
-      } else if (empireMatch.objectId) {
-          const empireDetails = await getEmpireDetailsById(empireMatch.objectId);
-          if (empireDetails.content) {
-             targetCoords = getCentroidFromGeoJSON(empireDetails.content);
-          } else if (empireDetails.lat && empireDetails.lng) {
-             targetCoords = { lat: empireDetails.lat, lng: empireDetails.lng };
-          }
-      }
+    // 1. Extract coordinates directly
+    const { lat, lng, time, startYear, era } = empireMatch;
 
-      if (targetCoords && window.mapxFlyTo) {
-        window.mapxFlyTo({ lng: targetCoords.lng, lat: targetCoords.lat, zoom: empireMatch.zoom || 6 });
-      }
+    // 2. Fly strictly to these coordinates
+    if (lat !== undefined && lng !== undefined) {
+        flyToIfPossible(lat, lng);
+    }
 
-      const startYear = empireMatch.startYear || empireMatch.time || empireMatch.year; 
-      if (startYear !== undefined && startYear !== null) {
-         const y = typeof startYear === 'object' 
-            ? toSignedYear(startYear.year, startYear.era)
-            : toSignedYear(startYear, empireMatch.era); 
+    // 3. Handle Time Parsing
+    // Priorities: empireMatch.time (string "1930 CE") -> empireMatch.startYear -> empireMatch.year
+    const timeValue = time || startYear || empireMatch.year;
 
-         if (y !== null && Number.isFinite(y)) {
-             dispatch(setYear(y));
-         }
-      }
-    } catch (err) {
-      console.error("FlyTo Error:", err);
+    if (timeValue !== undefined && timeValue !== null) {
+       let y = null;
+
+       if (typeof timeValue === 'string' && timeValue.includes(' ')) {
+           // ✅ CASE: "1930 CE"
+           const parts = timeValue.split(' ');
+           const yearNum = parseInt(parts[0], 10);
+           const eraStr = parts[1]; // "CE", "BCE"
+           y = toSignedYear(yearNum, eraStr);
+       } else if (typeof timeValue === 'object') {
+           // CASE: { year: 1930, era: 'CE' }
+           y = toSignedYear(timeValue.year, timeValue.era);
+       } else {
+           // CASE: Numeric year with separate era passed
+           y = toSignedYear(timeValue, era);
+       }
+
+       if (y !== null && Number.isFinite(y)) {
+           dispatch(setYear(y));
+       }
     }
   };
 
@@ -197,7 +215,8 @@ export default function Chat() {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const data = await sendChatMessage(email, sessionId, currentInput, "8th Grade");
+      // Passing selectedGrade variable
+      const data = await sendChatMessage(email, sessionId, currentInput, selectedGrade);
       
       if (!sessionId && data.sessionId) {
           setSessionId(data.sessionId);
@@ -220,12 +239,13 @@ export default function Chat() {
           const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
           if (lastHistoryItem.flyToPosition && autoFlyCount < 2) {
               const flyData = lastHistoryItem.flyToPosition;
+              
+              // ✅ UPDATED: Simply mapping the API response to our handler
               const empireMatchData = {
                   lat: flyData.lat,
                   lng: flyData.lng,
                   location: flyData.location,
-                  startYear: flyData.year,
-                  era: flyData.era,
+                  time: flyData.time,   // "1930 CE"
                   zoom: flyData.zoom
               };
               handleFlyTo(empireMatchData);
@@ -308,7 +328,7 @@ export default function Chat() {
                 <button onClick={() => { if (window.innerWidth < 768) setMobileMenuOpen(true); else setSidebarOpen(!sidebarOpen); }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "6px", marginRight: "12px", color: "#555" }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                 </button>
-                <span style={{ fontSize: "16px", fontWeight: "600", color: "#333" }}>Happy Dino</span>
+                <span style={{ fontSize: "16px", fontWeight: "600", color: "#333" }}>Happy Dyno</span>
             </div>
             {sessionId && (
                 <button onClick={handleDeleteClick} title="Delete Chat" style={{ background: "transparent", border: "none", cursor: "pointer", padding: "8px", color: "#dc2626", display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "500" }} className="hover-bg">
@@ -324,7 +344,7 @@ export default function Chat() {
                 
                 {messages.length === 0 && (
                     <div style={{ marginTop: "15%", textAlign: "center", padding: "0 20px" }}>
-                          <div style={{ fontSize: "24px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>Dino here!!</div>
+                          <div style={{ fontSize: "24px", fontWeight: "600", color: "#333", marginBottom: "8px" }}>Dyno here!!</div>
                           <div style={{ fontSize: "16px", color: "#666" }}>Ask about history, geography, or specific empires.</div>
                     </div>
                 )}
@@ -336,22 +356,41 @@ export default function Chat() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", color: "#111" }}>{msg.role === "user" ? "You" : "Assistant"}</div>
                             
-                            {/* ✅ MARKDOWN RENDERING HERE */}
+                            {/* ✅ MARKDOWN RENDERING */}
                             <div style={{ fontSize: "15px", color: "#374151" }}>
                                 <ReactMarkdown 
                                     children={msg.content}
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                        // Override default elements to fit chat bubbles better
+                                        // P: Standard spacing
                                         p: ({node, ...props}) => <p style={{margin: '0 0 10px 0', lineHeight: '1.6'}} {...props} />,
-                                        ul: ({node, ...props}) => <ul style={{margin: '0 0 10px 0', paddingLeft: '20px'}} {...props} />,
-                                        ol: ({node, ...props}) => <ol style={{margin: '0 0 10px 0', paddingLeft: '20px'}} {...props} />,
+                                        
+                                        // LISTS: Ensure bullets and numbers appear by adding listStyleType and padding
+                                        ul: ({node, ...props}) => <ul style={{margin: '0 0 10px 0', paddingLeft: '24px', listStyleType: 'disc'}} {...props} />,
+                                        ol: ({node, ...props}) => <ol style={{margin: '0 0 10px 0', paddingLeft: '24px', listStyleType: 'decimal'}} {...props} />,
                                         li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
+                                        
+                                        // HEADINGS: Make them distinct
+                                        h1: ({node, ...props}) => <h1 style={{fontSize: '1.5em', fontWeight: 'bold', margin: '16px 0 8px 0'}} {...props} />,
+                                        h2: ({node, ...props}) => <h2 style={{fontSize: '1.3em', fontWeight: 'bold', margin: '14px 0 8px 0'}} {...props} />,
+                                        h3: ({node, ...props}) => <h3 style={{fontSize: '1.1em', fontWeight: 'bold', margin: '12px 0 6px 0'}} {...props} />,
+
+                                        // TABLES: Add borders and spacing
+                                        table: ({node, ...props}) => (
+                                            <div style={{overflowX: 'auto', marginBottom: '16px'}}>
+                                                <table style={{borderCollapse: 'collapse', width: '100%', fontSize: '14px', border: '1px solid #e5e7eb'}} {...props} />
+                                            </div>
+                                        ),
+                                        thead: ({node, ...props}) => <thead style={{backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb'}} {...props} />,
+                                        th: ({node, ...props}) => <th style={{padding: '10px', textAlign: 'left', fontWeight: '600', border: '1px solid #e5e7eb'}} {...props} />,
+                                        td: ({node, ...props}) => <td style={{padding: '10px', border: '1px solid #e5e7eb', verticalAlign: 'top'}} {...props} />,
+
+                                        // CODE BLOCKS
                                         code: ({node, inline, className, children, ...props}) => {
                                             return inline ? (
-                                                <code style={{background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '90%'}} {...props}>{children}</code>
+                                                <code style={{background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '90%', fontFamily: 'monospace'}} {...props}>{children}</code>
                                             ) : (
-                                                <code style={{display: 'block', background: '#f3f4f6', padding: '10px', borderRadius: '8px', overflowX: 'auto', marginBottom: '10px'}} {...props}>{children}</code>
+                                                <code style={{display: 'block', background: '#1f2937', color: '#fff', padding: '12px', borderRadius: '8px', overflowX: 'auto', marginBottom: '10px', fontFamily: 'monospace', fontSize: '13px'}} {...props}>{children}</code>
                                             )
                                         }
                                     }}
@@ -366,12 +405,12 @@ export default function Chat() {
                                             View Sources ({msg.citations.length})
                                         </button>
                                     )}
-                                    {/* {msg.empire_match && (
+                                    {msg.empire_match && (
                                         <button onClick={() => handleFlyTo(msg.empire_match)} style={chipStyle}>
                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
                                             Fly to Location
                                         </button>
-                                    )} */}
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -393,6 +432,38 @@ export default function Chat() {
         {/* Input Area */}
         <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "20px", background: "white", borderTop: "1px solid #f0f0f0" }}>
             <div style={{ width: "100%", maxWidth: "768px", position: "relative" }}>
+                
+                {/* Grade Selector */}
+                <div style={{ marginBottom: "10px", display: "flex", justifyContent: "flex-start" }}>
+                    <select
+                        // If state is null, UI shows "no_grade", otherwise shows the value (e.g., "6th Grade")
+                        value={selectedGrade === null ? "no_grade" : selectedGrade}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            // Logic: If user selects "No Grade", set state to null. Otherwise, set the string.
+                            setSelectedGrade(val === "no_grade" ? null : val);
+                        }}
+                        style={{
+                            padding: "8px 12px",
+                            borderRadius: "6px",
+                            border: "1px solid #e5e7eb",
+                            backgroundColor: "white",
+                            fontSize: "13px",
+                            color: "#374151",
+                            outline: "none",
+                            cursor: "pointer",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                        }}
+                    >
+                        <option value="no_grade">No Grade</option>
+                        <option value="All Grades">All Grades</option>
+                        {/* Grades 6-12 */}
+                        {[6, 7, 8, 9, 10, 11, 12].map((g) => (
+                            <option key={g} value={`${g}th Grade`}>{g}th Grade</option>
+                        ))}
+                    </select>
+                </div>
+
                 <input 
                     type="text" 
                     value={input}
@@ -404,7 +475,7 @@ export default function Chat() {
                 <button 
                     onClick={sendMessage}
                     disabled={!input.trim() || loading}
-                    style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: input.trim() ? "#10a37f" : "#ccc", border: "none", borderRadius: "4px", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", cursor: input.trim() ? "pointer" : "default", transition: "background 0.2s" }}
+                    style={{ position: "absolute", right: "8px", bottom: "8px", background: input.trim() ? "#10a37f" : "#ccc", border: "none", borderRadius: "4px", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", cursor: input.trim() ? "pointer" : "default", transition: "background 0.2s" }}
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
@@ -434,7 +505,7 @@ export default function Chat() {
              </div>
              <div style={{ padding: "12px", overflowY: "auto" }}>
                  {activeCitations.map((c, i) => (
-                     <div key={i} style={{ marginBottom: "8px", padding: "8px", background: "#f3f4f6", borderRadius: "4px", fontSize: "12px", color: "#333" }}>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson}`}</div>
+                     <div key={i} style={{ marginBottom: "8px", padding: "8px", background: "#f3f4f6", borderRadius: "4px", fontSize: "12px", color: "#333" }}>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}</div>
                  ))}
              </div>
         </div>
@@ -451,24 +522,6 @@ export default function Chat() {
       `}</style>
     </div>
   );
-}
-
-function getCentroidFromGeoJSON(content) {
-  try {
-    const features = content.features || (content.type === "FeatureCollection" ? content.features : [content]);
-    if (!features || features.length === 0) return null;
-    const geometry = features[0].geometry;
-    if (!geometry || !geometry.coordinates) return null;
-    const flattenCoordinates = (coords) => {
-      if (coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') { return [coords]; }
-      return coords.reduce((acc, val) => acc.concat(flattenCoordinates(val)), []);
-    };
-    const allPoints = flattenCoordinates(geometry.coordinates);
-    if (allPoints.length === 0) return null;
-    let sumLng = 0; let sumLat = 0;
-    allPoints.forEach(point => { sumLng += point[0]; sumLat += point[1]; });
-    return { lng: sumLng / allPoints.length, lat: sumLat / allPoints.length };
-  } catch (err) { console.error("Error calculating centroid:", err); return null; }
 }
 
 const chipStyle = { background: "white", border: "1px solid #ddd", borderRadius: "16px", padding: "6px 12px", fontSize: "12px", color: "#555", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "background 0.2s" };

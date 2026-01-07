@@ -758,7 +758,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
         map.current.flyTo({
           center: [lng, lat],
           zoom: zoom ?? Math.max(map.current.getZoom(), 5),
-          padding: { right: 350 }
+          // padding: { right: 350 }
         });
       }
     };
