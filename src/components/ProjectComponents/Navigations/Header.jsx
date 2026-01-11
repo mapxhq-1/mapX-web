@@ -25,7 +25,7 @@ const Header = () => {
   },[])
   return (
     <>
-      <div className='flex items-center relative p-5 justify-between bg-[#1F1F1F] text-white border-1 border-zinc-600'>
+      <div className='flex items-center relative p-5 justify-between bg-[#1F1F1F] text-white border-1 border-zinc-600 z-1'>
         <Link className='flex gap-3 cursor-pointer' to="/">
           <p className='potta-one text-2xl tracking-[0.05em] ml-5'>MAPX</p>
         </Link>

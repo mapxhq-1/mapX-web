@@ -103,7 +103,7 @@ useEffect(() => {
     );
   }
   return (
-    <div className="relative w-full h-full overflow-y-auto">
+    <div className="relative w-full h-full overflow-y-auto z-0">
       {/* Galaxy background */}
       <GalaxyCanvas />
 

@@ -106,7 +106,7 @@ const Sidebar = () => {
         }
     },[location.pathname,dispatch,userId])
   return (
-    <div>
+    <div className='z-1'>
         <div className='w-[300px] bg-[#1F1F1F] h-full text-white  border-1 border-t-0 border-zinc-600'>
             <div className="project pt-5">
                 <div className="projectSettings">
