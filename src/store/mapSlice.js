@@ -6,7 +6,8 @@ const initialState = {
   year: 2000,
   polygons: [],
   empires: [],
-  // Add index for O(1) lookups instead of O(n) loops
+  flyToPosition: null,
+  markers:[],
   yearToEmpireIds: {}, // { year: [empireId1, empireId2, ...] }
   empireIdToFeatures: {}, // { empireId: features[] }
   notesOpen: false,
@@ -54,8 +55,7 @@ export const fetchAllEmpirePolygons = createAsyncThunk(
   }
 );
 
-// OPTIMIZED: Use indexed lookup instead of loops
-// OPTIMIZED: Use indexed lookup instead of loops
+
 function computePolygonsForYear(yearToEmpireIds, empireIdToFeatures, year) {
   // Normalise key to string (index keys are stored as strings)
   const key = String(Number(year));
@@ -157,6 +157,12 @@ const mapSlice = createSlice({
     setHyperlinkMode: (state, action) => {
       state.hyperlinkMode = action.payload;
     },
+    setFlyToPosition: (state, action) => {
+      state.flyToPosition = action.payload;
+    },
+    setMarkers: (state, action) => {
+      state.markers = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -204,6 +210,8 @@ export const {
   setYear,
   setLoading,
   openNotes,
+  setFlyToPosition,
+  setMarkers,
   closeNotes,
   openImages,
   closeImages,
