@@ -12,6 +12,7 @@ import noteIcon from "../../assets/icons/note_icon.png";
 import textIcon from "../../assets/icons/text_icon.png";
 import hyperlinkIcon from "../../assets/icons/hyperlink_icon.png";
 import imageIcon from "../../assets/icons/image_icon.png";
+import { isEsriProvider } from "../map/utils/mapStyles";
 
 const styleIcons = {
   satellite: satelliteIcon,
@@ -320,6 +321,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
             className="rounded-lg bg-white/2.5 border border-white/40 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_12px_rgba(0,0,0,0.2)]"
             style={{ position: "fixed", left: menuLeftPx, bottom: 16, zIndex: 60, minWidth: 180 }}
           >
+            {/* Satellite option */}
             <button
               type="button"
               className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
@@ -328,41 +330,8 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
               <img src={styleIcons.satellite} alt="Satellite" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
               <span className="text-sm">Satellite</span>
             </button>
-            {/* COMMENTED: Original OpenFreeMap URL handlers (kept for easy rollback) */}
-            {/* <button
-              type="button"
-              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
-              onClick={() => { window.mapxSetStyle && window.mapxSetStyle("https://tiles.openfreemap.org/styles/liberty"); setShowMapMenu(false); }}
-            >
-              <img src={styleIcons.basic} alt="Basic" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
-              <span className="text-sm">Basic</span>
-            </button>
-            <button
-              type="button"
-              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
-              onClick={() => { window.mapxSetStyle && window.mapxSetStyle("https://tiles.openfreemap.org/styles/positron"); setShowMapMenu(false); }}
-            >
-              <img src={styleIcons.light} alt="Light" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
-              <span className="text-sm">Light</span>
-            </button>
-            <button
-              type="button"
-              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
-              onClick={() => { window.mapxSetStyle && window.mapxSetStyle("https://tiles.openfreemap.org/styles/dark"); setShowMapMenu(false); }}
-            >
-              <img src={styleIcons.dark} alt="Dark" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
-              <span className="text-sm">Dark</span>
-            </button> */}
             
-            {/* Updated handlers: use theme names instead of URLs */}
-            <button
-              type="button"
-              className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
-              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('basic'); setShowMapMenu(false); }}
-            >
-              <img src={styleIcons.basic} alt="Basic" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
-              <span className="text-sm">Basic</span>
-            </button>
+            {/* Light option - Esri Light Gray Canvas merged with Hillshade */}
             <button
               type="button"
               className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
@@ -371,13 +340,15 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, selectedFeature, setSe
               <img src={styleIcons.light} alt="Light" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
               <span className="text-sm">Light</span>
             </button>
+            
+            {/* Basic option - World Street Map */}
             <button
               type="button"
               className="w-full text-left flex items-center px-3 py-2 gap-3 hover:bg-white/10 transition-colors"
-              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('dark'); setShowMapMenu(false); }}
+              onClick={() => { window.mapxSetStyle && window.mapxSetStyle('basic'); setShowMapMenu(false); }}
             >
-              <img src={styleIcons.dark} alt="Dark" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
-              <span className="text-sm">Dark</span>
+              <img src={styleIcons.basic} alt="Basic" className="w-[28px] h-[20px] rounded border border-white/30 object-cover" />
+              <span className="text-sm">Basic</span>
             </button>
           </div>
         )}

@@ -11,7 +11,7 @@ import { getEraForYear, getAbsoluteYear, isMaRange } from "../../utils/era";
 import * as turf from "@turf/turf";
 
 // Map utilities
-import { getBaseStyle, getEffectiveProvider, DEFAULT_THEME, MAPTILER_KEY, buildCloudlessStyle } from "./utils/mapStyles";
+import { getBaseStyle, getBaseStyleWithFallback, getEffectiveProvider, isEsriProvider, DEFAULT_THEME, MAPTILER_KEY, buildCloudlessStyle } from "./utils/mapStyles";
 import { createCursorManager } from "./utils/cursorManager";
 import { buildEmpireLabelPoints as buildLabelPoints, createTextFeature, sanitizeText } from "./utils/textToolHelpers";
 import { addDrawingSources, addDrawingLayers, LAYER_IDS } from "./utils/mapLayers";
@@ -110,6 +110,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
   const selectedFeatureIdRef = useRef(null);
   const featureSeqRef = useRef(1);
   const maOverlayManagerRef = useRef(null);
+  const selectedEmpireNameRef = useRef(null); // Track selected empire for glow effect
 
   // Keep refs updated
   useEffect(() => { polygonsRef.current = polygons; }, [polygons]);
@@ -227,7 +228,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
         adjacencyMode: "touch"
       });
     } catch (e) {
-      console.warn('[MapView] Coloring failed:', e);
+      // Silently handle coloring errors
       colored = polys;
     }
     return colored;
@@ -285,7 +286,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       const canvas = map.current.getCanvas();
       if (canvas) canvas.style.backgroundColor = "transparent";
     } catch (e) {
-      console.warn('[MapView] Globe projection setup failed:', e);
+      // Silently handle projection setup errors
     }
   }, []);
 
@@ -380,7 +381,29 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       });
     }
     
-    // Polygon fill layer
+    // Subtle glow/shadow layer behind polygons for depth
+    if (!map.current.getLayer("polygon-glow")) {
+      map.current.addLayer({
+        id: "polygon-glow",
+        type: "fill",
+        source: "polygons-source",
+        paint: {
+          "fill-color": "#5C4A37", // Darker sepia for more visible shadow
+          "fill-opacity": 0.25, // Increased opacity for better visibility
+          "fill-antialias": true,
+        }
+      }, "polygon-fill"); // Insert before polygon-fill
+    } else {
+      // Update existing glow layer properties
+      try {
+        map.current.setPaintProperty("polygon-glow", "fill-color", "#5C4A37");
+        map.current.setPaintProperty("polygon-glow", "fill-opacity", 0.25);
+      } catch (e) {
+        // Silently handle property update errors
+      }
+    }
+    
+    // Polygon fill layer - merged with hillshade for realistic terrain effect
     if (!map.current.getLayer("polygon-fill")) {
       map.current.addLayer({
         id: "polygon-fill",
@@ -403,12 +426,59 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
             ],
             "#B8860B" 
           ],
-          "fill-opacity": 0.15, // Transparent fill
-        },
+          "fill-opacity": 0.65, // Increased opacity to show colors clearly while allowing hillshade through
+          "fill-antialias": true,
+        }
       });
+    } else {
+      // Update existing layer properties to ensure opacity is applied
+      try {
+        map.current.setPaintProperty("polygon-fill", "fill-opacity", 0.65);
+        // Remove blend mode if it exists to ensure colors are visible
+        try {
+          map.current.setLayoutProperty("polygon-fill", "fill-blend-mode", undefined);
+        } catch (_) {}
+      } catch (e) {
+        // Silently handle property update errors
+      }
     }
     
-    // Polygon border layer
+    // Shadow border layer behind main border for depth effect
+    if (!map.current.getLayer("polygon-border-shadow")) {
+      map.current.addLayer({
+        id: "polygon-border-shadow",
+        type: "line",
+        source: "polygons-source",
+        paint: {
+          "line-color": "#2A1F14", // Dark shadow color
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            1, 2.5, 
+            4, 3.0, 
+            10, 4.0 
+          ],
+          "line-opacity": 0.4, // Shadow opacity
+          "line-blur": 2.0, // Strong blur for shadow effect
+        },
+      }, "polygon-border"); // Insert before polygon-border
+    } else {
+      // Update existing shadow border properties
+      try {
+        map.current.setPaintProperty("polygon-border-shadow", "line-color", "#2A1F14");
+        map.current.setPaintProperty("polygon-border-shadow", "line-opacity", 0.4);
+        map.current.setPaintProperty("polygon-border-shadow", "line-blur", 2.0);
+        map.current.setPaintProperty("polygon-border-shadow", "line-width", [
+          "interpolate", ["linear"], ["zoom"],
+          1, 2.5, 
+          4, 3.0, 
+          10, 4.0 
+        ]);
+      } catch (e) {
+        // Silently handle property update errors
+      }
+    }
+    
+    // Polygon border layer - subtle borders that work with hillshade
     if (!map.current.getLayer("polygon-border")) {
       map.current.addLayer({
         id: "polygon-border",
@@ -433,13 +503,28 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
           ],
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
-            1, 2.0, 
-            4, 3.5, 
-            10, 8.0 
+            1, 1.0, 
+            4, 1.5, 
+            10, 2.5 
           ],
-          "line-opacity": 1,
+          "line-opacity": 0.85, // Slightly reduced opacity for subtle borders that blend with terrain
+          "line-blur": 0.5, // Soft blur for elegant borders
         },
       });
+    } else {
+      // Update existing layer properties to ensure opacity and line width are applied
+      try {
+        map.current.setPaintProperty("polygon-border", "line-opacity", 0.85);
+        map.current.setPaintProperty("polygon-border", "line-blur", 0.5);
+        map.current.setPaintProperty("polygon-border", "line-width", [
+          "interpolate", ["linear"], ["zoom"],
+          1, 1.0, 
+          4, 1.5, 
+          10, 2.5 
+        ]);
+      } catch (e) {
+        // Silently handle property update errors
+      }
     }
     
     // Empire labels
@@ -488,6 +573,92 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
           ],
         }
       });
+    }
+    
+    // White border line - appears right after the main border for glow effect
+    if (!map.current.getLayer("polygon-empire-white-border")) {
+      map.current.addLayer({
+        id: "polygon-empire-white-border",
+        type: "line",
+        source: "polygons-source",
+        paint: {
+          "line-color": "#FFFFFF", // White color
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            1, 1.5, 
+            4, 2.0, 
+            10, 2.5 
+          ],
+          "line-opacity": 0.9, // High opacity white line
+          "line-blur": 0.3, // Minimal blur for crisp white line
+        },
+        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+      }, "empire-labels");
+    }
+    
+    // Empire glow border layers - creates fading glow effect
+    // Multiple layers with increasing blur and decreasing opacity for realistic fade
+    if (!map.current.getLayer("polygon-empire-glow-outer")) {
+      // Outer glow layer - most blurred and faded
+      map.current.addLayer({
+        id: "polygon-empire-glow-outer",
+        type: "line",
+        source: "polygons-source",
+        paint: {
+          "line-color": "#FFD700", // Golden glow color
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            1, 10.0, 
+            4, 12.0, 
+            10, 14.0 
+          ],
+          "line-opacity": 0.25, // Very faded
+          "line-blur": 7.0, // Maximum blur for outer glow
+        },
+        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+      }, "empire-labels");
+    }
+    
+    if (!map.current.getLayer("polygon-empire-glow-middle")) {
+      // Middle glow layer - medium blur
+      map.current.addLayer({
+        id: "polygon-empire-glow-middle",
+        type: "line",
+        source: "polygons-source",
+        paint: {
+          "line-color": "#FFD700", // Golden glow color
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            1, 6.0, 
+            4, 7.5, 
+            10, 9.0 
+          ],
+          "line-opacity": 0.45, // Medium opacity
+          "line-blur": 4.0, // Medium blur
+        },
+        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+      }, "empire-labels");
+    }
+    
+    if (!map.current.getLayer("polygon-empire-glow-inner")) {
+      // Inner glow layer - closest to white border, less blur
+      map.current.addLayer({
+        id: "polygon-empire-glow-inner",
+        type: "line",
+        source: "polygons-source",
+        paint: {
+          "line-color": "#FFD700", // Golden glow color
+          "line-width": [
+            "interpolate", ["linear"], ["zoom"],
+            1, 3.5, 
+            4, 4.0, 
+            10, 4.5 
+          ],
+          "line-opacity": 0.75, // Higher opacity
+          "line-blur": 2.0, // Less blur for inner glow
+        },
+        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+      }, "empire-labels");
     }
   }, []);
 
@@ -739,6 +910,73 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       onSelectClick
     });
 
+    // Empire polygon click handler for glow effect
+    const onEmpireClick = (e) => {
+      // First check if click hit drawing layers - if so, don't handle empire selection
+      const drawingFeatures = map.current.queryRenderedFeatures(e.point, {
+        layers: ["draw-final-line", "draw-final-fill", "draw-final-text"]
+      });
+      
+      // If clicking on drawing features, let onSelectClick handle it
+      if (drawingFeatures?.length) {
+        return;
+      }
+      
+      // Check for empire polygon clicks
+      const features = map.current.queryRenderedFeatures(e.point, {
+        layers: ["polygon-fill", "polygon-border"]
+      });
+      
+      if (features?.length) {
+        const feature = features[0];
+        
+        // Show glow for selected empire using the feature's ID
+        try {
+          // Use feature.id if available (MapLibre internal ID from generateId: true)
+          if (feature.id !== undefined && feature.id !== null) {
+            selectedEmpireNameRef.current = feature.id;
+            map.current.setFilter("polygon-empire-white-border", ["==", ["id"], feature.id]);
+            map.current.setFilter("polygon-empire-glow-outer", ["==", ["id"], feature.id]);
+            map.current.setFilter("polygon-empire-glow-middle", ["==", ["id"], feature.id]);
+            map.current.setFilter("polygon-empire-glow-inner", ["==", ["id"], feature.id]);
+          } else if (feature.properties?.id !== undefined && feature.properties?.id !== null) {
+            // Use properties.id
+            selectedEmpireNameRef.current = feature.properties.id;
+            map.current.setFilter("polygon-empire-white-border", ["==", ["get", "id"], feature.properties.id]);
+            map.current.setFilter("polygon-empire-glow-outer", ["==", ["get", "id"], feature.properties.id]);
+            map.current.setFilter("polygon-empire-glow-middle", ["==", ["get", "id"], feature.properties.id]);
+            map.current.setFilter("polygon-empire-glow-inner", ["==", ["get", "id"], feature.properties.id]);
+          } else {
+            // Fallback to name
+            const empireName = feature.properties?.name || feature.properties?.Name;
+            if (empireName) {
+              selectedEmpireNameRef.current = empireName;
+              map.current.setFilter("polygon-empire-white-border", ["==", ["get", "name"], empireName]);
+              map.current.setFilter("polygon-empire-glow-outer", ["==", ["get", "name"], empireName]);
+              map.current.setFilter("polygon-empire-glow-middle", ["==", ["get", "name"], empireName]);
+              map.current.setFilter("polygon-empire-glow-inner", ["==", ["get", "name"], empireName]);
+            }
+          }
+        } catch (e) {
+          // Silently handle filter errors
+        }
+      } else {
+        // Click outside - hide glow
+        selectedEmpireNameRef.current = null;
+        try {
+          map.current.setFilter("polygon-empire-white-border", ["==", ["id"], "never-match-this-id"]);
+          map.current.setFilter("polygon-empire-glow-outer", ["==", ["id"], "never-match-this-id"]);
+          map.current.setFilter("polygon-empire-glow-middle", ["==", ["id"], "never-match-this-id"]);
+          map.current.setFilter("polygon-empire-glow-inner", ["==", ["id"], "never-match-this-id"]);
+        } catch (e) {
+          // Silently handle filter errors
+        }
+      }
+    };
+    
+    // Add click handler for empire polygons (runs after onSelectClick)
+    map.current.on("click", onEmpireClick);
+    
     map.current.on("move", () => {
       selectionOverlay.updatePosition();
       textToolbar.updatePosition();
@@ -764,9 +1002,33 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
     };
 
     window.mapxSetStyle = async (theme) => {
-      if (theme?.startsWith('http')) { map.current.setStyle(theme); return; }
-      const style = await getBaseStyle(getEffectiveProvider(), theme, MAPTILER_KEY);
-      if (style) map.current.setStyle(style);
+      if (theme?.startsWith('http')) { 
+        try {
+          map.current.setStyle(theme); 
+        } catch (error) {
+          console.error('[MapView] Failed to set style from URL:', error);
+        }
+        return; 
+      }
+      
+      try {
+        const provider = getEffectiveProvider();
+        const validThemes = ['basic', 'light'];
+        if (!validThemes.includes(theme)) {
+          theme = 'basic';
+        }
+        const style = await getBaseStyleWithFallback(provider, theme, MAPTILER_KEY);
+        if (style) {
+          const cacheKey = `${provider}-${theme}-${MAPTILER_KEY || 'none'}`;
+          const styleCache = (await import('./utils/mapStyles')).styleCache;
+          if (styleCache && styleCache.delete) {
+            styleCache.delete(cacheKey);
+          }
+          map.current.setStyle(style);
+        }
+      } catch (error) {
+        console.error('[MapView] Failed to set style:', error);
+      }
     };
     window.mapxSetSatellite = () => map.current.setStyle(buildCloudlessStyle());
 
@@ -833,9 +1095,11 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
 
     (async () => {
       try {
-        const initialStyle = await getBaseStyle(
-          getEffectiveProvider(),
-          DEFAULT_THEME,
+        const provider = getEffectiveProvider();
+        const initialTheme = 'basic';
+        const initialStyle = await getBaseStyleWithFallback(
+          provider,
+          initialTheme,
           MAPTILER_KEY
         );
         map.current = new maplibregl.Map({
@@ -850,6 +1114,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
           refreshExpiredTiles: false,
         });
       } catch (error) {
+        console.error('[MapView] Failed to initialize map with provider style:', error);
         map.current = new maplibregl.Map({
           container: mapContainer.current,
           style: "https://tiles.openfreemap.org/styles/liberty",
@@ -869,6 +1134,21 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
         new maplibregl.AttributionControl({ compact: true }),
         "bottom-right"
       );
+
+      // Add error event listener for tile loading failures
+      if (!map.current.__ml_error_hook) {
+        map.current.__ml_error_hook = true;
+        map.current.on("error", (e) => {
+          const error = e && e.error ? e.error : e;
+          if (error && error.message) {
+            if (error.message.includes('tile') || error.message.includes('Failed to load')) {
+              // Silently handle tile loading errors (non-critical)
+            } else {
+              console.error('[MapView] MapLibre error:', error);
+            }
+          }
+        });
+      }
 
       // ... inside MapView.js useEffect ...
 

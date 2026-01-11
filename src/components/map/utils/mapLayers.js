@@ -146,14 +146,86 @@ export function addPolygonLayers(map, polygonsRef) {
         });
     }
     
-    // Add layers
+    // Subtle glow/shadow layer behind polygons for depth
+    if (!map.getLayer("polygon-glow")) {
+        map.addLayer({
+            id: "polygon-glow",
+            type: "fill",
+            source: LAYER_IDS.POLYGONS_SOURCE,
+            paint: { 
+                "fill-color": "#5C4A37", // Darker sepia for more visible shadow
+                "fill-opacity": 0.25, // Increased opacity for better visibility
+                "fill-antialias": true
+            }
+        }, "polygon-fill"); // Insert before polygon-fill
+    } else {
+        // Update existing glow layer properties
+        try {
+            map.setPaintProperty("polygon-glow", "fill-color", "#5C4A37");
+            map.setPaintProperty("polygon-glow", "fill-opacity", 0.25);
+        } catch (e) {
+            // Silently handle property update errors
+        }
+    }
+    
+    // Add layers - merged with hillshade for realistic terrain effect
     if (!map.getLayer("polygon-fill")) {
         map.addLayer({
             id: "polygon-fill",
             type: "fill",
             source: LAYER_IDS.POLYGONS_SOURCE,
-            paint: { "fill-color": getColorExpression(false), "fill-opacity": 0.2 }
+            paint: { 
+                "fill-color": getColorExpression(false), 
+                "fill-opacity": 0.65, // Increased opacity to show colors clearly while allowing hillshade through
+                "fill-antialias": true
+            }
         });
+    } else {
+        // Update existing layer properties to ensure opacity is applied
+        try {
+            map.setPaintProperty("polygon-fill", "fill-opacity", 0.65);
+            // Remove blend mode if it exists to ensure colors are visible
+            try {
+                map.setLayoutProperty("polygon-fill", "fill-blend-mode", undefined);
+            } catch (_) {}
+        } catch (e) {
+            // Silently handle property update errors
+        }
+    }
+    
+    // Shadow border layer behind main border for depth effect
+    if (!map.getLayer("polygon-border-shadow")) {
+        map.addLayer({
+            id: "polygon-border-shadow",
+            type: "line",
+            source: LAYER_IDS.POLYGONS_SOURCE,
+            paint: { 
+                "line-color": "#2A1F14", // Dark shadow color
+                "line-width": [
+                    "interpolate", ["linear"], ["zoom"],
+                    1, 2.5, 
+                    4, 3.0, 
+                    10, 4.0 
+                ],
+                "line-opacity": 0.4, // Shadow opacity
+                "line-blur": 2.0 // Strong blur for shadow effect
+            }
+        }, "polygon-border"); // Insert before polygon-border
+    } else {
+        // Update existing shadow border properties
+        try {
+            map.setPaintProperty("polygon-border-shadow", "line-color", "#2A1F14");
+            map.setPaintProperty("polygon-border-shadow", "line-opacity", 0.4);
+            map.setPaintProperty("polygon-border-shadow", "line-blur", 1.0);
+            map.setPaintProperty("polygon-border-shadow", "line-width", [
+                "interpolate", ["linear"], ["zoom"],
+                1, 2.5, 
+                4, 3.0, 
+                10, 4.0 
+            ]);
+        } catch (e) {
+            // Silently handle property update errors
+        }
     }
     
     if (!map.getLayer("polygon-border")) {
@@ -161,8 +233,108 @@ export function addPolygonLayers(map, polygonsRef) {
             id: "polygon-border",
             type: "line",
             source: LAYER_IDS.POLYGONS_SOURCE,
-            paint: { "line-color": getColorExpression(true), "line-width": 2 }
+            paint: { 
+                "line-color": getColorExpression(true), 
+                "line-width": 1,
+                "line-opacity": 0.85, // Slightly reduced opacity for subtle borders that blend with terrain
+                "line-blur": 0.5 // Soft blur for elegant borders
+            }
         });
+    } else {
+        // Update existing layer properties to ensure opacity and line width are applied
+        try {
+            map.setPaintProperty("polygon-border", "line-opacity", 0.85);
+            map.setPaintProperty("polygon-border", "line-blur", 0.5);
+            map.setPaintProperty("polygon-border", "line-width", 1);
+        } catch (e) {
+            // Silently handle property update errors
+        }
+    }
+    
+    // White border line - appears right after the main border for glow effect
+    if (!map.getLayer("polygon-empire-white-border")) {
+        map.addLayer({
+            id: "polygon-empire-white-border",
+            type: "line",
+            source: LAYER_IDS.POLYGONS_SOURCE,
+            paint: {
+                "line-color": "#FFFFFF", // White color
+                "line-width": [
+                    "interpolate", ["linear"], ["zoom"],
+                    1, 1.5, 
+                    4, 2.0, 
+                    10, 2.5 
+                ],
+                "line-opacity": 0.9, // High opacity white line
+                "line-blur": 0.3, // Minimal blur for crisp white line
+            },
+            filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        }, "empire-labels");
+    }
+    
+    // Empire glow border layers - creates fading glow effect
+    // Multiple layers with increasing blur and decreasing opacity for realistic fade
+    if (!map.getLayer("polygon-empire-glow-outer")) {
+        // Outer glow layer - most blurred and faded
+        map.addLayer({
+            id: "polygon-empire-glow-outer",
+            type: "line",
+            source: LAYER_IDS.POLYGONS_SOURCE,
+            paint: {
+                "line-color": "#FFD700", // Golden glow color
+                "line-width": [
+                    "interpolate", ["linear"], ["zoom"],
+                    1, 10.0, 
+                    4, 12.0, 
+                    10, 14.0 
+                ],
+                "line-opacity": 0.25, // Very faded
+                "line-blur": 7.0, // Maximum blur for outer glow
+            },
+            filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        }, "empire-labels");
+    }
+    
+    if (!map.getLayer("polygon-empire-glow-middle")) {
+        // Middle glow layer - medium blur
+        map.addLayer({
+            id: "polygon-empire-glow-middle",
+            type: "line",
+            source: LAYER_IDS.POLYGONS_SOURCE,
+            paint: {
+                "line-color": "#FFD700", // Golden glow color
+                "line-width": [
+                    "interpolate", ["linear"], ["zoom"],
+                    1, 6.0, 
+                    4, 7.5, 
+                    10, 9.0 
+                ],
+                "line-opacity": 0.45, // Medium opacity
+                "line-blur": 4.0, // Medium blur
+            },
+            filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        }, "empire-labels");
+    }
+    
+    if (!map.getLayer("polygon-empire-glow-inner")) {
+        // Inner glow layer - closest to white border, less blur
+        map.addLayer({
+            id: "polygon-empire-glow-inner",
+            type: "line",
+            source: LAYER_IDS.POLYGONS_SOURCE,
+            paint: {
+                "line-color": "#FFD700", // Golden glow color
+                "line-width": [
+                    "interpolate", ["linear"], ["zoom"],
+                    1, 3.5, 
+                    4, 4.0, 
+                    10, 4.5 
+                ],
+                "line-opacity": 0.75, // Higher opacity
+                "line-blur": 2.0, // Less blur for inner glow
+            },
+            filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        }, "empire-labels");
     }
     
     if (!map.getLayer("empire-labels")) {

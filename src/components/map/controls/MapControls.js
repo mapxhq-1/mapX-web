@@ -1,4 +1,5 @@
 import maplibregl from "maplibre-gl";
+import { isEsriProvider } from "../utils/mapStyles";
 
 // ============================================================================
 // Photon Search Control
@@ -311,38 +312,44 @@ export class ScreenshotControl {
                     if (!allWhite) {
                         finalize();
                     } else {
-                        const center = this._map.getCenter();
-                        const zoom = Math.round(this._map.getZoom());
-                        const w = Math.min(2000, Math.floor(off.width));
-                        const h = Math.min(2000, Math.floor(off.height));
-                        let key = "";
-                        try {
-                            const styleUrl =
-                                (this._map &&
-                                    this._map._style &&
-                                    this._map._style.stylesheet &&
-                                    this._map._style.stylesheet.sprite) ||
-                                "";
-                            const m = /[?&]key=([^&]+)/.exec(styleUrl || "");
-                            if (m) key = decodeURIComponent(m[1]);
-                        } catch (_) {}
-                        const staticUrl = key
-                            ? `https://api.maptiler.com/maps/basic/static/${center.lng},${center.lat},${zoom}/${w}x${h}.png?key=${key}`
-                            : null;
-                        if (staticUrl) {
-                            const img = new Image();
-                            img.crossOrigin = "anonymous";
-                            img.onload = () => {
-                                ctx.drawImage(img, 0, 0, off.width, off.height);
-                                finalize();
-                                showToast("Screenshot saved (static base)");
-                            };
-                            img.onerror = () => {
-                                showToast("Screenshot blocked by CORS");
-                            };
-                            img.src = staticUrl;
+                        // For Esri provider, skip MapTiler static API and use canvas capture
+                        if (isEsriProvider()) {
+                            finalize();
+                            showToast("Screenshot saved");
                         } else {
-                            showToast("Screenshot blocked (no static API key)");
+                            const center = this._map.getCenter();
+                            const zoom = Math.round(this._map.getZoom());
+                            const w = Math.min(2000, Math.floor(off.width));
+                            const h = Math.min(2000, Math.floor(off.height));
+                            let key = "";
+                            try {
+                                const styleUrl =
+                                    (this._map &&
+                                        this._map._style &&
+                                        this._map._style.stylesheet &&
+                                        this._map._style.stylesheet.sprite) ||
+                                    "";
+                                const m = /[?&]key=([^&]+)/.exec(styleUrl || "");
+                                if (m) key = decodeURIComponent(m[1]);
+                            } catch (_) {}
+                            const staticUrl = key
+                                ? `https://api.maptiler.com/maps/basic/static/${center.lng},${center.lat},${zoom}/${w}x${h}.png?key=${key}`
+                                : null;
+                            if (staticUrl) {
+                                const img = new Image();
+                                img.crossOrigin = "anonymous";
+                                img.onload = () => {
+                                    ctx.drawImage(img, 0, 0, off.width, off.height);
+                                    finalize();
+                                    showToast("Screenshot saved (static base)");
+                                };
+                                img.onerror = () => {
+                                    showToast("Screenshot blocked by CORS");
+                                };
+                                img.src = staticUrl;
+                            } else {
+                                showToast("Screenshot blocked (no static API key)");
+                            }
                         }
                     }
                 } catch (e) {
