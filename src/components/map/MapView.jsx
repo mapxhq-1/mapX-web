@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // Redux & Utils
-import { fetchAllEmpirePolygons, openNotes } from "../../store/mapSlice";
+import { fetchAllEmpirePolygons, openNotes, setFlyToPosition, setMarkers } from "../../store/mapSlice";
 import { colorPolygonsFourColor, colorIndexToHex, colorIndexToHexDark } from "../../utils/polygonColoring";
 import { getEraForYear, getAbsoluteYear, isMaRange } from "../../utils/era";
 import * as turf from "@turf/turf";
@@ -33,6 +33,7 @@ import { store as reduxStore } from "../../store/store";
 import { imageManager } from './ImageManager';
 import { hyperlinkManager } from "./HyperlinkManager";
 import { createNoteManager } from './NoteManager';
+import { useMarkerManager } from "./marker";
 import { createMaOverlayManager } from "./maOverlayManager";
 import { maybeHandleMaMapShapes, handleInitialMaContext, createMaSafeLoader } from "./maEraGuards";
 
@@ -83,6 +84,15 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const dispatch = useDispatch();
+
+  useMarkerManager(map);
+  const markersList = useSelector((state) => state.map.markers);
+  const flyToPosition = useSelector((state) => state.map.flyToPosition);
+  const markerOn = (flyToPosition)||(markersList && markersList.length > 0);
+  const handleClear = () => {
+     dispatch(setMarkers([]));
+     dispatch(setFlyToPosition(null));
+  };
 
   // Redux state
   const polygons = useSelector((state) => state.map.polygons);
@@ -1056,8 +1066,13 @@ useEffect(() => {
         </div>
       )}
 
-      
-
+      {markerOn && <button
+            onClick={handleClear}
+            className="absolute top-5 cursor-pointer left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded shadow-md hover:bg-black transition-colors"
+          >
+            Clear Markers
+          </button>
+        }
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

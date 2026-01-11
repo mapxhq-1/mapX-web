@@ -13,8 +13,8 @@ function createSoftTexture() {
   const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
   
   gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-  gradient.addColorStop(0.2, "rgba(255, 255, 255, 0.8)"); // Harder core
-  gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.2)");
+  gradient.addColorStop(0.15, "rgba(255, 255, 255, 0.9)"); 
+  gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.2)");
   gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
 
   ctx.fillStyle = gradient;
@@ -25,16 +25,22 @@ function createSoftTexture() {
 
 export default function DeepSpaceBackground() {
   const containerRef = useRef(null);
+  
+  const prevMapState = useRef({ 
+      lng: mapViewState.lng, 
+      lat: mapViewState.lat, 
+      zoom: mapViewState.zoom 
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     // --- SCENE SETUP ---
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
-    camera.position.z = 0; 
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 8000);
+    camera.position.z = 1200; 
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x020202, 1); 
@@ -45,13 +51,13 @@ export default function DeepSpaceBackground() {
 
     const texture = createSoftTexture();
 
-    // --- LAYER 1: STAR DUST (Background) ---
+    // --- LAYER 1: STAR DUST ---
     const DUST_COUNT = 8000;
     const dustGeo = new THREE.BufferGeometry();
     const dustPos = new Float32Array(DUST_COUNT * 3);
     
     for (let i = 0; i < DUST_COUNT; i++) {
-        const r = 1000 + Math.random() * 1000;
+        const r = 2000 + Math.random() * 2000;
         const theta = 2 * Math.PI * Math.random();
         const phi = Math.acos(2 * Math.random() - 1);
         dustPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
@@ -60,30 +66,28 @@ export default function DeepSpaceBackground() {
     }
     dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
     const dustMat = new THREE.PointsMaterial({
-        color: 0xaaaaaa,
-        size: 3, // Slightly bigger
+        color: 0x888899,
+        size: 5,
         transparent: true,
         opacity: 0.5,
         depthWrite: false,
     });
-    const starDust = new THREE.Points(dustGeo, dustMat);
-    universeGroup.add(starDust);
+    universeGroup.add(new THREE.Points(dustGeo, dustMat));
 
-    // --- LAYER 2: BRIGHT STARS (Foreground) ---
-    const STAR_COUNT = 1500;
+    // --- LAYER 2: BRIGHT STARS ---
+    const STAR_COUNT = 2500;
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(STAR_COUNT * 3);
     const starColors = new Float32Array(STAR_COUNT * 3);
-    const starSizes = new Float32Array(STAR_COUNT);
-
-    const starPalette = [
+    
+    const palette = [
         new THREE.Color(0xffffff), 
-        new THREE.Color(0xaaddff), // Blue
-        new THREE.Color(0xffddaa), // Gold
+        new THREE.Color(0xaaddff), 
+        new THREE.Color(0xffddaa), 
     ];
 
     for (let i = 0; i < STAR_COUNT; i++) {
-        const r = 800 + Math.random() * 700;
+        const r = 1000 + Math.random() * 2500;
         const theta = 2 * Math.PI * Math.random();
         const phi = Math.acos(2 * Math.random() - 1);
 
@@ -91,12 +95,10 @@ export default function DeepSpaceBackground() {
         starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
         starPos[i*3+2] = r * Math.cos(phi);
 
-        const color = starPalette[Math.floor(Math.random() * starPalette.length)];
+        const color = palette[Math.floor(Math.random() * palette.length)];
         starColors[i*3] = color.r;
         starColors[i*3+1] = color.g;
         starColors[i*3+2] = color.b;
-
-        starSizes[i] = Math.random() * 2 + 1; 
     }
 
     starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
@@ -105,9 +107,9 @@ export default function DeepSpaceBackground() {
     const starMat = new THREE.PointsMaterial({
         map: texture,
         vertexColors: true,
-        size: 9, // INCREASED SIZE (Was 5)
+        size: 15,
         transparent: true,
-        opacity: 1,
+        opacity: 0.9,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
     });
@@ -115,14 +117,14 @@ export default function DeepSpaceBackground() {
     universeGroup.add(brightStars);
 
     // --- LAYER 3: NEBULAS ---
-    const NEBULA_COUNT = 100;
+    const NEBULA_COUNT = 60;
     const nebulaGeo = new THREE.BufferGeometry();
     const nebulaPos = new Float32Array(NEBULA_COUNT * 3);
     const nebulaColors = new Float32Array(NEBULA_COUNT * 3);
-    const nebulaPalette = [ new THREE.Color(0x220066), new THREE.Color(0x001133) ];
+    const nebulaPalette = [ new THREE.Color(0x110044), new THREE.Color(0x002233) ];
 
     for (let i = 0; i < NEBULA_COUNT; i++) {
-        const r = 1200 + Math.random() * 800;
+        const r = 2500 + Math.random() * 1000;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
         nebulaPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
@@ -137,9 +139,9 @@ export default function DeepSpaceBackground() {
     const nebulaMat = new THREE.PointsMaterial({
         map: texture,
         vertexColors: true,
-        size: 500, // INCREASED SIZE (Was 300)
+        size: 800,
         transparent: true,
-        opacity: 0.12, 
+        opacity: 0.15, 
         blending: THREE.AdditiveBlending,
         depthWrite: false,
     });
@@ -148,11 +150,10 @@ export default function DeepSpaceBackground() {
     // --- LAYER 4: SHOOTING STARS ---
     const shootingStars = [];
     const trailGeo = new THREE.BufferGeometry();
-    const positions = new Float32Array([0,0,0, -80,0,0]); // Longer trail
+    const positions = new Float32Array([0,0,0, -200,0,0]); 
     trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-    // Reduced pool size (from 8 to 3)
-    for(let i=0; i<3; i++) { 
+    for(let i=0; i<4; i++) { 
         const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
         const mesh = new THREE.Line(trailGeo, mat);
         universeGroup.add(mesh);
@@ -167,7 +168,7 @@ export default function DeepSpaceBackground() {
         star.life = 1;
         star.mesh.material.opacity = 1;
 
-        const r = 900;
+        const r = 1500;
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
         
@@ -179,51 +180,69 @@ export default function DeepSpaceBackground() {
         star.mesh.lookAt(0,0,0);
         star.mesh.rotateY(Math.random() * Math.PI);
         star.mesh.rotateZ(Math.random() * Math.PI);
-        star.speed = 15 + Math.random() * 20; // Faster shooting stars
+        star.speed = 35 + Math.random() * 15; 
     };
 
     // --- ANIMATION LOOP ---
     let rafId;
     let time = 0;
+    let universeZVelocity = 0;
+    const degToRad = Math.PI / 180;
 
     function animate() {
         rafId = requestAnimationFrame(animate);
         time += 0.005;
 
-        // --- FIXED ROTATION LOGIC ---
-        // Increase sensitivity (0.0003 -> 0.0008) for faster reaction
-        const targetRotY = mapViewState.lng * 0.0008; 
-        const targetRotX = mapViewState.lat * 0.0008;
-
-        // CHECK FOR WRAP-AROUND JUMP
-        // If the difference between current and target is massive (e.g. crossing 180/-180)
-        // we snap immediately instead of easing, preventing the "rewind spin"
-        if (Math.abs(targetRotY - universeGroup.rotation.y) > 0.5) {
-            universeGroup.rotation.y = targetRotY;
-        } else {
-            // Smooth ease
-            universeGroup.rotation.y += (targetRotY - universeGroup.rotation.y) * 0.1;
-        }
-
-        if (Math.abs(targetRotX - universeGroup.rotation.x) > 0.5) {
-            universeGroup.rotation.x = targetRotX;
-        } else {
-            universeGroup.rotation.x += (targetRotX - universeGroup.rotation.x) * 0.1;
-        }
-
-        // FASTER IDLE MOVEMENT
-        universeGroup.rotation.z += 0.0005; // Was 0.0001
-
-        // Twinkle
-        brightStars.material.opacity = 0.8 + Math.sin(time * 2) * 0.2;
-
-        // Shooting Stars (Reduced frequency 0.03 -> 0.01)
-        if (Math.random() < 0.01) spawnShootingStar();
+        // 1. INPUT PROCESSING
+        const currentLng = mapViewState.lng;
+        const currentLat = mapViewState.lat;
         
+        // Round zoom to 1 decimal place to prevent jitter
+        let rawZoom = mapViewState.zoom;
+        const currentZoom = Math.round(rawZoom * 10) / 10;
+
+        let dLng = currentLng - prevMapState.current.lng;
+        let dLat = currentLat - prevMapState.current.lat;
+        let dZoom = currentZoom - prevMapState.current.zoom;
+
+        // Wrap-around fix
+        if (dLng > 180) dLng -= 360;
+        if (dLng < -180) dLng += 360;
+
+        // 2. ROTATION (Orbiting)
+        universeGroup.rotation.y += dLng * degToRad;
+        universeGroup.rotation.x += dLat * degToRad;
+
+        // 3. ZOOM (Warp Effect)
+        if (Math.abs(dZoom) >= 0.1) {
+             universeZVelocity += dZoom * 60; 
+        }
+
+        universeZVelocity *= 0.93; 
+        universeGroup.position.z += universeZVelocity;
+
+        // Dynamic Star Size (Light Bloom)
+        const speedFactor = Math.abs(universeZVelocity);
+        brightStars.material.size = 15 + (speedFactor * 0.5) + Math.sin(time * 3) * 2;
+
+        // 4. INFINITE LOOP
+        if (universeGroup.position.z > 3000) universeGroup.position.z -= 3000;
+        else if (universeGroup.position.z < -3000) universeGroup.position.z += 3000;
+
+        // Update Refs
+        prevMapState.current.lng = currentLng;
+        prevMapState.current.lat = currentLat;
+        prevMapState.current.zoom = currentZoom;
+
+        // ✅ REMOVED IDLE ROTATION
+        // universeGroup.rotation.z += 0.0003; 
+
+        // Shooting stars logic
+        if (Math.random() < 0.008) spawnShootingStar();
         shootingStars.forEach(s => {
             if(s.active) {
                 s.mesh.translateX(-s.speed);
-                s.life -= 0.02; // Faster fade out
+                s.life -= 0.02;
                 s.mesh.material.opacity = s.life;
                 if(s.life <= 0) s.active = false;
             }

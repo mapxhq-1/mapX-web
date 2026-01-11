@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux"; 
-import { setYear } from "../../store/mapSlice"; 
+import { setYear,setFlyToPosition, setMarkers } from "../../store/mapSlice"; 
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify'; 
 import ReactMarkdown from 'react-markdown'; 
@@ -94,10 +94,8 @@ export default function Chat() {
               name: historyItem.flyToPosition.location || "Location",
               lat: historyItem.flyToPosition.lat,
               lng: historyItem.flyToPosition.lng,
-              // ✅ Updated to capture 'time' from your data structure
               time: historyItem.flyToPosition.time,      
-              startYear: historyItem.flyToPosition.year, 
-              era: historyItem.flyToPosition.era,
+              markers: historyItem.flyToPosition.markers, 
               zoom: historyItem.flyToPosition.zoom
           };
       }
@@ -122,6 +120,7 @@ export default function Chat() {
         setMobileMenuOpen(false); 
         
         const data = await getChatHistory(id);
+        console.log(data);
         if (data && data.history) {
             const sortedHistory = data.history.sort((a, b) => {
                 const tA = new Date(a.timestamp || 0);
@@ -150,10 +149,10 @@ export default function Chat() {
   };
 
   // ✅ Simplified flyTo implementation
-  const flyToIfPossible = (lat, lng) => {
+  const flyToIfPossible = (lat, lng,zoom) => {
      try {
          if (window.mapxFlyTo && Number.isFinite(lat) && Number.isFinite(lng)) {
-             window.mapxFlyTo({ lng, lat });
+             window.mapxFlyTo({ lng, lat, zoom:zoom||4 });
          }
      } catch (_) {}
   };
@@ -161,18 +160,20 @@ export default function Chat() {
   // ✅ UPDATED: Strictly uses passed data, ignores objectId/centroids
   const handleFlyTo = (empireMatch) => {
     if (!empireMatch) return;
-
+    console.log(empireMatch);
     // 1. Extract coordinates directly
-    const { lat, lng, time, startYear, era } = empireMatch;
+    const { lat, lng, time, startYear, markers,zoom } = empireMatch;
 
     // 2. Fly strictly to these coordinates
     if (lat !== undefined && lng !== undefined) {
-        flyToIfPossible(lat, lng);
+        flyToIfPossible(lat, lng, zoom);
     }
+    dispatch(setFlyToPosition({ lat, lng }));
+    dispatch(setMarkers(markers))
 
     // 3. Handle Time Parsing
     // Priorities: empireMatch.time (string "1930 CE") -> empireMatch.startYear -> empireMatch.year
-    const timeValue = time || startYear || empireMatch.year;
+    const timeValue = time;
 
     if (timeValue !== undefined && timeValue !== null) {
        let y = null;
@@ -239,14 +240,15 @@ export default function Chat() {
           const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
           if (lastHistoryItem.flyToPosition && autoFlyCount < 2) {
               const flyData = lastHistoryItem.flyToPosition;
-              
+              console.log(flyData);
               // ✅ UPDATED: Simply mapping the API response to our handler
               const empireMatchData = {
                   lat: flyData.lat,
                   lng: flyData.lng,
                   location: flyData.location,
                   time: flyData.time,   // "1930 CE"
-                  zoom: flyData.zoom
+                  zoom: flyData.zoom,
+                  markers: flyData.markers
               };
               handleFlyTo(empireMatchData);
               setAutoFlyCount(prev => prev + 1);
