@@ -19,7 +19,7 @@ export default function Chat() {
   const [activeCitations, setActiveCitations] = useState(null);
   
   // Grade Selection State (Default: null)
-  const [selectedGrade, setSelectedGrade] = useState(null);
+  const [selectedGrade, setSelectedGrade] = useState(0);
 
   // Session & UI State
   const [sessionId, setSessionId] = useState(null); 
@@ -120,7 +120,7 @@ export default function Chat() {
         setMobileMenuOpen(false); 
         
         const data = await getChatHistory(id);
-        console.log(data);
+        // console.log(data);
         if (data && data.history) {
             const sortedHistory = data.history.sort((a, b) => {
                 const tA = new Date(a.timestamp || 0);
@@ -160,7 +160,7 @@ export default function Chat() {
   // ✅ UPDATED: Strictly uses passed data, ignores objectId/centroids
   const handleFlyTo = (empireMatch) => {
     if (!empireMatch) return;
-    console.log(empireMatch);
+    // console.log(empireMatch);
     // 1. Extract coordinates directly
     const { lat, lng, time, startYear, markers,zoom } = empireMatch;
 
@@ -240,7 +240,7 @@ export default function Chat() {
           const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
           if (lastHistoryItem.flyToPosition && autoFlyCount < 2) {
               const flyData = lastHistoryItem.flyToPosition;
-              console.log(flyData);
+            //   console.log(flyData);
               // ✅ UPDATED: Simply mapping the API response to our handler
               const empireMatchData = {
                   lat: flyData.lat,
@@ -438,12 +438,16 @@ export default function Chat() {
                 {/* Grade Selector */}
                 <div style={{ marginBottom: "10px", display: "flex", justifyContent: "flex-start" }}>
                     <select
-                        // If state is null, UI shows "no_grade", otherwise shows the value (e.g., "6th Grade")
-                        value={selectedGrade === null ? "no_grade" : selectedGrade}
+                        value={selectedGrade === 0 ? "no_grade" : selectedGrade == null? "all_grades": selectedGrade}
                         onChange={(e) => {
                             const val = e.target.value;
-                            // Logic: If user selects "No Grade", set state to null. Otherwise, set the string.
-                            setSelectedGrade(val === "no_grade" ? null : val);
+                            if (val === "no_grade") {
+                                setSelectedGrade(0);     
+                            } else if (val === "all_grades") {
+                                setSelectedGrade(null);  
+                            } else {
+                                setSelectedGrade(val);   
+                            }
                         }}
                         style={{
                             padding: "8px 12px",
@@ -458,7 +462,7 @@ export default function Chat() {
                         }}
                     >
                         <option value="no_grade">No Grade</option>
-                        <option value="All Grades">All Grades</option>
+                        <option value="all_grades">All Grades</option>
                         {/* Grades 6-12 */}
                         {[6, 7, 8, 9, 10, 11, 12].map((g) => (
                             <option key={g} value={`${g}th Grade`}>{g}th Grade</option>

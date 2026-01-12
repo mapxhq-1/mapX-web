@@ -234,8 +234,6 @@ export default function DeepSpaceBackground() {
         prevMapState.current.lat = currentLat;
         prevMapState.current.zoom = currentZoom;
 
-        // ✅ REMOVED IDLE ROTATION
-        // universeGroup.rotation.z += 0.0003; 
 
         // Shooting stars logic
         if (Math.random() < 0.008) spawnShootingStar();
