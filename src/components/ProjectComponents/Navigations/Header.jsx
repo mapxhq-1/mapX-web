@@ -4,6 +4,7 @@ import searchicon from '../../../assets/icons/searchicon.png'
 import sortimg from '../../../assets/icons/sort.png'
 import { useSelector,useDispatch } from 'react-redux'
 import { setSearch,setOption } from '../../../store/projectSlice'
+import  i18next from "i18next";
 const Header = () => {
   const {search,option,heading} = useSelector(state=>state.project);
   const dispatch = useDispatch();
@@ -27,7 +28,7 @@ const Header = () => {
     <>
       <div className='flex items-center relative p-5 justify-between bg-[#1F1F1F] text-white border-1 border-zinc-600 z-1'>
         <Link className='flex gap-3 cursor-pointer' to="/">
-          <p className='potta-one text-2xl tracking-[0.05em] ml-5'>MAPX</p>
+          <p className='potta-one text-2xl tracking-[0.05em] ml-5'>{i18next.t('title')}</p>
         </Link>
         <div>
           <p className='text-2xl absolute left-1/4'>{heading}</p>
