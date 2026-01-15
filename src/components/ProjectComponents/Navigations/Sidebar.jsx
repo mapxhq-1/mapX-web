@@ -78,8 +78,6 @@ const Sidebar = () => {
                         const imageUrl = URL.createObjectURL(response.data);
                     setProfilePictureUrl(imageUrl);
                     }, 100);
-
-                    
                 } catch (imgError) {
                     console.error("Failed to fetch profile image:", imgError);
                     setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
@@ -89,7 +87,7 @@ const Sidebar = () => {
             }
 
         } catch (error) {
-            console.log(error);
+            console.log("test : ",error);
             toast.error("Failed to load profile data.");
         }
     };

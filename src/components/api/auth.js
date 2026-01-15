@@ -106,13 +106,25 @@ export async function getUserInfo(code) {
 
 export async function getProfilePhoto(email,fileId) {
   const token = localStorage.getItem('bearerToken');
-  const response = await axios.get(
-    BASE_URL+`/fetch-profile-photo/${fileId}`,
-    {
-      params: { email },
-      headers: { client_name: "mapx", "Authorization": `Bearer ${token}` },
-      responseType: 'blob'
+  let response;
+  try{
+    response = await axios.get(
+      BASE_URL+`/fetch-profile-photo/${fileId}`,
+      {
+        params: { email },
+        headers: { client_name: "mapx", "Authorization": `Bearer ${token}` },
+        responseType: 'blob'
+      }
+    );
+  }catch(err){
+    console.error(err);
+    if(err.response.status === 401){
+      // return;
+      localStorage.removeItem('ownerEmail');
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('bearerToken');
+      window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
     }
-  );
+  }
   return response;
 }
