@@ -1,3 +1,4 @@
+import "regenerator-runtime/runtime";
 import { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux"; 
 import { setYear, setFlyToPosition, setMarkers } from "../../store/mapSlice"; 
@@ -212,18 +213,39 @@ export default function Chat() {
   };
 
   // --- MICROPHONE TOGGLE ---
-  const handleMicClick = () => {
-        console.log("protocol:", window.location.protocol);
-        console.log("host:", window.location.host);
-        console.log("supports:", browserSupportsSpeechRecognition);
-        console.log("in iframe:", window.self !== window.top);
+const handleMicClick = () => {
+    console.group("--- Microphone Debug Logs ---"); // Groups logs nicely in console
+    
+    // 1. Check if the browser actually has the API (independent of the library)
+    const nativeSupport = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    console.log("1. Native Browser Support:", nativeSupport);
+
+    // 2. Check what the library thinks
+    console.log("2. Library Support Flag:", browserSupportsSpeechRecognition);
+    
+    // 3. Check current state
+    console.log("3. Currently Listening:", listening);
+    console.log("4. Voice Language:", voiceLanguage);
+
     if (listening) {
+        console.log("Action: Stopping listening...");
         SpeechRecognition.stopListening();
     } else {
-        // Reset transcript so new speech doesn't append to old stale speech
-        resetTranscript(); 
-        SpeechRecognition.startListening({ continuous: true, language: voiceLanguage });
+        console.log("Action: Starting listening...");
+        resetTranscript();
+        
+        try {
+            // Note: usage of 'continuous: false' is safer for debugging connection drops
+            SpeechRecognition.startListening({ 
+                continuous: false, 
+                language: voiceLanguage 
+            });
+            console.log("Start command sent successfully.");
+        } catch (err) {
+            console.error("CRITICAL ERROR invoking startListening:", err);
+        }
     }
+    console.groupEnd();
   };
 
   const sendMessage = async () => {
