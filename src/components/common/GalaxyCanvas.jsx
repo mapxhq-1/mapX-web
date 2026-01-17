@@ -51,7 +51,7 @@ export default function DeepSpaceBackground() {
 
     const texture = createSoftTexture();
 
-    // --- LAYER 1: STAR DUST ---
+    // --- LAYER 1: STAR DUST (Fixed Squares) ---
     const DUST_COUNT = 8000;
     const dustGeo = new THREE.BufferGeometry();
     const dustPos = new Float32Array(DUST_COUNT * 3);
@@ -65,11 +65,15 @@ export default function DeepSpaceBackground() {
         dustPos[i*3+2] = r * Math.cos(phi);
     }
     dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+    
+    // FIX: Added 'map: texture' and 'blending' to make them round and glowing
     const dustMat = new THREE.PointsMaterial({
         color: 0x888899,
         size: 5,
+        map: texture, // <--- This removes the squares
         transparent: true,
         opacity: 0.5,
+        blending: THREE.AdditiveBlending,
         depthWrite: false,
     });
     universeGroup.add(new THREE.Points(dustGeo, dustMat));
@@ -197,7 +201,6 @@ export default function DeepSpaceBackground() {
         const currentLng = mapViewState.lng;
         const currentLat = mapViewState.lat;
         
-        // Round zoom to 1 decimal place to prevent jitter
         let rawZoom = mapViewState.zoom;
         const currentZoom = Math.round(rawZoom * 10) / 10;
 
@@ -205,15 +208,14 @@ export default function DeepSpaceBackground() {
         let dLat = currentLat - prevMapState.current.lat;
         let dZoom = currentZoom - prevMapState.current.zoom;
 
-        // Wrap-around fix
         if (dLng > 180) dLng -= 360;
         if (dLng < -180) dLng += 360;
 
-        // 2. ROTATION (Orbiting)
+        // 2. ROTATION
         universeGroup.rotation.y += dLng * degToRad;
         universeGroup.rotation.x += dLat * degToRad;
 
-        // 3. ZOOM (Warp Effect)
+        // 3. ZOOM
         if (Math.abs(dZoom) >= 0.1) {
              universeZVelocity += dZoom * 60; 
         }
@@ -221,7 +223,7 @@ export default function DeepSpaceBackground() {
         universeZVelocity *= 0.93; 
         universeGroup.position.z += universeZVelocity;
 
-        // Dynamic Star Size (Light Bloom)
+        // Light Bloom
         const speedFactor = Math.abs(universeZVelocity);
         brightStars.material.size = 15 + (speedFactor * 0.5) + Math.sin(time * 3) * 2;
 

@@ -1,25 +1,35 @@
 import { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux"; 
-import { setYear,setFlyToPosition, setMarkers } from "../../store/mapSlice"; 
+import { setYear, setFlyToPosition, setMarkers } from "../../store/mapSlice"; 
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify'; 
 import ReactMarkdown from 'react-markdown'; 
 import remarkGfm from 'remark-gfm'; 
+// --- NEW IMPORT ---
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
-// Removed getEmpireDetailsById import as it is no longer used
 
 export default function Chat() {
   const dispatch = useDispatch();
   
+  // --- SPEECH RECOGNITION HOOK ---
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition
+  } = useSpeechRecognition();
+
   // --- STATE ---
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeCitations, setActiveCitations] = useState(null);
   
-  // Grade Selection State (Default: null)
+  // Grade & Language State
   const [selectedGrade, setSelectedGrade] = useState(0);
+  const [voiceLanguage, setVoiceLanguage] = useState('en-IN'); // Default English (India)
 
   // Session & UI State
   const [sessionId, setSessionId] = useState(null); 
@@ -47,11 +57,16 @@ export default function Chat() {
     }
   }, [email]);
 
+  // --- SYNC VOICE TRANSCRIPT TO INPUT ---
+  useEffect(() => {
+    if (transcript) {
+        setInput(transcript);
+    }
+  }, [transcript]);
+
   const loadHistoryList = async () => {
     try {
         const chats = await fetchAllChats(email);
-        
-        // SORTING: Recent chats (Newest) at the TOP
         const sortedChats = chats.sort((a, b) => {
             const dateA = new Date(a.timestamp || a.updatedAt || a.createdAt || 0);
             const dateB = new Date(b.timestamp || b.updatedAt || b.createdAt || 0);
@@ -120,7 +135,6 @@ export default function Chat() {
         setMobileMenuOpen(false); 
         
         const data = await getChatHistory(id);
-        // console.log(data);
         if (data && data.history) {
             const sortedHistory = data.history.sort((a, b) => {
                 const tA = new Date(a.timestamp || 0);
@@ -148,7 +162,6 @@ export default function Chat() {
     return Number.isFinite(converted) ? converted : null;
   };
 
-  // ✅ Simplified flyTo implementation
   const flyToIfPossible = (lat, lng,zoom) => {
      try {
          if (window.mapxFlyTo && Number.isFinite(lat) && Number.isFinite(lng)) {
@@ -157,39 +170,30 @@ export default function Chat() {
      } catch (_) {}
   };
 
-  // ✅ UPDATED: Strictly uses passed data, ignores objectId/centroids
   const handleFlyTo = (empireMatch) => {
     if (!empireMatch) return;
-    // console.log(empireMatch);
-    // 1. Extract coordinates directly
-    const { lat, lng, time, startYear, markers,zoom } = empireMatch;
+    const { lat, lng, time, markers,zoom } = empireMatch;
 
-    // 2. Fly strictly to these coordinates
     if (lat !== undefined && lng !== undefined) {
         flyToIfPossible(lat, lng, zoom);
     }
     dispatch(setFlyToPosition({ lat, lng }));
     dispatch(setMarkers(markers))
 
-    // 3. Handle Time Parsing
-    // Priorities: empireMatch.time (string "1930 CE") -> empireMatch.startYear -> empireMatch.year
     const timeValue = time;
 
     if (timeValue !== undefined && timeValue !== null) {
        let y = null;
 
        if (typeof timeValue === 'string' && timeValue.includes(' ')) {
-           // ✅ CASE: "1930 CE"
            const parts = timeValue.split(' ');
            const yearNum = parseInt(parts[0], 10);
            const eraStr = parts[1]; // "CE", "BCE"
            y = toSignedYear(yearNum, eraStr);
        } else if (typeof timeValue === 'object') {
-           // CASE: { year: 1930, era: 'CE' }
            y = toSignedYear(timeValue.year, timeValue.era);
        } else {
-           // CASE: Numeric year with separate era passed
-           y = toSignedYear(timeValue, era);
+           y = toSignedYear(timeValue);
        }
 
        if (y !== null && Number.isFinite(y)) {
@@ -201,22 +205,40 @@ export default function Chat() {
   const startNewChat = () => {
     setSessionId(null);
     setMessages([]);
+    setInput("");
+    resetTranscript(); // Reset voice if new chat
     setAutoFlyCount(0);
     if (window.innerWidth < 768) setMobileMenuOpen(false);
+  };
+
+  // --- MICROPHONE TOGGLE ---
+  const handleMicClick = () => {
+    if (listening) {
+        SpeechRecognition.stopListening();
+    } else {
+        // Reset transcript so new speech doesn't append to old stale speech
+        resetTranscript(); 
+        SpeechRecognition.startListening({ continuous: true, language: voiceLanguage });
+    }
   };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
+    // Stop listening if we are currently listening
+    if (listening) {
+        SpeechRecognition.stopListening();
+    }
+
     const currentInput = input;
     setInput(""); 
+    resetTranscript(); // Clear voice buffer
     setLoading(true);
 
     const userMessage = { role: "user", content: currentInput };
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      // Passing selectedGrade variable
       const data = await sendChatMessage(email, sessionId, currentInput, selectedGrade);
       
       if (!sessionId && data.sessionId) {
@@ -240,13 +262,11 @@ export default function Chat() {
           const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
           if (lastHistoryItem.flyToPosition && autoFlyCount < 2) {
               const flyData = lastHistoryItem.flyToPosition;
-            //   console.log(flyData);
-              // ✅ UPDATED: Simply mapping the API response to our handler
               const empireMatchData = {
                   lat: flyData.lat,
                   lng: flyData.lng,
                   location: flyData.location,
-                  time: flyData.time,   // "1930 CE"
+                  time: flyData.time,
                   zoom: flyData.zoom,
                   markers: flyData.markers
               };
@@ -358,26 +378,18 @@ export default function Chat() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", color: "#111" }}>{msg.role === "user" ? "You" : "Assistant"}</div>
                             
-                            {/* ✅ MARKDOWN RENDERING */}
                             <div style={{ fontSize: "15px", color: "#374151" }}>
                                 <ReactMarkdown 
                                     children={msg.content}
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                        // P: Standard spacing
                                         p: ({node, ...props}) => <p style={{margin: '0 0 10px 0', lineHeight: '1.6'}} {...props} />,
-                                        
-                                        // LISTS: Ensure bullets and numbers appear by adding listStyleType and padding
                                         ul: ({node, ...props}) => <ul style={{margin: '0 0 10px 0', paddingLeft: '24px', listStyleType: 'disc'}} {...props} />,
                                         ol: ({node, ...props}) => <ol style={{margin: '0 0 10px 0', paddingLeft: '24px', listStyleType: 'decimal'}} {...props} />,
                                         li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
-                                        
-                                        // HEADINGS: Make them distinct
                                         h1: ({node, ...props}) => <h1 style={{fontSize: '1.5em', fontWeight: 'bold', margin: '16px 0 8px 0'}} {...props} />,
                                         h2: ({node, ...props}) => <h2 style={{fontSize: '1.3em', fontWeight: 'bold', margin: '14px 0 8px 0'}} {...props} />,
                                         h3: ({node, ...props}) => <h3 style={{fontSize: '1.1em', fontWeight: 'bold', margin: '12px 0 6px 0'}} {...props} />,
-
-                                        // TABLES: Add borders and spacing
                                         table: ({node, ...props}) => (
                                             <div style={{overflowX: 'auto', marginBottom: '16px'}}>
                                                 <table style={{borderCollapse: 'collapse', width: '100%', fontSize: '14px', border: '1px solid #e5e7eb'}} {...props} />
@@ -386,8 +398,6 @@ export default function Chat() {
                                         thead: ({node, ...props}) => <thead style={{backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb'}} {...props} />,
                                         th: ({node, ...props}) => <th style={{padding: '10px', textAlign: 'left', fontWeight: '600', border: '1px solid #e5e7eb'}} {...props} />,
                                         td: ({node, ...props}) => <td style={{padding: '10px', border: '1px solid #e5e7eb', verticalAlign: 'top'}} {...props} />,
-
-                                        // CODE BLOCKS
                                         code: ({node, inline, className, children, ...props}) => {
                                             return inline ? (
                                                 <code style={{background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '90%', fontFamily: 'monospace'}} {...props}>{children}</code>
@@ -435,59 +445,102 @@ export default function Chat() {
         <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "20px", background: "white", borderTop: "1px solid #f0f0f0" }}>
             <div style={{ width: "100%", maxWidth: "768px", position: "relative" }}>
                 
-                {/* Grade Selector */}
-                <div style={{ marginBottom: "10px", display: "flex", justifyContent: "flex-start" }}>
+                {/* SETTINGS BAR: Grade Selector & Language Selector */}
+                <div style={{ marginBottom: "10px", display: "flex", gap: "10px" }}>
                     <select
-                        value={selectedGrade === 0 ? "no_grade" : selectedGrade == null? "all_grades": selectedGrade}
+                        value={selectedGrade === 0 ? "no_grade" : selectedGrade === null? "all_grades": selectedGrade}
                         onChange={(e) => {
                             const val = e.target.value;
-                            if (val === "no_grade") {
-                                setSelectedGrade(0);     
-                            } else if (val === "all_grades") {
-                                setSelectedGrade(null);  
-                            } else {
-                                setSelectedGrade(val);   
-                            }
+                            if (val === "no_grade") setSelectedGrade(0);
+                            else if (val === "all_grades") setSelectedGrade(null);
+                            else setSelectedGrade(val);
                         }}
-                        style={{
-                            padding: "8px 12px",
-                            borderRadius: "6px",
-                            border: "1px solid #e5e7eb",
-                            backgroundColor: "white",
-                            fontSize: "13px",
-                            color: "#374151",
-                            outline: "none",
-                            cursor: "pointer",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
-                        }}
+                        style={dropdownStyle}
                     >
                         <option value="no_grade">No Grade</option>
                         <option value="all_grades">All Grades</option>
-                        {/* Grades 6-12 */}
                         {[6, 7, 8, 9, 10, 11, 12].map((g) => (
                             <option key={g} value={`${g}th Grade`}>{g}th Grade</option>
                         ))}
                     </select>
+
+                    {/* --- LANGUAGE SELECTOR --- */}
+                    <select
+                        value={voiceLanguage}
+                        onChange={(e) => setVoiceLanguage(e.target.value)}
+                        style={dropdownStyle}
+                    >
+                        <option value="en-IN">English (India)</option>
+                        <option value="kn-IN">Kannada</option>
+                    </select>
                 </div>
 
-                <input 
-                    type="text" 
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                    placeholder="Type your question..."
-                    style={{ width: "100%", padding: "12px 48px 12px 16px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "15px", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
-                />
-                <button 
-                    onClick={sendMessage}
-                    disabled={!input.trim() || loading}
-                    style={{ position: "absolute", right: "8px", bottom: "8px", background: input.trim() ? "#10a37f" : "#ccc", border: "none", borderRadius: "4px", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", color: "white", cursor: input.trim() ? "pointer" : "default", transition: "background 0.2s" }}
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                </button>
+                <div style={{ position: "relative", width: "100%" }}>
+                    <input 
+                        type="text" 
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                        placeholder={listening ? "Listening..." : "Type your question..."}
+                        style={{ width: "100%", padding: "12px 90px 12px 16px", borderRadius: "8px", border: listening ? "1px solid #10a37f" : "1px solid #ddd", outline: "none", fontSize: "15px", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+                    />
+                    
+                    {/* --- BUTTON GROUP (MIC + SEND) --- */}
+                    <div style={{ position: "absolute", right: "8px", bottom: "8px", display: "flex", gap: "8px" }}>
+                        
+                        {/* Mic Button */}
+                        {browserSupportsSpeechRecognition && (
+                            <button
+                                onClick={handleMicClick}
+                                title="Speech to Text"
+                                style={{
+                                    background: listening ? "#dc2626" : "#f3f4f6",
+                                    border: "none",
+                                    borderRadius: "4px",
+                                    width: "32px",
+                                    height: "32px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: listening ? "white" : "#555",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s"
+                                }}
+                            >
+                                {listening ? (
+                                    /* Stop Icon */
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                                ) : (
+                                    /* Mic Icon */
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                                )}
+                            </button>
+                        )}
+
+                        {/* Send Button */}
+                        <button 
+                            onClick={sendMessage}
+                            disabled={!input.trim() || loading}
+                            style={{ 
+                                background: input.trim() ? "#10a37f" : "#ccc", 
+                                border: "none", 
+                                borderRadius: "4px", 
+                                width: "32px", 
+                                height: "32px", 
+                                display: "flex", 
+                                alignItems: "center", 
+                                justifyContent: "center", 
+                                color: "white", 
+                                cursor: input.trim() ? "pointer" : "default", 
+                                transition: "background 0.2s" 
+                            }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-      </div>
 
       {/* --- MODALS --- */}
       {showDeleteModal && (
@@ -527,7 +580,21 @@ export default function Chat() {
         @media (max-width: 768px) { .desktop-sidebar { display: none !important; } }
       `}</style>
     </div>
+    </div> 
   );
 }
+
+// Reusable styles
+const dropdownStyle = {
+    padding: "8px 12px",
+    borderRadius: "6px",
+    border: "1px solid #e5e7eb",
+    backgroundColor: "white",
+    fontSize: "13px",
+    color: "#374151",
+    outline: "none",
+    cursor: "pointer",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+};
 
 const chipStyle = { background: "white", border: "1px solid #ddd", borderRadius: "16px", padding: "6px 12px", fontSize: "12px", color: "#555", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "background 0.2s" };

@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { useSelector } from "react-redux";
 
+// ... [CSS and Helper functions remain exactly the same] ...
 // 1. Updated CSS: Zero-size container + Flattened Shadows
 const MARKER_STYLES = `
-  /* Container is now a 0x0 point in space */
   .custom-marker-container {
     width: 0;
     height: 0;
@@ -13,20 +13,19 @@ const MARKER_STYLES = `
     justify-content: center;
     align-items: center;
     pointer-events: none;
-    overflow: visible; /* Allow dot/ripple to spill out */
+    overflow: visible; 
   }
   
   /* --- Black Marker --- */
   .marker-dot {
     width: 14px;
     height: 14px;
-    background-color: #222222; 
+    background-color: #ff3333; 
     border: 2px solid #ffffff; 
     border-radius: 50%;
-    /* ✅ Shadow 0px vertical offset to look flat on ground */
     box-shadow: 0 0 4px rgba(0,0,0,0.5); 
     z-index: 10;
-    position: absolute; /* Absolute center */
+    position: absolute; 
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -39,7 +38,7 @@ const MARKER_STYLES = `
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(255, 51, 51, 0.5);
     z-index: 1;
     animation: ripple-scale-anim 2s infinite cubic-bezier(0.25, 1, 0.5, 1);
   }
@@ -51,10 +50,9 @@ const MARKER_STYLES = `
     background-color: #ff3333; 
     border: 1.5px solid #ffffff; 
     border-radius: 50%;
-    /* ✅ Shadow 0px vertical offset to look flat on ground */
     box-shadow: 0 0 3px rgba(0,0,0,0.5);
     z-index: 10;
-    position: absolute; /* Absolute center */
+    position: absolute; 
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -101,7 +99,6 @@ const createMarkerElement = (type = 'black') => {
   dot.className = type === 'red' ? "marker-dot-red" : "marker-dot";
   container.appendChild(dot);
 
-  // Ripples
   const rippleCount = 3; 
   const duration = 2; 
   
@@ -116,6 +113,7 @@ const createMarkerElement = (type = 'black') => {
   return container;
 };
 
+// --- Updated Hook ---
 export const useMarkerManager = (mapRef) => {
   const targetPosition = useSelector((state) => state.map.flyToPosition);
   const markersList = useSelector((state) => state.map.markers); 
@@ -127,11 +125,19 @@ export const useMarkerManager = (mapRef) => {
     injectMarkerStyles();
   }, []);
 
-  // --- Single Black Marker ---
+  // --- Single Black Marker (Conditional) ---
   useEffect(() => {
     if (!mapRef.current) return;
 
-    if (targetPosition?.lat !== undefined && targetPosition?.lng !== undefined) {
+    // 1. Determine if red markers exist
+    const hasRedMarkers = Array.isArray(markersList) && markersList.length > 0;
+    
+    // 2. Determine if black marker should show (Target exists AND No Red markers)
+    const shouldShowBlack = targetPosition?.lat !== undefined && 
+                            targetPosition?.lng !== undefined && 
+                            !hasRedMarkers;
+
+    if (shouldShowBlack) {
       const { lng, lat } = targetPosition;
 
       if (!mainMarkerRef.current) {
@@ -141,17 +147,19 @@ export const useMarkerManager = (mapRef) => {
           .addTo(mapRef.current);
       } else {
         mainMarkerRef.current.setLngLat([lng, lat]);
+        // Ensure it is on the map if it was previously removed
         if (!mainMarkerRef.current.getElement().parentElement) {
             mainMarkerRef.current.addTo(mapRef.current);
         }
       }
     } else {
+      // 3. Remove black marker if conditions aren't met
       if (mainMarkerRef.current) {
         mainMarkerRef.current.remove();
         mainMarkerRef.current = null;
       }
     }
-  }, [mapRef, targetPosition]);
+  }, [mapRef, targetPosition, markersList]); // Added markersList dependency
 
   // --- Array of Red Markers ---
   useEffect(() => {
