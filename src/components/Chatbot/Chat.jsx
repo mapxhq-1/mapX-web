@@ -213,6 +213,10 @@ export default function Chat() {
 
   // --- MICROPHONE TOGGLE ---
   const handleMicClick = () => {
+        console.log("protocol:", window.location.protocol);
+        console.log("host:", window.location.host);
+        console.log("supports:", browserSupportsSpeechRecognition);
+        console.log("in iframe:", window.self !== window.top);
     if (listening) {
         SpeechRecognition.stopListening();
     } else {
