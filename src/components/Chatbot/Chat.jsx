@@ -6,7 +6,6 @@ import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify'; 
 import ReactMarkdown from 'react-markdown'; 
 import remarkGfm from 'remark-gfm'; 
-// --- NEW IMPORT ---
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
@@ -30,7 +29,7 @@ export default function Chat() {
   
   // Grade & Language State
   const [selectedGrade, setSelectedGrade] = useState(0);
-  const [voiceLanguage, setVoiceLanguage] = useState('en-IN'); // Default English (India)
+  const [voiceLanguage, setVoiceLanguage] = useState('en-IN'); 
 
   // Session & UI State
   const [sessionId, setSessionId] = useState(null); 
@@ -38,11 +37,11 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false); 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatHistoryList, setChatHistoryList] = useState([]);
-  
   // Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const email = useSelector((state)=>state.project.ownerEmail);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,10 +59,16 @@ export default function Chat() {
 
   // --- SYNC VOICE TRANSCRIPT TO INPUT ---
   useEffect(() => {
-    if (transcript) {
-        setInput(transcript);
-    }
+    if (!transcript) return;
+    setInput(transcript);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.selectionStart = el.selectionEnd = transcript.length;
+      el.scrollLeft = el.scrollWidth;
+    });
   }, [transcript]);
+
 
   const loadHistoryList = async () => {
     try {
@@ -207,58 +212,37 @@ export default function Chat() {
     setSessionId(null);
     setMessages([]);
     setInput("");
-    resetTranscript(); // Reset voice if new chat
+    resetTranscript(); 
     setAutoFlyCount(0);
     if (window.innerWidth < 768) setMobileMenuOpen(false);
   };
 
   // --- MICROPHONE TOGGLE ---
-const handleMicClick = () => {
-    console.group("--- Microphone Debug Logs ---"); // Groups logs nicely in console
-    
-    // 1. Check if the browser actually has the API (independent of the library)
-    const nativeSupport = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-    console.log("1. Native Browser Support:", nativeSupport);
-
-    // 2. Check what the library thinks
-    console.log("2. Library Support Flag:", browserSupportsSpeechRecognition);
-    
-    // 3. Check current state
-    console.log("3. Currently Listening:", listening);
-    console.log("4. Voice Language:", voiceLanguage);
-
+  const handleMicClick = () => {
     if (listening) {
-        console.log("Action: Stopping listening...");
         SpeechRecognition.stopListening();
     } else {
-        console.log("Action: Starting listening...");
-        resetTranscript();
-        
         try {
-            // Note: usage of 'continuous: false' is safer for debugging connection drops
             SpeechRecognition.startListening({ 
-                continuous: false, 
+                continuous: true, 
                 language: voiceLanguage 
             });
-            console.log("Start command sent successfully.");
         } catch (err) {
-            console.error("CRITICAL ERROR invoking startListening:", err);
+            console.error("Error invoking startListening:", err);
         }
     }
-    console.groupEnd();
   };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    // Stop listening if we are currently listening
     if (listening) {
         SpeechRecognition.stopListening();
     }
 
     const currentInput = input;
     setInput(""); 
-    resetTranscript(); // Clear voice buffer
+    resetTranscript(); 
     setLoading(true);
 
     const userMessage = { role: "user", content: currentInput };
@@ -322,8 +306,38 @@ const handleMicClick = () => {
     </div>
   );
 
+useEffect(() => {
+  const onKeyDown = (e) => {
+    // Ctrl + Space (works even when focused in input)
+    if (e.ctrlKey && e.code === "Space" && !e.repeat) {
+      e.preventDefault();
+      SpeechRecognition.startListening({
+        continuous: true,
+        language: voiceLanguage,
+      });
+    }
+  };
+
+  const onKeyUp = (e) => {
+    if (e.ctrlKey && e.code === "Space") {
+      e.preventDefault();
+      SpeechRecognition.stopListening();
+    }
+  };
+
+  document.addEventListener("keydown", onKeyDown);
+  document.addEventListener("keyup", onKeyUp);
+
+  return () => {
+    document.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("keyup", onKeyUp);
+  };
+}, [voiceLanguage]);
+
+
   return (
-    <div style={{ display: "flex", height: "100%", width: "100%", backgroundColor: "#f9fafb", overflow: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    // Reverted to height: 100% and added position: relative for safety
+    <div style={{ display: "flex", height: "100%", width: "100%", position: "relative", backgroundColor: "#f9fafb", overflow: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       
       {/* --- SIDEBAR --- */}
       <div style={{
@@ -335,7 +349,7 @@ const handleMicClick = () => {
       }} className="desktop-sidebar">
         
         <div style={{ padding: "16px" }}>
-            <button onClick={startNewChat} style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "white", color: "#374151", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "10px 14px", cursor: "pointer", fontSize: "14px", fontWeight: "500", width: "100%", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+            <button onClick={startNewChat} style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "white", color: "#374151", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "12px 14px", cursor: "pointer", fontSize: "14px", fontWeight: "500", width: "100%", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
                 <span style={{ fontSize: "18px" }}>+</span> New Chat
             </button>
         </div>
@@ -343,7 +357,7 @@ const handleMicClick = () => {
         <div style={{ flex: 1, overflowY: "auto", padding: "0 10px" }}>
             <div style={{ fontSize: "11px", textTransform: "uppercase", color: "#6b7280", padding: "10px 6px", fontWeight: "600" }}>Recent</div>
             {chatHistoryList.map(chat => (
-                <div key={chat.id} onClick={() => loadOldChat(chat.id)} style={{ padding: "8px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "4px", backgroundColor: sessionId === chat.id ? "#e5e7eb" : "transparent" }} className="history-item">
+                <div key={chat.id} onClick={() => loadOldChat(chat.id)} style={{ padding: "12px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: "4px", backgroundColor: sessionId === chat.id ? "#e5e7eb" : "transparent" }} className="history-item">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                     {chat.title}
                 </div>
@@ -353,13 +367,15 @@ const handleMicClick = () => {
 
       {/* --- MOBILE OVERLAY --- */}
       {mobileMenuOpen && (
-        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 200, background: "rgba(0,0,0,0.5)" }} onClick={() => setMobileMenuOpen(false)}>
-            <div style={{ width: "260px", height: "100%", background: "#f9fafb", padding: "20px", boxShadow: "2px 0 10px rgba(0,0,0,0.1)" }} onClick={(e) => e.stopPropagation()}>
-                <button onClick={startNewChat} style={{ marginBottom: "20px", padding: "12px", width: "100%", border: "1px solid #ddd", background: "white", borderRadius: "8px" }}>+ New Chat</button>
-                <div style={{ marginTop: "20px" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 200, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} onClick={() => setMobileMenuOpen(false)}>
+            <div style={{ width: "85%", maxWidth: "300px", height: "100%", background: "#f9fafb", padding: "20px", boxShadow: "2px 0 10px rgba(0,0,0,0.1)", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
+                <button onClick={startNewChat} style={{ marginBottom: "20px", padding: "16px", width: "100%", border: "1px solid #ddd", background: "white", borderRadius: "8px", fontSize: "16px", fontWeight: "500" }}>+ New Chat</button>
+                <div style={{ marginTop: "10px", flex: 1, overflowY: "auto" }}>
+                    <div style={{ fontSize: "12px", textTransform: "uppercase", color: "#6b7280", marginBottom: "10px", fontWeight: "600" }}>Recent Chats</div>
                     {chatHistoryList.map(chat => (
-                        <div key={chat.id} onClick={() => loadOldChat(chat.id)} style={{ padding: "10px", borderBottom: "1px solid #eee", cursor: "pointer", fontSize: "14px" }}>
-                            {chat.title}
+                        <div key={chat.id} onClick={() => loadOldChat(chat.id)} style={{ padding: "14px 10px", borderBottom: "1px solid #eee", cursor: "pointer", fontSize: "15px", display: "flex", alignItems: "center", gap: "10px" }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            <span style={{whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}}>{chat.title}</span>
                         </div>
                     ))}
                 </div>
@@ -371,24 +387,24 @@ const handleMicClick = () => {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%", position: "relative", backgroundColor: "#fff" }}>
         
         {/* Top Bar */}
-        <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f0f0f0" }}>
+        <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f0f0f0", minHeight: "60px" }}>
             <div style={{ display: "flex", alignItems: "center" }}>
-                <button onClick={() => { if (window.innerWidth < 768) setMobileMenuOpen(true); else setSidebarOpen(!sidebarOpen); }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "6px", marginRight: "12px", color: "#555" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                <button onClick={() => { if (window.innerWidth < 768) setMobileMenuOpen(true); else setSidebarOpen(!sidebarOpen); }} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "10px", marginRight: "8px", color: "#555", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                 </button>
-                <span style={{ fontSize: "16px", fontWeight: "600", color: "#333" }}>Happy Dyno</span>
+                <span style={{ fontSize: "18px", fontWeight: "600", color: "#333" }}>Happy Dyno</span>
             </div>
             {sessionId && (
-                <button onClick={handleDeleteClick} title="Delete Chat" style={{ background: "transparent", border: "none", cursor: "pointer", padding: "8px", color: "#dc2626", display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "500" }} className="hover-bg">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <button onClick={handleDeleteClick} title="Delete Chat" style={{ background: "transparent", border: "none", cursor: "pointer", padding: "10px", color: "#dc2626", display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "500" }} className="hover-bg">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     <span style={{ display: window.innerWidth < 600 ? "none" : "block" }}>Delete</span>
                 </button>
             )}
         </div>
 
         {/* Chat List */}
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "0 10px" }}>
-            <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto", padding: "20px 0", display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "0 10px", WebkitOverflowScrolling: "touch" }}>
+            <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto", padding: "20px 0 40px 0", display: "flex", flexDirection: "column", gap: "24px" }}>
                 
                 {messages.length === 0 && (
                     <div style={{ marginTop: "15%", textAlign: "center", padding: "0 20px" }}>
@@ -404,26 +420,26 @@ const handleMicClick = () => {
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: "600", fontSize: "13px", marginBottom: "4px", color: "#111" }}>{msg.role === "user" ? "You" : "Assistant"}</div>
                             
-                            <div style={{ fontSize: "15px", color: "#374151" }}>
+                            <div style={{ fontSize: "16px", color: "#374151", lineHeight: "1.6" }}>
                                 <ReactMarkdown 
                                     children={msg.content}
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                        p: ({node, ...props}) => <p style={{margin: '0 0 10px 0', lineHeight: '1.6'}} {...props} />,
+                                        p: ({node, ...props}) => <p style={{margin: '0 0 10px 0'}} {...props} />,
                                         ul: ({node, ...props}) => <ul style={{margin: '0 0 10px 0', paddingLeft: '24px', listStyleType: 'disc'}} {...props} />,
                                         ol: ({node, ...props}) => <ol style={{margin: '0 0 10px 0', paddingLeft: '24px', listStyleType: 'decimal'}} {...props} />,
-                                        li: ({node, ...props}) => <li style={{marginBottom: '4px'}} {...props} />,
-                                        h1: ({node, ...props}) => <h1 style={{fontSize: '1.5em', fontWeight: 'bold', margin: '16px 0 8px 0'}} {...props} />,
-                                        h2: ({node, ...props}) => <h2 style={{fontSize: '1.3em', fontWeight: 'bold', margin: '14px 0 8px 0'}} {...props} />,
+                                        li: ({node, ...props}) => <li style={{marginBottom: '6px'}} {...props} />,
+                                        h1: ({node, ...props}) => <h1 style={{fontSize: '1.4em', fontWeight: 'bold', margin: '16px 0 8px 0'}} {...props} />,
+                                        h2: ({node, ...props}) => <h2 style={{fontSize: '1.25em', fontWeight: 'bold', margin: '14px 0 8px 0'}} {...props} />,
                                         h3: ({node, ...props}) => <h3 style={{fontSize: '1.1em', fontWeight: 'bold', margin: '12px 0 6px 0'}} {...props} />,
                                         table: ({node, ...props}) => (
-                                            <div style={{overflowX: 'auto', marginBottom: '16px'}}>
-                                                <table style={{borderCollapse: 'collapse', width: '100%', fontSize: '14px', border: '1px solid #e5e7eb'}} {...props} />
+                                            <div style={{overflowX: 'auto', marginBottom: '16px', border: '1px solid #e5e7eb', borderRadius: '4px'}}>
+                                                <table style={{borderCollapse: 'collapse', width: '100%', fontSize: '14px'}} {...props} />
                                             </div>
                                         ),
                                         thead: ({node, ...props}) => <thead style={{backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb'}} {...props} />,
-                                        th: ({node, ...props}) => <th style={{padding: '10px', textAlign: 'left', fontWeight: '600', border: '1px solid #e5e7eb'}} {...props} />,
-                                        td: ({node, ...props}) => <td style={{padding: '10px', border: '1px solid #e5e7eb', verticalAlign: 'top'}} {...props} />,
+                                        th: ({node, ...props}) => <th style={{padding: '12px', textAlign: 'left', fontWeight: '600', border: '1px solid #e5e7eb'}} {...props} />,
+                                        td: ({node, ...props}) => <td style={{padding: '12px', border: '1px solid #e5e7eb', verticalAlign: 'top'}} {...props} />,
                                         code: ({node, inline, className, children, ...props}) => {
                                             return inline ? (
                                                 <code style={{background: '#f3f4f6', padding: '2px 4px', borderRadius: '4px', fontSize: '90%', fontFamily: 'monospace'}} {...props}>{children}</code>
@@ -436,16 +452,16 @@ const handleMicClick = () => {
                             </div>
 
                             {((msg.citations && msg.citations.length > 0) || msg.empire_match) && (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "8px" }}>
                                     {msg.citations && msg.citations.length > 0 && (
                                         <button onClick={() => setActiveCitations(msg.citations)} style={chipStyle}>
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
                                             View Sources ({msg.citations.length})
                                         </button>
                                     )}
                                     {msg.empire_match && (
                                         <button onClick={() => handleFlyTo(msg.empire_match)} style={chipStyle}>
-                                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
                                             Fly to Location
                                         </button>
                                     )}
@@ -467,12 +483,12 @@ const handleMicClick = () => {
             </div>
         </div>
 
-        {/* Input Area */}
-        <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "20px", background: "white", borderTop: "1px solid #f0f0f0" }}>
+        {/* Input Area - Adjusted for mobile keyboards */}   
+        <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "16px 12px", background: "white", borderTop: "1px solid #f0f0f0", flexShrink: 0 }}>
             <div style={{ width: "100%", maxWidth: "768px", position: "relative" }}>
                 
                 {/* SETTINGS BAR: Grade Selector & Language Selector */}
-                <div style={{ marginBottom: "10px", display: "flex", gap: "10px" }}>
+                <div style={{ marginBottom: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
                     <select
                         value={selectedGrade === 0 ? "no_grade" : selectedGrade === null? "all_grades": selectedGrade}
                         onChange={(e) => {
@@ -490,7 +506,6 @@ const handleMicClick = () => {
                         ))}
                     </select>
 
-                    {/* --- LANGUAGE SELECTOR --- */}
                     <select
                         value={voiceLanguage}
                         onChange={(e) => setVoiceLanguage(e.target.value)}
@@ -504,17 +519,28 @@ const handleMicClick = () => {
                 <div style={{ position: "relative", width: "100%" }}>
                     <input 
                         type="text" 
+                        ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                        placeholder={listening ? "Listening..." : "Type your question..."}
-                        style={{ width: "100%", padding: "12px 90px 12px 16px", borderRadius: "8px", border: listening ? "1px solid #10a37f" : "1px solid #ddd", outline: "none", fontSize: "15px", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}
+                        // Generic placeholder for both desktop/mobile
+                        placeholder={listening ? "Listening..." : "Type or tap space to open mic..."}
+                        style={{ 
+                            width: "100%", 
+                            // Increased font size to 16px to prevent iOS zoom
+                            fontSize: "16px",
+                            padding: "14px 110px 14px 16px", 
+                            borderRadius: "24px", 
+                            border: listening ? "1px solid #10a37f" : "1px solid #ddd", 
+                            outline: "none", 
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.05)" 
+                        }}
                     />
                     
                     {/* --- BUTTON GROUP (MIC + SEND) --- */}
-                    <div style={{ position: "absolute", right: "8px", bottom: "8px", display: "flex", gap: "8px" }}>
+                    <div style={{ position: "absolute", right: "6px", top: "50%", transform: "translateY(-50%)", display: "flex", gap: "6px" }}>
                         
-                        {/* Mic Button */}
+                        {/* Mic Button - Larger Touch Target */}
                         {browserSupportsSpeechRecognition && (
                             <button
                                 onClick={handleMicClick}
@@ -522,9 +548,9 @@ const handleMicClick = () => {
                                 style={{
                                     background: listening ? "#dc2626" : "#f3f4f6",
                                     border: "none",
-                                    borderRadius: "4px",
-                                    width: "32px",
-                                    height: "32px",
+                                    borderRadius: "50%",
+                                    width: "40px",
+                                    height: "40px",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
@@ -534,25 +560,22 @@ const handleMicClick = () => {
                                 }}
                             >
                                 {listening ? (
-                                    /* Stop Icon */
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12"></rect></svg>
                                 ) : (
-                                    /* Mic Icon */
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                                 )}
                             </button>
                         )}
 
-                        {/* Send Button */}
                         <button 
                             onClick={sendMessage}
                             disabled={!input.trim() || loading}
                             style={{ 
                                 background: input.trim() ? "#10a37f" : "#ccc", 
                                 border: "none", 
-                                borderRadius: "4px", 
-                                width: "32px", 
-                                height: "32px", 
+                                borderRadius: "50%", 
+                                width: "40px", 
+                                height: "40px", 
                                 display: "flex", 
                                 alignItems: "center", 
                                 justifyContent: "center", 
@@ -561,7 +584,7 @@ const handleMicClick = () => {
                                 transition: "background 0.2s" 
                             }}
                         >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                         </button>
                     </div>
                 </div>
@@ -570,57 +593,72 @@ const handleMicClick = () => {
 
       {/* --- MODALS --- */}
       {showDeleteModal && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease-out" }} onClick={() => setShowDeleteModal(false)}>
-            <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", width: "90%", maxWidth: "400px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)", animation: "slideUp 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.2s ease-out", backdropFilter: "blur(2px)" }} onClick={() => setShowDeleteModal(false)}>
+            <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", width: "85%", maxWidth: "400px", boxShadow: "0 10px 25px rgba(0,0,0,0.2)", animation: "slideUp 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
                 <h3 style={{ marginTop: 0, marginBottom: "8px", fontSize: "18px", color: "#1f2937", fontWeight: "600" }}>Delete Chat?</h3>
-                <p style={{ color: "#6b7280", fontSize: "14px", lineHeight: "1.5", marginBottom: "24px" }}>This will permanently delete the current conversation. This action cannot be undone.</p>
+                <p style={{ color: "#6b7280", fontSize: "15px", lineHeight: "1.5", marginBottom: "24px" }}>This will permanently delete the current conversation.</p>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-                    <button onClick={() => setShowDeleteModal(false)} style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #e5e7eb", background: "white", color: "#374151", cursor: "pointer", fontWeight: "500" }}>Cancel</button>
-                    <button onClick={confirmDeleteChat} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", background: "#dc2626", color: "white", cursor: "pointer", fontWeight: "500" }}>Delete</button>
+                    <button onClick={() => setShowDeleteModal(false)} style={{ padding: "12px 16px", borderRadius: "6px", border: "1px solid #e5e7eb", background: "white", color: "#374151", cursor: "pointer", fontWeight: "500", fontSize: "15px" }}>Cancel</button>
+                    <button onClick={confirmDeleteChat} style={{ padding: "12px 16px", borderRadius: "6px", border: "none", background: "#dc2626", color: "white", cursor: "pointer", fontWeight: "500", fontSize: "15px" }}>Delete</button>
                 </div>
             </div>
         </div>
       )}
 
       {activeCitations && (
-        <div style={{ position: "absolute", right: "20px", top: "60px", width: "280px", background: "white", boxShadow: "0 4px 15px rgba(0,0,0,0.1)", borderRadius: "8px", zIndex: 100, maxHeight: "50%", display: "flex", flexDirection: "column", border: "1px solid #eee" }}>
-             <div style={{ padding: "12px", borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f9fafb", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                 <span style={{ fontWeight: "600", fontSize: "13px" }}>References</span>
-                 <button onClick={() => setActiveCitations(null)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: "18px", color: "#666" }}>&times;</button>
+        <div style={{ position: "fixed", right: "20px", top: "70px", width: "calc(100% - 40px)", maxWidth: "300px", background: "white", boxShadow: "0 10px 30px rgba(0,0,0,0.2)", borderRadius: "12px", zIndex: 100, maxHeight: "50%", display: "flex", flexDirection: "column", border: "1px solid #eee" }}>
+             <div style={{ padding: "16px", borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f9fafb", borderTopLeftRadius: "12px", borderTopRightRadius: "12px" }}>
+                 <span style={{ fontWeight: "600", fontSize: "14px" }}>References</span>
+                 <button onClick={() => setActiveCitations(null)} style={{ border: "none", background: "transparent", cursor: "pointer", padding: "8px", fontSize: "24px", color: "#666", lineHeight: "0.5" }}>&times;</button>
              </div>
-             <div style={{ padding: "12px", overflowY: "auto" }}>
+             <div style={{ padding: "16px", overflowY: "auto" }}>
                  {activeCitations.map((c, i) => (
-                     <div key={i} style={{ marginBottom: "8px", padding: "8px", background: "#f3f4f6", borderRadius: "4px", fontSize: "12px", color: "#333" }}>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}</div>
+                     <div key={i} style={{ marginBottom: "10px", padding: "12px", background: "#f3f4f6", borderRadius: "8px", fontSize: "13px", color: "#333", lineHeight: "1.4" }}>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}</div>
                  ))}
              </div>
         </div>
       )}
 
       <style>{`
-        .history-item:hover { background-color: #e5e7eb !important; }
-        .hover-bg:hover { background-color: rgba(220, 38, 38, 0.1) !important; }
-        .dot-pulse { width: 6px; height: 6px; background: #888; border-radius: 50%; animation: pulse 1s infinite alternate; }
+        .history-item:active { background-color: #e5e7eb !important; }
+        .hover-bg:active { background-color: rgba(220, 38, 38, 0.1) !important; }
+        .dot-pulse { width: 8px; height: 8px; background: #888; border-radius: 50%; animation: pulse 1s infinite alternate; }
         @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @media (max-width: 768px) { .desktop-sidebar { display: none !important; } }
       `}</style>
     </div>
-    </div> 
+    </div>
   );
 }
 
 // Reusable styles
 const dropdownStyle = {
-    padding: "8px 12px",
-    borderRadius: "6px",
+    padding: "10px 12px",
+    borderRadius: "8px",
     border: "1px solid #e5e7eb",
     backgroundColor: "white",
-    fontSize: "13px",
+    fontSize: "14px",
     color: "#374151",
     outline: "none",
     cursor: "pointer",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    minHeight: "40px" 
 };
 
-const chipStyle = { background: "white", border: "1px solid #ddd", borderRadius: "16px", padding: "6px 12px", fontSize: "12px", color: "#555", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", fontWeight: "500", transition: "background 0.2s" };
+const chipStyle = { 
+    background: "white", 
+    border: "1px solid #ddd", 
+    borderRadius: "20px", 
+    padding: "8px 14px", 
+    fontSize: "13px", 
+    color: "#555", 
+    cursor: "pointer", 
+    display: "flex", 
+    alignItems: "center", 
+    gap: "8px", 
+    fontWeight: "500", 
+    transition: "background 0.2s",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+};

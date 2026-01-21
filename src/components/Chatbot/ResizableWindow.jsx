@@ -39,18 +39,29 @@ const ResizableWindow = ({
     setIsMinimized(false);
   };
 
-  const toggleMinimize = (e) => { e?.stopPropagation(); setIsMinimized(!isMinimized); };
-  const toggleMaximizeButton = (e) => { e?.stopPropagation(); handleHeaderClick(); };
+  const toggleMinimize = (e) => { 
+      // Stop propagation is crucial for touch
+      e && e.stopPropagation(); 
+      setIsMinimized(!isMinimized); 
+  };
+  
+  const toggleMaximizeButton = (e) => { 
+      e && e.stopPropagation(); 
+      handleHeaderClick(); 
+  };
 
   // --- Layout Helpers ---
   const getTargetSize = () => (isMinimized ? { width: 64, height: 64 } : isMaximized ? { width: "100%", height: "100%" } : size);
   const getTargetPos = () => (isMaximized && !isMinimized ? { x: 0, y: 0 } : position);
-  const transitionStyle = isDragging ? "none" : "all 0.5s cubic-bezier(0.19, 1, 0.22, 1)"; // "Apple-like" ease
+  const transitionStyle = isDragging ? "none" : "all 0.5s cubic-bezier(0.19, 1, 0.22, 1)"; 
 
   return (
     <Rnd
       size={getTargetSize()}
       position={getTargetPos()}
+      // 1. CRITICAL FIX: The 'cancel' prop tells the library "Ignore drag attempts on these elements"
+      cancel=".no-drag"
+      
       onDragStart={() => { setIsDragging(true); isDraggingRef.current = true; }}
       onDragStop={(e, d) => { 
         setIsDragging(false); 
@@ -77,14 +88,12 @@ const ResizableWindow = ({
         position: "fixed",
         display: "flex",
         flexDirection: "column",
-        // LIQUID GLASS STYLES ------------------------
-        backgroundColor: isMinimized ? "rgba(37, 99, 235, 0.85)" : "rgba(255, 255, 255, 0.65)", // Translucent
-        backdropFilter: "blur(20px) saturate(180%)", // The "Frost" Effect
-        WebkitBackdropFilter: "blur(20px) saturate(180%)", // Safari Support
-        border: "1px solid rgba(255, 255, 255, 0.4)", // Subtle glass border
-        boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.15)", // Soft diffuse shadow
-        // --------------------------------------------
-        borderRadius: isMinimized ? "50%" : isMaximized ? "0px" : "24px", // Smoother corners
+        backgroundColor: isMinimized ? "rgba(37, 99, 235, 0.85)" : "rgba(255, 255, 255, 0.65)", 
+        backdropFilter: "blur(20px) saturate(180%)", 
+        WebkitBackdropFilter: "blur(20px) saturate(180%)", 
+        border: "1px solid rgba(255, 255, 255, 0.4)", 
+        boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.15)", 
+        borderRadius: isMinimized ? "50%" : isMaximized ? "0px" : "24px", 
         overflow: "hidden",
         transition: transitionStyle,
         boxSizing: "border-box"
@@ -94,10 +103,14 @@ const ResizableWindow = ({
       <div
         className="drag-handle"
         onClick={handleBubbleClick}
+        // Redundant check for mobile taps
+        onTouchEnd={(e) => { 
+           if(!isDraggingRef.current) handleBubbleClick(); 
+        }}
         style={{
           width: "100%", height: "100%", display: isMinimized ? "flex" : "none",
           alignItems: "center", justifyContent: "center", cursor: "pointer", color: "white",
-          boxShadow: "inset 0 0 10px rgba(255,255,255,0.2)" // Inner glow
+          boxShadow: "inset 0 0 10px rgba(255,255,255,0.2)" 
         }}
       >
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))" }}>
@@ -107,15 +120,16 @@ const ResizableWindow = ({
 
       {/* --- WINDOW CONTENT --- */}
       <div style={{ display: !isMinimized ? "flex" : "none", flexDirection: "column", height: "100%", width: "100%", overflow: "hidden" }}>
-          {/* Header (More Transparent) */}
+          {/* Header */}
           <div
             className="drag-handle"
             onClick={handleHeaderClick}
             style={{
               display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 18px", height: "60px",
-              background: "rgba(255, 255, 255, 0.4)", // Slight white tint
+              background: "rgba(255, 255, 255, 0.4)", 
               borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
               cursor: "move", flexShrink: 0,
+              userSelect: "none" // Prevents text highlighting on touch drag
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -125,9 +139,35 @@ const ResizableWindow = ({
               <span style={{ fontWeight: "700", color: "#333", fontSize: "15px", letterSpacing: "-0.01em" }}>MapX Chat</span>
             </div>
 
-            <div style={{ display: "flex", gap: "8px" }} onMouseDown={(e) => e.stopPropagation()}>
-              <button onClick={toggleMinimize} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.05)", cursor: "pointer", display:"flex", alignItems:"center", justifyContent:"center", color: "#555", transition: "all 0.2s" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-              <button onClick={toggleMaximizeButton} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.05)", cursor: "pointer", display:"flex", alignItems:"center", justifyContent:"center", color: "#555", transition: "all 0.2s" }}>{isMaximized ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>}</button>
+            {/* --- BUTTON GROUP --- */}
+            {/* 2. CRITICAL FIX: Added 'no-drag' class here */}
+            <div 
+                className="no-drag"
+                style={{ display: "flex", gap: "12px" }} 
+                // 3. EXTRA SAFETY: Stop pointer events from bubbling to the drag handler
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()} 
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button 
+                  onClick={toggleMinimize} 
+                  // Increased touch target size
+                  style={{ width: "40px", height: "40px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.05)", cursor: "pointer", display:"flex", alignItems:"center", justifyContent:"center", color: "#555", transition: "all 0.2s" }}
+              >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              
+              <button 
+                  onClick={toggleMaximizeButton} 
+                  // Increased touch target size
+                  style={{ width: "40px", height: "40px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.05)", cursor: "pointer", display:"flex", alignItems:"center", justifyContent:"center", color: "#555", transition: "all 0.2s" }}
+              >
+                  {isMaximized ? 
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg> 
+                    : 
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                  }
+              </button>
             </div>
           </div>
 
