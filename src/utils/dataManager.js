@@ -100,15 +100,18 @@ async function mapWithConcurrency(items, limit, mapper) {
 function getCenturyKey(year) {
   if (year >= 1) {
     const start = Math.floor((year - 1) / 100) * 100 + 1;
-    return `${start}-${start + 99}`;
+    const end = start + 99;
+    return `${start}|${end}`;
   } else {
-    const end = Math.ceil(year / 100) * 100;
-    return `${end - 99}-${end}`;
+    // BCE centuries: -3300 should map cleanly
+    const start = Math.floor(year / 100) * 100;     // e.g. -3300
+    const end = start + 99;                         // e.g. -3201
+    return `${start}|${end}`;
   }
 }
 
 function parseCenturyKey(key) {
-  const [start, end] = key.split('-').map(Number);
+  const [start, end] = key.split("|").map(Number);
   return { start, end };
 }
 
