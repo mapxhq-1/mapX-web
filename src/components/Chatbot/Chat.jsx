@@ -11,10 +11,6 @@ import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognitio
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
 
 export default function Chat() {
-  window.addEventListener("keydown", (e) => {
-  console.log("got key:", e.key, e.ctrlKey);
-}, { capture: true });
-
   const dispatch = useDispatch();
 
   // --- SPEECH RECOGNITION HOOK ---
