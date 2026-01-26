@@ -336,49 +336,56 @@ export default function Chat() {
   }, []); // Empty dependency array = runs on mount
 
 // --- KEYBOARD HANDLER (UPDATED) ---
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      // FIX: Use SHIFT + SPACE instead of Alt + Space
-      // Shift + Space is safe on all operating systems.
-      // We also keep Ctrl + Space as an option.
-      const isTrigger = (e.ctrlKey || e.shiftKey) && e.code === "Space";
+useEffect(() => {
+  const isTypingTarget = (el) => {
+    if (!el) return false;
+    const tag = el.tagName?.toLowerCase();
+    return tag === "input" || tag === "textarea" || el.isContentEditable;
+  };
 
-      if (isTrigger && !e.repeat) {
-        // Stop the space bar from scrolling the page
-        e.preventDefault();
-        e.stopPropagation(); 
-        
-        // Only start if we aren't already listening
-        if (!isListeningRef.current) {
-            resetTranscript(); 
-            SpeechRecognition.startListening({
-                continuous: true,
-                language: voiceLanguage,
-            });
-        }
+  const onKeyDown = (e) => {
+    if (isTypingTarget(e.target)) return;
+
+    const isTrigger = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+
+    if (isTrigger && !e.repeat) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!isListeningRef.current) {
+        resetTranscript();
+        SpeechRecognition.startListening({
+          continuous: true,
+          language: voiceLanguage,
+        });
       }
-    };
+    }
+  };
 
-    const onKeyUp = (e) => {
-      if (e.code === "Space") {
-        // Check Ref before stopping to avoid stopping if it wasn't started
-        if (isListeningRef.current) {
-            e.preventDefault();
-            e.stopPropagation();
-            SpeechRecognition.abortListening();
-        }
+  const onKeyUp = (e) => {
+    if (isTypingTarget(e.target)) return;
+
+    const isStop = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+
+    if (isStop) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (isListeningRef.current) {
+        SpeechRecognition.abortListening();
       }
-    };
+    }
+  };
 
-    // Attach to window to catch events everywhere
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("keydown", onKeyDown, { capture: true });
+  window.addEventListener("keyup", onKeyUp, { capture: true });
 
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-    };
-  }, [voiceLanguage]);
+  return () => {
+    window.removeEventListener("keydown", onKeyDown, { capture: true });
+    window.removeEventListener("keyup", onKeyUp, { capture: true });
+  };
+}, [voiceLanguage]);
+
 
   return (
     <>
@@ -651,7 +658,7 @@ export default function Chat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder={listening ? "Listening..." : "Type or tap space to open mic..."}
+                  placeholder={listening ? "Listening..." : "Tap ctrl + k to open mic..."}
                   className="w-full text-base px-4 py-3.5 pr-[110px] border-none outline-none bg-transparent text-[#111b21] relative z-10 placeholder-[#8696a0]"
                 />
 
