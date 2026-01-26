@@ -37,7 +37,6 @@ export function addDrawingSources(map) {
         }
     });
 }
-
 export function addDrawingLayers(map) {
     const layers = [
         {
@@ -46,7 +45,13 @@ export function addDrawingLayers(map) {
             source: LAYER_IDS.LIVE_SOURCE,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-                "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"],
+                // --- FIXED: Use feature color, fallback to Green if missing ---
+                "line-color": [
+                    "case", 
+                    ["==", ["get", "tool"], "highlight"], 
+                    ["coalesce", ["get", "color"], "#39FF14"], 
+                    ["coalesce", ["get", "color"], "#000000"]
+                ],
                 "line-width": ["case", ["==", ["get", "tool"], "highlight"], 20, 6],
                 "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.12, 0.2]
             }
@@ -57,7 +62,13 @@ export function addDrawingLayers(map) {
             source: LAYER_IDS.LIVE_SOURCE,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-                "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"],
+                // --- FIXED ---
+                "line-color": [
+                    "case", 
+                    ["==", ["get", "tool"], "highlight"], 
+                    ["coalesce", ["get", "color"], "#39FF14"], 
+                    ["coalesce", ["get", "color"], "#000000"]
+                ],
                 "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3],
                 "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 0.9]
             }
@@ -82,7 +93,13 @@ export function addDrawingLayers(map) {
             source: LAYER_IDS.FINAL_SOURCE,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-                "line-color": ["case", ["==", ["get", "tool"], "highlight"], "#39FF14", "#000000"],
+                // --- FIXED ---
+                "line-color": [
+                    "case", 
+                    ["==", ["get", "tool"], "highlight"], 
+                    ["coalesce", ["get", "color"], "#39FF14"], 
+                    ["coalesce", ["get", "color"], "#000000"]
+                ],
                 "line-width": ["case", ["==", ["get", "tool"], "highlight"], 15, 3],
                 "line-opacity": ["case", ["==", ["get", "tool"], "highlight"], 0.4, 1]
             }

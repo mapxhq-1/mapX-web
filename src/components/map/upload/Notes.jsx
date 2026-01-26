@@ -12,6 +12,7 @@ import save_icon from '../../../assets/icons/save_icon.png'
 import cancel_icon from '../../../assets/icons/cancel_icon.png'
 import { useQueryClient } from '@tanstack/react-query'
 import { getEraForYear, getAbsoluteYear } from "../../../utils/era";
+import Placeholder from "@tiptap/extension-placeholder";
 
 const Notes = ({ onClose = null, isOpen = false }) => {
   const { id: projectId } = useParams();
@@ -35,23 +36,36 @@ const Notes = ({ onClose = null, isOpen = false }) => {
   const editorRef = useRef(null);
 
   const colorGradients = {
-    "#FFE299": "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)",
-    "#A8DAFF": "linear-gradient(135deg, #A8DAFF 0%, #D4EDFF 100%)",
-    "#ffffff": "linear-gradient(135deg, #FFFFFF 0%, #D9D9D9 100%)",
-    "#FFAFA3": "linear-gradient(135deg, #FFAFA3 0%, #FFD6CF 100%)",
-    "#B3EFBD": "linear-gradient(135deg, #B3EFBD 0%, #D9F8E0 100%)",
-    "#D3BDFF": "linear-gradient(135deg, #D3BDFF 0%, #E8DEFF 100%)",
+    "#FFE299": "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)", //yellow.png
+    "#A8DAFF": "linear-gradient(135deg, #A8DAFF 0%, #D4EDFF 100%)", //blue.png
+    "#ffffff": "linear-gradient(135deg, #FFFFFF 0%, #D9D9D9 100%)", //white.png
+    "#FFAFA3": "linear-gradient(135deg, #FFAFA3 0%, #FFD6CF 100%)", //red.png
+    "#B3EFBD": "linear-gradient(135deg, #B3EFBD 0%, #D9F8E0 100%)", //green.png
+    "#D3BDFF": "linear-gradient(135deg, #D3BDFF 0%, #E8DEFF 100%)", //purple.png
   };
 
-  const editor = useEditor({
-    extensions: [StarterKit, TextStyle, Color, FontSize, FontFamily],
-    content: content,
-    editorProps: {
-      attributes: {
-        class: "h-[400px] focus:outline-none p-1",
-      },
+const editor = useEditor({
+  extensions: [
+    StarterKit,
+    TextStyle,
+    Color,
+    FontSize,
+    FontFamily,
+
+    Placeholder.configure({
+      placeholder: "Write your note...",
+      emptyEditorClass:
+        "before:content-[attr(data-placeholder)] before:text-black/40 before:float-left before:pointer-events-none",
+    }),
+  ],
+  content,
+  editorProps: {
+    attributes: {
+      class: "h-[400px] focus:outline-none p-1",
     },
-  });
+  },
+});
+
 
   async function genHTML() {
     const htmlText = editor.getHTML();
@@ -98,7 +112,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
       setNewNote(currentNote.id == 'new');
     }
     console.log(currentNote);
-    setNotesTitle(currentNote?.title || "Enter title");
+    setNotesTitle(currentNote?.title || "");
     setContent(currentNote?.content || "");
     setCurrentColor(currentNote?.backgroundColor || "#FFE299");
 
@@ -167,7 +181,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
 
         {/* === SETTINGS BAR === */}
         <div className={`absolute ml-[220px] mt-[-150px] ${showSettings ? "pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
-          <div ref={colorRef} className={`${showColor ? '' : 'opacity-0 pointer-events-none'} w-[160px] h-[25px] rounded-md flex justify-around items-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2`}>
+          <div ref={colorRef} className={`${showColor ? '' : 'opacity-0 pointer-events-none'} w-[160px] h-[25px] rounded-md flex justify-around items-center bg-white/30 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2`}>
             {Object.keys(colorGradients).map((c) => (
               <div key={c} className="rounded-full h-[18px] w-[18px] cursor-pointer"
                 style={{ backgroundColor: c }}
@@ -175,7 +189,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
             ))}
           </div>
 
-          <div ref={settingsRef} className='text-black w-[600px] h-[35px] rounded-md flex divide-x-2 divide-white/60 justify-between [&>*]:px-3 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2'>
+          <div ref={settingsRef} className='text-black w-[600px] h-[35px] rounded-md flex divide-x-2 divide-white/60 justify-between [&>*]:px-3 bg-white/30 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2'>
 
             {/* COLOR PICKER */}
             <div className='flex items-center cursor-pointer' onClick={() => setShowColor(!showColor)}>
@@ -278,6 +292,7 @@ const Notes = ({ onClose = null, isOpen = false }) => {
     className={`w-full p-1 focus:outline-none ${!newNote ? ' cursor-not-allowed' : ''}`}
     type='text'
     value={notesTitle}
+    placeholder='Enter the title'
     onChange={(e) => newNote && setNotesTitle(e.target.value)} 
     disabled={!newNote}
   />

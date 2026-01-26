@@ -1,9 +1,10 @@
+import React from 'react';
 import note_icon from '../../assets/icons/note_icon.png';
 import image_icon from '../../assets/icons/image_icon.png';
 import hyperlink_icon from '../../assets/icons/hyperlink_icon.png';
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllNotesByProject } from '../api/note';
-import { fetchAllImagesByProject,fetchImageById } from '../api/image';
+import { fetchAllImagesByProject, fetchImageById } from '../api/image';
 import { fetchAllHyperlinksByProject } from '../api/hyperlink';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,11 +17,11 @@ function RightPanelData() {
     const year = useSelector(state => state.map.year);
     const dispatch = useDispatch();
 
-    const { data: notes,error } = useQuery({
+    const { data: notes, error } = useQuery({
         queryKey: ["notesByProject", projectId],
         queryFn: () => fetchAllNotesByProject(projectId),
     });
-    console.log(error);
+    
     const { data: imagesD } = useQuery({
         queryKey: ["imagesByProject", projectId],
         queryFn: () => fetchAllImagesByProject(projectId),
@@ -44,7 +45,6 @@ function RightPanelData() {
         for (const h of hyperlinks) combinedItems.push({ type: 'hyperlink', item: h, key: `link-${h.hyperlinkId}` });
     }
 
-    // Sort items by proximity to selected year
     const toSignedYear = (yVal, eraVal) => {
         const converted = yearFromDbFormat(yVal, eraVal);
         return Number.isFinite(converted) ? converted : null;
@@ -57,21 +57,10 @@ function RightPanelData() {
         return `${yVal} ${era}`;
     };
 
-    /// Commented out: Original proximity-based sorting
-    /// const sortedByProximity = combinedItems.slice().sort((a, b) => {
-    ///     const ay = toSignedYear(a.item?.yearInTimeline?.year, a.item?.yearInTimeline?.era);
-    ///     const by = toSignedYear(b.item?.yearInTimeline?.year, b.item?.yearInTimeline?.era);
-    ///     const ad = ay === null ? Number.POSITIVE_INFINITY : Math.abs(ay - year);
-    ///     const bd = by === null ? Number.POSITIVE_INFINITY : Math.abs(by - year);
-    ///     return ad - bd;
-    /// });
-
-    // NEW: Simple one-time sort by createdAt (assuming each item has 'createdAt' ISO timestamp, newest first)
-    // If field name differs, replace 'createdAt' accordingly
     const sortedByCreation = combinedItems.slice().sort((a, b) => {
-        const aDate = new Date(a.item.createdAt || 0); // Fallback to 0 if no timestamp
+        const aDate = new Date(a.item.createdAt || 0); 
         const bDate = new Date(b.item.createdAt || 0);
-        return bDate - aDate; // Descending (newer dates first)
+        return bDate - aDate; 
     });
 
     const flyToIfPossible = (lat, lng) => {
@@ -90,7 +79,6 @@ function RightPanelData() {
     };
 
     const handleOpenHyperlink = (h) => {
-        // Fly and set year in background
         flyToIfPossible(h?.latitude, h?.longitude);
         setTimelineIfAvailable(h);
         dispatch(openHyperlink({
@@ -103,7 +91,6 @@ function RightPanelData() {
     };
 
     const handleOpenImage = async (img) => {
-        // Fly and set year in background (no need to wait for image fetch)
         flyToIfPossible(img?.latitude, img?.longitude);
         setTimelineIfAvailable(img);
         const imageUrl = await fetchImageById(img.imageFileId + "." + img.format);
@@ -117,7 +104,6 @@ function RightPanelData() {
     };
 
     const handleOpenNote = (note) => {
-        // Fly and set year in background
         flyToIfPossible(note?.latitude, note?.longitude);
         setTimelineIfAvailable(note);
         dispatch(openNotes({
@@ -129,50 +115,108 @@ function RightPanelData() {
         }));
     };
 
+    // --- Styles ---
+    const rowStyles = "group flex rounded-xl items-center gap-4 p-5 mb-2 border border-white/5 bg-white/5 shadow-sm hover:bg-white/10 transition-all duration-200 cursor-pointer";
+    const iconStyles = "w-8 h-8 object-contain shrink-0 opacity-80 group-hover:opacity-100 transition-opacity"; 
+    const titleStyles = "text-md font-medium text-zinc-200 group-hover:text-white transition-colors line-clamp-1 min-h-[1.75rem]";
+    
+    const renderTitle = (text, fallback) => {
+        if (!text || text.trim() === '') {
+            return <span className="text-zinc-600 italic font-normal">{fallback}</span>;
+        }
+        return text;
+    };
+
+    const metaStyles = "text-sm text-zinc-500 mt-0.5";
+
     return (
-        <div className="max-h-[68dvh] overflow-y-auto overflow-x-visible">
-            {sortedByCreation.map(({ type, item, key }) => { // Changed to sortedByCreation
-                const yi = item?.yearInTimeline || {};
-                const yearLabel = toDisplayLabel(yi.year, yi.era);
-
-                if (type === 'note') {
-                    return (
-                        <div key={key} className="flex gap-2 p-2 hover:bg-white/10 rounded-lg" onClick={() => handleOpenNote(item)}>
-                            <img src={note_icon} className="w-[50px] h-[50px]" alt="" />
-                            <div className="flex-1">
-                                <p>{item.noteTitle}</p>
-                                <p>{yearLabel}</p>
-                            </div>
-                        </div>
-                    );
+        <>
+            {/* Custom CSS for the White Scrollbar */}
+            <style>{`
+                .cool-scrollbar::-webkit-scrollbar {
+                    width: 6px;
                 }
-
-                if (type === 'image') {
-                    return (
-                        <div key={key} className="flex gap-2 p-2 hover:bg-white/10 rounded-lg" onClick={() => handleOpenImage(item)}>
-                            <img src={image_icon} className="w-[50px] h-[50px]" alt="" />
-                            <div className="flex-1">
-                                <p>{item.caption}</p>
-                                <p>{yearLabel}</p>
-                            </div>
-                        </div>
-                    );
+                .cool-scrollbar::-webkit-scrollbar-track {
+                    background: transparent; 
                 }
+                .cool-scrollbar::-webkit-scrollbar-thumb {
+                    background-color: rgba(255, 255, 255, 0.3);
+                    border-radius: 20px;
+                }
+                .cool-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background-color: rgba(255, 255, 255, 0.8);
+                }
+                /* Firefox fallback */
+                .cool-scrollbar {
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+                }
+            `}</style>
 
-                return (
-                    <div key={key} className="flex gap-2 p-2 hover:bg-white/10 rounded-lg"
-                        onMouseEnter={() => { try { prefetchEmbed(item.hyperlink); } catch (_) {} }}
-                        onFocus={() => { try { prefetchEmbed(item.hyperlink); } catch (_) {} }}
-                        onClick={() => handleOpenHyperlink(item)}>
-                        <img src={hyperlink_icon} className="w-[50px] h-[50px]" alt="" />
-                        <div className="flex-1">
-                            <a href={item.hyperlink} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-400 underline break-all">{item.hyperlink}</a>
-                            <p>{yearLabel}</p>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
+            <div className="max-h-[68dvh] overflow-y-auto overflow-x-hidden pr-2 cool-scrollbar">
+                {sortedByCreation.map(({ type, item, key }) => { 
+                    const yi = item?.yearInTimeline || {};
+                    const yearLabel = toDisplayLabel(yi.year, yi.era);
+
+                    if (type === 'note') {
+                        return (
+                            <div key={key} className={rowStyles} onClick={() => handleOpenNote(item)}>
+                                <img src={note_icon} className={iconStyles} alt="note" />
+                                <div className="flex-1 min-w-0">
+                                    <p className={titleStyles}>
+                                        {renderTitle(item.noteTitle, "Untitled Note")}
+                                    </p>
+                                    <p className={metaStyles}>{yearLabel}</p>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    if (type === 'image') {
+                        return (
+                            <div key={key} className={rowStyles} onClick={() => handleOpenImage(item)}>
+                                <img src={image_icon} className={iconStyles} alt="image" />
+                                <div className="flex-1 min-w-0">
+                                    <p className={titleStyles}>
+                                        {renderTitle(item.caption, "Untitled Image")}
+                                    </p>
+                                    <p className={metaStyles}>{yearLabel}</p>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    if (type === 'hyperlink') {
+                        return (
+                            <div key={key} className={rowStyles}
+                                onMouseEnter={() => { try { prefetchEmbed(item.hyperlink); } catch (_) {} }}
+                                onFocus={() => { try { prefetchEmbed(item.hyperlink); } catch (_) {} }}
+                                onClick={() => handleOpenHyperlink(item)}>
+                                <img src={hyperlink_icon} className={iconStyles} alt="link" />
+                                <div className="flex-1 min-w-0">
+                                    <p className={`${titleStyles} text-blue-300`}>
+                                        {item.hyperlinkTitle || item.hyperlink}
+                                    </p>
+                                    <div className="flex justify-between items-center mt-1">
+                                        <p className={metaStyles}>{yearLabel}</p>
+                                        <a 
+                                            href={item.hyperlink} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            onClick={e => e.stopPropagation()} 
+                                            className="text-xs text-zinc-600 hover:text-blue-400 truncate max-w-[150px]"
+                                        >
+                                            {item.hyperlink}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
+                    return null;
+                })}
+            </div>
+        </>
     );
 }
 

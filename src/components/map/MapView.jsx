@@ -41,7 +41,7 @@ import { maybeHandleMaMapShapes, handleInitialMaContext, createMaSafeLoader } fr
 import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshapes";
 
 // Controls
-import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNorthControl } from "./controls/MapControls";
+import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNorthControl, ZoomControl, CompactAttributionControl  } from "./controls/MapControls";
 
 // Components
 import GalaxyCanvas from "../common/GalaxyCanvas";
@@ -685,22 +685,33 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       { type: "module" }
     );
 
-    const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords) => {
-      const id = `${prefix}_${Date.now()}_${featureSeqRef.current++}`;
-      const geometry = geometryType === "Polygon"
-        ? { type: "Polygon", coordinates: [coords] }
-        : { type: geometryType, coordinates: coords };
-      const feature = {
-        type: "Feature",
-        properties: { id, tool, created_at: new Date().toISOString() },
-        geometry
-      };
-      finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
-      map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
-        type: "FeatureCollection",
-        features: finalFeaturesRef.current
-      });
+// Updated createOnFinalize to accept extraProps (like color)
+const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords, extraProps = {}) => {
+    const id = `${prefix}_${Date.now()}_${featureSeqRef.current++}`;
+    
+    const geometry = geometryType === "Polygon"
+      ? { type: "Polygon", coordinates: [coords] }
+      : { type: geometryType, coordinates: coords };
+      
+    const feature = {
+      type: "Feature",
+      properties: { 
+          id, 
+          tool, 
+          created_at: new Date().toISOString(),
+          // --- ADD THIS LINE ---
+          ...extraProps // This adds { color: "#..." } to the feature
+      },
+      geometry
     };
+    
+    finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+    
+    map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
+      type: "FeatureCollection",
+      features: finalFeaturesRef.current
+    });
+};
 
     const controllers = {
       freehand: new FreehandController({
@@ -1087,17 +1098,16 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
     const bottomLeft = container.querySelector(".maplibregl-ctrl-bottom-left");
     const bottomRight = container.querySelector(".maplibregl-ctrl-bottom-right");
     if (bottomLeft) bottomLeft.style.bottom = "130px";
-    if (bottomRight) bottomRight.style.bottom = "130px";
+    // if (bottomRight) bottomRight.style.bottom = "130px";
 
     map.current.addControl(new ScreenshotControl(), "bottom-left");
     map.current.addControl(new MeasureDistanceControl(), "bottom-left");
     map.current.addControl(new PhotonSearchControl(), "bottom-left");
+    map.current.addControl(new CompactAttributionControl(), "bottom-right");
+    map.current.addControl(new ZoomControl(), "bottom-right");
     map.current.addControl(new ResetNorthControl(), "bottom-right");
-  }, [leftOffset, rightOffset]);
 
-  // ========================================================================
-  // MAP INITIALIZATION
-  // ========================================================================
+  }, [leftOffset, rightOffset]);
 
   useEffect(() => {
     if (map.current) return;
@@ -1140,11 +1150,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       }
       attachMapViewCollector(map.current);
       maOverlayManagerRef.current = createMaOverlayManager(map, yearRef);
-
-      map.current.addControl(
-        new maplibregl.AttributionControl({ compact: true }),
-        "bottom-right"
-      );
 
       // Add error event listener for tile loading failures
       if (!map.current.__ml_error_hook) {
