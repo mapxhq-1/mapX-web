@@ -41,14 +41,17 @@ export default function Chat() {
   const email = useSelector((state) => state.project.ownerEmail);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const isListeningRef = useRef(listening);
+  useEffect(() => {
+    isListeningRef.current = listening;
+  }, [listening]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-  
-  //ANCHOR - Update
+//ANCHOR - Update
   useEffect(() => {
-    console.log("Up-3")
+    console.log("ChatBot")
     scrollToBottom();
   }, [messages, loading]);
 
@@ -90,6 +93,8 @@ export default function Chat() {
     }
   };
 
+  // ... (deleteChatDirectly, mapHistoryToUi, loadOldChat, etc... keep as is) ...
+  // Keeping these hidden for brevity, they do not need changes
   const deleteChatDirectly = async (e, idToDelete) => {
     e.stopPropagation();
     try {
@@ -209,9 +214,6 @@ export default function Chat() {
   };
 
   const startNewChat = () => {
-    // FIX: Force abort when starting new chat
-    SpeechRecognition.abortListening();
-    
     setSessionId(null);
     setMessages([]);
     setInput("");
@@ -220,30 +222,33 @@ export default function Chat() {
     if (window.innerWidth < 768) setMobileMenuOpen(false);
   };
 
-  const handleMicClick = async () => {
+  const handleMicClick = async  () => {
     if (listening) {
-      // FIX: Use abort instead of stop
       await SpeechRecognition.abortListening();
     } else {
-      // FIX: Safety abort before starting to prevent collisions
-      await SpeechRecognition.abortListening();
-      resetTranscript();
-      SpeechRecognition.startListening({
-        continuous: true,
-        language: voiceLanguage
-      });
+      try {
+        SpeechRecognition.startListening({
+          continuous: true,
+          language: voiceLanguage
+        });
+      } catch (err) {
+        console.error("Error invoking startListening:", err);
+      }
     }
   };
 
+  // 1. REFACTORED: Accept override parameters
   const sendMessage = async (overrideInput = null, overrideGrade = null, forceNewSession = false, skipAutoFly = false) => {
-    // FIX: Force abort immediately on send
-    await SpeechRecognition.abortListening();
-
     const textToSend = overrideInput || input;
+    // If overrideGrade is passed (even 0 or -1), use it. Otherwise use state.
     const gradeToSend = overrideGrade !== null ? overrideGrade : selectedGrade; 
+    
+    // If forcing a new session, use null explicitly. Otherwise use state sessionId.
     const activeSessionId = forceNewSession ? null : sessionId;
 
     if (!textToSend.trim() || loading) return;
+
+    await SpeechRecognition.abortListening();
 
     if (!overrideInput) {
       setInput("");
@@ -253,7 +258,7 @@ export default function Chat() {
     setLoading(true);
 
     const userMessage = { role: "user", content: textToSend };
-    
+    // If it's a new session, clear messages first
     if (forceNewSession) {
         setMessages([userMessage]);
     } else {
@@ -262,8 +267,11 @@ export default function Chat() {
 
     try {
       const lang = voiceLanguage ==="kn-IN"?"kn":"";
+      
+      // Use the variables we created above
       const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang);
 
+      // If we didn't have a session ID before, or forced a new one, update state
       if ((!activeSessionId) && data.sessionId) {
         setSessionId(data.sessionId);
         loadHistoryList();
@@ -306,46 +314,69 @@ export default function Chat() {
     }
   };
 
+  // 2. NEW: Listen for the Custom Event
   useEffect(() => {
     const handleTrigger = (e) => {
         const { query, grade } = e.detail;
+        
+        // 1. Reset Chat UI
         startNewChat(); 
+        
+        // 2. Trigger Send immediately
+        // We pass 'true' as the 3rd argument to force a fresh session ID in the API call
         sendMessage(query, grade, true, true); 
     };
 
     window.addEventListener('trigger-know-more', handleTrigger);
+
+    // Cleanup
     return () => {
         window.removeEventListener('trigger-know-more', handleTrigger);
     };
-  }, []);
+  }, []); // Empty dependency array = runs on mount
 
+// --- KEYBOARD HANDLER (UPDATED) ---
   useEffect(() => {
     const onKeyDown = (e) => {
-      if (e.ctrlKey && e.code === "Space" && !e.repeat) {
+      // FIX: Use SHIFT + SPACE instead of Alt + Space
+      // Shift + Space is safe on all operating systems.
+      // We also keep Ctrl + Space as an option.
+      const isTrigger = (e.ctrlKey || e.shiftKey) && e.code === "Space";
+
+      if (isTrigger && !e.repeat) {
+        // Stop the space bar from scrolling the page
         e.preventDefault();
-        // Reset transcript and start
-        resetTranscript(); 
-        SpeechRecognition.startListening({
-          continuous: true,
-          language: voiceLanguage,
-        });
+        e.stopPropagation(); 
+        
+        // Only start if we aren't already listening
+        if (!isListeningRef.current) {
+            resetTranscript(); 
+            SpeechRecognition.startListening({
+                continuous: true,
+                language: voiceLanguage,
+            });
+        }
       }
     };
 
     const onKeyUp = (e) => {
       if (e.code === "Space") {
-        e.preventDefault();
-        // FIX: Use abort instead of stop
-        SpeechRecognition.abortListening();
+        // Check Ref before stopping to avoid stopping if it wasn't started
+        if (isListeningRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            SpeechRecognition.abortListening();
+        }
       }
     };
 
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("keyup", onKeyUp);
+    // Attach to window to catch events everywhere
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
 
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
     };
   }, [voiceLanguage]);
 
