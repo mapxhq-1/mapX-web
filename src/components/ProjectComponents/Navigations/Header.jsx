@@ -3,8 +3,13 @@ import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ArrowUpDown, Check, Plus } from 'lucide-react';
 import { setSearch, setOption } from '../../../store/projectSlice';
-
+import { toast } from 'react-toastify';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 const Header = () => {
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
+  const { ownerEmail } = useSelector((state) => state.project);
+  const navigate = useNavigate();
   // --- Redux & Header Logic ---
   const { search, option } = useSelector((state) => state.project);
   const dispatch = useDispatch();
@@ -25,6 +30,24 @@ const Header = () => {
     setSpot({ x, y });
   };
 
+  async function createNewProj() {
+        try {
+            const token = localStorage.getItem('bearerToken');
+            const res = await axios.post(BASE_URL + '/create-new-project', {
+                ownerEmail: ownerEmail,
+                projectName: "New project"
+            }, {
+                headers: {
+                    'client_name': 'mapx', "Authorization": `Bearer ${token}`
+                }
+            })
+            toast.success('New project created!!')
+            navigate("/map/" + res.data.projectId)
+        } catch (err) {
+          console.log(err)
+            toast.error(err.response?.data?.message || "Error creating project")
+        }
+    }
   const handleSortButton = (givenOption) => {
     dispatch(setOption(givenOption));
     setSort(false);
@@ -64,6 +87,7 @@ const Header = () => {
             "--mx": `${spot.x}px`,
             "--my": `${spot.y}px`,
           }}
+          onClick={createNewProj}
           className="
             relative group overflow-hidden rounded-full
             px-6 py-2.5 
