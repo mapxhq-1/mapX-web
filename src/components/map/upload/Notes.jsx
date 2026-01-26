@@ -263,7 +263,7 @@ const editor = useEditor({
         {/* === CONFIRM DELETE MODAL === */}
         {showConfirm && (
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-auto">
-            <div className=" rounded-2xl p-6 shadow-lg w-[320px] text-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300">
+            <div className=" rounded-2xl p-6 w-[320px] text-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300">
               <h2 className="text-lg font-semibold mb-2 text-gray-800">Delete this note?</h2>
               <p className="text-gray-500 mb-5 text-sm">This action cannot be undone.</p>
               <div className="flex justify-center gap-4">

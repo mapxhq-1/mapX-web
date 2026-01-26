@@ -210,12 +210,9 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
            </div>
 
            <div
-            className="flex p-3 items-center justify-center gap-4 rounded-lg cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 relative overflow-hidden group"
+            className="flex p-3 items-center justify-center gap-4 cursor-pointer  relative overflow-hidden group bg-zinc-800 text-white border-t-2 border-white/10 rounded-full"
             onClick={() => setShowMapMenu((v) => !v)}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-10 pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-tl from-white/20 to-transparent opacity-50 pointer-events-none" />
-            
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32"><g fill="none"><path fill="#fff" d="M2.52 6.84L8.97 5l.53 11.5l-.53 11.49l-6.12 1.99a.684.684 0 0 1-.85-.66V7.5c0-.31.22-.58.52-.66M15.98 7l6.99-2l.53 11.5l-.51 11.5l-7.01 2L15 18.5z"/><path fill="#e6e6e6" d="M15.98 7L8.97 5v22.99L15.98 30zm13.42-.16L22.97 5v23l6.09 1.98c.43.11.85-.22.85-.66V7.5c0-.31-.21-.58-.51-.66"/><path fill="#00a6ed" d="M3.95 8.34L8.97 7L10 16.5L8.97 26l-4.66 1.42a.687.687 0 0 1-.87-.66V9c0-.31.21-.58.51-.66M15.94 9l7.03-1.98L24 16.5l-1.03 9.49l-7.03 2L15 18.5z"/><path fill="#0074ba" d="M15.94 9L8.97 7.02v18.97l6.97 2zm12-.66l-4.97-1.32v19l4.61 1.42c.44.12.87-.21.87-.66V9c0-.31-.21-.58-.51-.66"/></g></svg>
             <p className="text-white font-medium text-base">Map Settings</p>
             <svg className={`text-zinc-400 transition-transform ${showMapMenu ? 'rotate-90' : '-rotate-90'}`} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
@@ -230,7 +227,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
  transition-all duration-300 
   before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/15 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
   after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased"
-          style={{ position: "fixed", left: menuLeftPx, bottom: 16, zIndex: 60, minWidth: 160 }}
+          style={{ position: "fixed", left: 330, bottom: 16, zIndex: 60, minWidth: 160 }}
         >
           {[{id: 'satellite', label: 'Satellite', icon: styleIcons.satellite}, {id: 'light', label: 'Light', icon: styleIcons.light}, {id: 'basic', label: 'Basic', icon: styleIcons.basic}].map((style) => (
              <button

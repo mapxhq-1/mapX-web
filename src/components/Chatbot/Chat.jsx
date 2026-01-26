@@ -88,6 +88,8 @@ export default function Chat() {
     }
   };
 
+  // ... (deleteChatDirectly, mapHistoryToUi, loadOldChat, etc... keep as is) ...
+  // Keeping these hidden for brevity, they do not need changes
   const deleteChatDirectly = async (e, idToDelete) => {
     e.stopPropagation();
     try {
@@ -230,25 +232,44 @@ export default function Chat() {
     }
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  // 1. REFACTORED: Accept override parameters
+  const sendMessage = async (overrideInput = null, overrideGrade = null, forceNewSession = false) => {
+    const textToSend = overrideInput || input;
+    // If overrideGrade is passed (even 0 or -1), use it. Otherwise use state.
+    const gradeToSend = overrideGrade !== null ? overrideGrade : selectedGrade; 
+    
+    // If forcing a new session, use null explicitly. Otherwise use state sessionId.
+    const activeSessionId = forceNewSession ? null : sessionId;
+
+    if (!textToSend.trim() || loading) return;
 
     if (listening) {
       SpeechRecognition.stopListening();
     }
 
-    const currentInput = input;
-    setInput("");
-    resetTranscript();
+    if (!overrideInput) {
+      setInput("");
+      resetTranscript();
+    }
+    
     setLoading(true);
 
-    const userMessage = { role: "user", content: currentInput };
-    setMessages((prev) => [...prev, userMessage]);
+    const userMessage = { role: "user", content: textToSend };
+    // If it's a new session, clear messages first
+    if (forceNewSession) {
+        setMessages([userMessage]);
+    } else {
+        setMessages((prev) => [...prev, userMessage]);
+    }
 
     try {
-      const data = await sendChatMessage(email, sessionId, currentInput, selectedGrade);
+      const lang = voiceLanguage ==="kn-IN"?"kn":"";
+      
+      // Use the variables we created above
+      const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang);
 
-      if (!sessionId && data.sessionId) {
+      // If we didn't have a session ID before, or forced a new one, update state
+      if ((!activeSessionId) && data.sessionId) {
         setSessionId(data.sessionId);
         loadHistoryList();
       }
@@ -290,6 +311,28 @@ export default function Chat() {
     }
   };
 
+  // 2. NEW: Listen for the Custom Event
+  useEffect(() => {
+    const handleTrigger = (e) => {
+        const { query, grade } = e.detail;
+        
+        // 1. Reset Chat UI
+        startNewChat(); 
+        
+        // 2. Trigger Send immediately
+        // We pass 'true' as the 3rd argument to force a fresh session ID in the API call
+        sendMessage(query, grade, true); 
+    };
+
+    window.addEventListener('trigger-know-more', handleTrigger);
+
+    // Cleanup
+    return () => {
+        window.removeEventListener('trigger-know-more', handleTrigger);
+    };
+  }, []); // Empty dependency array = runs on mount
+
+  // ... (Rest of useEffects and Return JSX remain unchanged) ...
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.ctrlKey && e.code === "Space" && !e.repeat) {
@@ -300,17 +343,15 @@ export default function Chat() {
         });
       }
     };
-
+    // ... rest of key handlers
     const onKeyUp = (e) => {
-      if (e.ctrlKey && e.code === "Space") {
-        e.preventDefault();
-        SpeechRecognition.stopListening();
-      }
+        if (e.ctrlKey && e.code === "Space") {
+          e.preventDefault();
+          SpeechRecognition.stopListening();
+        }
     };
-
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);
-
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);

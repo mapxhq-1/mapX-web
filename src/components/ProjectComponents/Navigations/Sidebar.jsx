@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import confetti from 'canvas-confetti';
 
 import { setHeading, setEmail, setUserToken } from '../../../store/projectSlice';
 import { getUserProfile, getProfilePhoto } from '../../api/auth';
@@ -17,6 +18,21 @@ import folder from '../../../assets/icons/folder.png';
 import calander from '../../../assets/icons/calander.png';
 import account from '../../../assets/icons/account.png';
 import logout from '../../../assets/icons/logout.png';
+
+const drawLongStrip = (ctx) => {
+    ctx.beginPath();
+    // slightly thinner (height 5) and MUCH longer (width 80)
+    // x = -40, y = -2.5 ensures it spins around its center
+    ctx.rect(-40, -2.5, 80, 5); 
+    ctx.fill();
+};
+  
+// 2. Chunky Rectangle
+const drawChunkyRect = (ctx) => {
+    ctx.beginPath();
+    ctx.rect(-9, -6, 18, 12);
+    ctx.fill();
+};
 
 const Sidebar = () => {
     const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
@@ -92,14 +108,53 @@ const Sidebar = () => {
         dispatch(setHeading(head))
     }
 
-    // Handle Feedback Submit
     const handleFeedbackSubmit = () => {
         if(!feedback.trim()) return;
-        // API call logic would go here
+        
         toast.success("Thanks for the feedback!");
         setFeedback("");
-    }
 
+        // Create instance with useWorker: false to allow custom shapes
+        const myConfetti = confetti.create(null, {
+            resize: true,
+            useWorker: false 
+        });
+
+        const origin = { x: 0.08, y: 0.70 };
+        const colors = ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42'];
+
+        // Burst 1: Filler confetti (circles & chunks)
+        myConfetti({
+            particleCount: 30, 
+            spread: 50,
+            startVelocity: 20,
+            origin: origin,
+            scalar: 0.8,
+            shapes: ['circle', 'square', drawChunkyRect],
+            colors: colors,
+            gravity: 1.5,
+            drift: 0.5,
+            ticks: 150
+        });
+
+        // Burst 2: The HERO Long Strips
+        setTimeout(() => {
+             myConfetti({
+                 particleCount: 8, // Keep count low so they feel special
+                 spread: 70,       // Wider spread
+                 startVelocity: 35,
+                 origin: origin,
+                 scalar: 1.2,      // Scale them up a bit more
+                 shapes: [drawLongStrip], 
+                 colors: colors,
+                 gravity: 2,       // Falls fast like heavy paper
+                 drift: 1,         
+                 flat: true,       // 2D spinning
+                 wobble: 15,       // << Increases the "flutter" effect
+                 ticks: 250        // Stay on screen longer
+             });
+        }, 100);
+    }
     const fetchProfile = async () => {
         if (!userId) return;
         try {
@@ -198,8 +253,8 @@ const Sidebar = () => {
                         <button 
                             onClick={handleFeedbackSubmit}
                             className="mt-1 w-full py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all duration-200
-                                       bg-black text-zinc-500 border border-zinc-800
-                                       hover:bg-zinc-200 hover:text-black hover:border-zinc-200"
+                                     bg-black text-zinc-500 border border-zinc-800
+                                     hover:bg-zinc-200 hover:text-black hover:border-zinc-200"
                         >
                             Submit
                         </button>

@@ -39,8 +39,9 @@ const HIGHLIGHTER_OPTIONS = [
 // --- Styled Components ---
 
 const ToolRow = ({ label, isActive, children, onClick }) => (
+  // CHANGED: justify-end -> justify-center to align Label and Icon in the middle
   <div 
-    className="flex items-center justify-end gap-4 w-full group cursor-pointer" 
+    className="flex items-center justify-center gap-4 w-full group cursor-pointer" 
     onClick={onClick}
   >
     <span 
@@ -61,11 +62,11 @@ const ToolRow = ({ label, isActive, children, onClick }) => (
 const ToolButton = ({ icon: Icon, label, isActive, onClick }) => (
   <button
     onClick={(e) => {
-      e.stopPropagation();
-      onClick();
+      e.stopPropagation(); // Prevents bubbling to Row (avoids double trigger)
+      onClick(e);          // Fires the specific handler
     }}
     className={`
-      group relative w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200 shrink-0
+      group relative w-12 h-12 flex items-center justify-center rounded-full transition-all duration-200 shrink-0
       ${isActive ? "bg-white/10 shadow-sm ring-1 ring-white/10" : "hover:bg-white/5"}
     `}
     title={label}
@@ -76,36 +77,26 @@ const ToolButton = ({ icon: Icon, label, isActive, onClick }) => (
   </button>
 );
 
-// UPDATED: Now uses Portals and Fixed positioning to escape overflow
+// Uses Portals to render outside the hidden overflow container
 const PopupContainer = ({ children, anchorRect, align = "top", onClose }) => {
   if (!anchorRect) return null;
 
-  // Calculate position based on the anchor button's screen coordinates
-  // left: button's right edge + spacing
   const left = anchorRect.right + 14; 
-  
-  // top: calculate based on alignment
   let top = anchorRect.top;
   
   if (align === "top") {
-    top = anchorRect.top - 28; // Shift up slightly (approx matches previous -top-7)
-  } else if (align === "bottom") {
-    // For bottom align, we roughly position it to align bottom-left
-    // Since we don't know exact popup height easily, we align it near the bottom of the button
-    top = anchorRect.bottom - 100; // Rough offset, or just align to top for consistency
+    top = anchorRect.top - 28; 
   }
 
-  // Fallback: simple top alignment often looks best for sidebars
-  if (align === "bottom") top = anchorRect.top - 100; // Adjust as needed
+  // Fallback top adjustment if needed
+  if (align === "bottom") top = anchorRect.top - 100; 
 
   return createPortal(
     <>
-        {/* Invisible backdrop to handle clicking outside */}
         <div 
             className="fixed inset-0 z-[9998] bg-transparent" 
             onClick={onClose} 
         />
-        
         <motion.div
             initial={{ opacity: 0, scale: 0.95, x: -10 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
@@ -113,7 +104,6 @@ const PopupContainer = ({ children, anchorRect, align = "top", onClose }) => {
             style={{ 
                 position: 'fixed',
                 left: left,
-                // If align is top, use top. If bottom, we can manually adjust or just use top logic
                 top: align === "bottom" ? undefined : top, 
                 bottom: align === "bottom" ? (window.innerHeight - anchorRect.bottom) : undefined,
             }}
@@ -140,20 +130,18 @@ const Tools = ({
   const [popupAnchor, setPopupAnchor] = useState(null);
 
   const onMainToolClick = (tool, e) => {
-    // Stop propagation to prevent immediate closing
-    if(e) e.stopPropagation();
+    
+    const target = e ? e.currentTarget : null;
 
     if (['pencil', 'highlight', 'note', 'shapes'].includes(tool)) {
       if (activePopup === tool) {
-        // Toggle off
         setActivePopup(null);
         setPopupAnchor(null);
       } else {
-        // Toggle on: Capture the bounding rectangle of the clicked row/button
-        // We use e.currentTarget to get the row, or we can use specific button logic.
-        // Using the button element gives better precision.
-        const rect = e.currentTarget.getBoundingClientRect();
-        setPopupAnchor(rect);
+        if (target) {
+            const rect = target.getBoundingClientRect();
+            setPopupAnchor(rect);
+        }
         setActivePopup(tool);
       }
     } else {
@@ -167,8 +155,7 @@ const Tools = ({
   return (
     <div className="relative flex flex-col items-center w-full">
       
-      {/* Main Column */}
-      <div className="flex flex-col gap-4 relative z-40 w-full px-2">
+      <div className="flex flex-col gap-4 relative z-40 w-full px-2 pl-8">
         
         {/* 1. Pencil */}
         <ToolRow 
@@ -180,7 +167,8 @@ const Tools = ({
             icon={Icons.PencilSvg} 
             label="Pencil" 
             isActive={selectedMode === 'pencil' || (selectedMode === 'eraser' && activePopup === 'pencil')} 
-            onClick={() => {}} // Click handled by Row
+            // ADDED: Explicit handler for icon click
+            onClick={(e) => onMainToolClick('pencil', e)} 
           />
           <AnimatePresence>
             {activePopup === 'pencil' && (
@@ -222,7 +210,8 @@ const Tools = ({
             )}
             label="Highlight" 
             isActive={selectedMode === 'highlight'} 
-            onClick={() => {}} 
+            // ADDED: Explicit handler for icon click
+            onClick={(e) => onMainToolClick('highlight', e)} 
           />
           <AnimatePresence>
             {activePopup === 'highlight' && (
@@ -267,6 +256,7 @@ const Tools = ({
               icon={Icons.TextSvg} 
               label="Text" 
               isActive={selectedMode === 'text'} 
+              // ADDED: Explicit handler for icon click
               onClick={() => onMainToolClick('text')} 
             />
         </ToolRow>
@@ -281,7 +271,8 @@ const Tools = ({
             icon={Icons.NoteSvg} 
             label="Notes" 
             isActive={selectedMode === 'note'} 
-            onClick={() => {}} 
+            // ADDED: Explicit handler for icon click
+            onClick={(e) => onMainToolClick('note', e)} 
           />
           <AnimatePresence>
             {activePopup === 'note' && (
@@ -319,6 +310,7 @@ const Tools = ({
               icon={Icons.HyperlinkSvg} 
               label="Link" 
               isActive={selectedMode === 'hyperlink'} 
+              // ADDED: Explicit handler for icon click
               onClick={() => onMainToolClick('hyperlink')} 
             />
         </ToolRow>
@@ -333,6 +325,7 @@ const Tools = ({
               icon={Icons.ImageSvg} 
               label="Image" 
               isActive={selectedMode === 'image'} 
+              // ADDED: Explicit handler for icon click
               onClick={() => onMainToolClick('image')} 
             />
         </ToolRow>
@@ -347,7 +340,8 @@ const Tools = ({
                 icon={() => <img src={shapes} alt="Shapes" width="24" height="24" className="object-contain" />}
                 label="Shapes" 
                 isActive={['line', 'arrow', 'circle', 'polygon'].includes(selectedMode)} 
-                onClick={() => {}} 
+                // ADDED: Explicit handler for icon click
+                onClick={(e) => onMainToolClick('shapes', e)} 
             />
             <AnimatePresence>
                 {activePopup === 'shapes' && (
