@@ -332,8 +332,7 @@ export default function Chat() {
     };
   }, []); // Empty dependency array = runs on mount
 
-  // ... (Rest of useEffects and Return JSX remain unchanged) ...
-  useEffect(() => {
+useEffect(() => {
     const onKeyDown = (e) => {
       if (e.ctrlKey && e.code === "Space" && !e.repeat) {
         e.preventDefault();
@@ -343,15 +342,17 @@ export default function Chat() {
         });
       }
     };
-    // ... rest of key handlers
+
     const onKeyUp = (e) => {
-        if (e.ctrlKey && e.code === "Space") {
-          e.preventDefault();
-          SpeechRecognition.stopListening();
-        }
+      if (e.code === "Space") {
+        e.preventDefault();
+        SpeechRecognition.stopListening();
+      }
     };
+
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);
+
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
@@ -360,7 +361,6 @@ export default function Chat() {
 
   return (
     <>
-      {/* Custom CSS to Force Scrollbar Colors */}
       <style>{`
         /* Sidebar Scrollbar - Green Thumb */
         .custom-scrollbar-sidebar::-webkit-scrollbar {
@@ -657,7 +657,7 @@ export default function Chat() {
                   )}
 
                   <button
-                    onClick={sendMessage}
+                    onClick={() => sendMessage()}
                     disabled={!input.trim() || loading}
                     className={`
                       w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10
