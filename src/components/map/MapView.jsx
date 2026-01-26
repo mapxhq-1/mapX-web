@@ -39,9 +39,9 @@ import { maybeHandleMaMapShapes, handleInitialMaContext, createMaSafeLoader } fr
 
 // API
 import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshapes";
-
+import { getMetadataByEmpireId } from '../api/metaData'
 // Controls
-import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNorthControl } from "./controls/MapControls";
+import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNorthControl, ZoomControl, CompactAttributionControl  } from "./controls/MapControls";
 
 // Components
 import GalaxyCanvas from "../common/GalaxyCanvas";
@@ -83,6 +83,8 @@ const ZOOM_TOLERANCES = {
 export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const popupRef = useRef(null);
+  const currentMetadataRef = useRef(null);
   const dispatch = useDispatch();
 
   useMarkerManager(map);
@@ -685,22 +687,33 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       { type: "module" }
     );
 
-    const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords) => {
-      const id = `${prefix}_${Date.now()}_${featureSeqRef.current++}`;
-      const geometry = geometryType === "Polygon"
-        ? { type: "Polygon", coordinates: [coords] }
-        : { type: geometryType, coordinates: coords };
-      const feature = {
-        type: "Feature",
-        properties: { id, tool, created_at: new Date().toISOString() },
-        geometry
-      };
-      finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
-      map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
-        type: "FeatureCollection",
-        features: finalFeaturesRef.current
-      });
+// Updated createOnFinalize to accept extraProps (like color)
+const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords, extraProps = {}) => {
+    const id = `${prefix}_${Date.now()}_${featureSeqRef.current++}`;
+    
+    const geometry = geometryType === "Polygon"
+      ? { type: "Polygon", coordinates: [coords] }
+      : { type: geometryType, coordinates: coords };
+      
+    const feature = {
+      type: "Feature",
+      properties: { 
+          id, 
+          tool, 
+          created_at: new Date().toISOString(),
+          // --- ADD THIS LINE ---
+          ...extraProps // This adds { color: "#..." } to the feature
+      },
+      geometry
     };
+    
+    finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+    
+    map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
+      type: "FeatureCollection",
+      features: finalFeaturesRef.current
+    });
+};
 
     const controllers = {
       freehand: new FreehandController({
@@ -921,67 +934,91 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       onSelectClick
     });
 
-    // Empire polygon click handler for glow effect
-    const onEmpireClick = (e) => {
-      // First check if click hit drawing layers - if so, don't handle empire selection
+const onEmpireClick = async (e) => {
+      // 1. Priority: Check drawing tools first
       const drawingFeatures = map.current.queryRenderedFeatures(e.point, {
         layers: ["draw-final-line", "draw-final-fill", "draw-final-text"]
       });
+      if (drawingFeatures?.length) return;
       
-      // If clicking on drawing features, let onSelectClick handle it
-      if (drawingFeatures?.length) {
-        return;
-      }
-      
-      // Check for empire polygon clicks
+      // 2. Check for empire clicks
       const features = map.current.queryRenderedFeatures(e.point, {
         layers: ["polygon-fill", "polygon-border"]
       });
       
+      if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+
       if (features?.length) {
         const feature = features[0];
-        
-        // Show glow for selected empire using the feature's ID
-        try {
-          // Use feature.id if available (MapLibre internal ID from generateId: true)
-          if (feature.id !== undefined && feature.id !== null) {
-            selectedEmpireNameRef.current = feature.id;
-            map.current.setFilter("polygon-empire-white-border", ["==", ["id"], feature.id]);
-            map.current.setFilter("polygon-empire-glow-outer", ["==", ["id"], feature.id]);
-            map.current.setFilter("polygon-empire-glow-middle", ["==", ["id"], feature.id]);
-            map.current.setFilter("polygon-empire-glow-inner", ["==", ["id"], feature.id]);
-          } else if (feature.properties?.id !== undefined && feature.properties?.id !== null) {
-            // Use properties.id
-            selectedEmpireNameRef.current = feature.properties.id;
-            map.current.setFilter("polygon-empire-white-border", ["==", ["get", "id"], feature.properties.id]);
-            map.current.setFilter("polygon-empire-glow-outer", ["==", ["get", "id"], feature.properties.id]);
-            map.current.setFilter("polygon-empire-glow-middle", ["==", ["get", "id"], feature.properties.id]);
-            map.current.setFilter("polygon-empire-glow-inner", ["==", ["get", "id"], feature.properties.id]);
-          } else {
-            // Fallback to name
-            const empireName = feature.properties?.name || feature.properties?.Name;
-            if (empireName) {
-              selectedEmpireNameRef.current = empireName;
-              map.current.setFilter("polygon-empire-white-border", ["==", ["get", "name"], empireName]);
-              map.current.setFilter("polygon-empire-glow-outer", ["==", ["get", "name"], empireName]);
-              map.current.setFilter("polygon-empire-glow-middle", ["==", ["get", "name"], empireName]);
-              map.current.setFilter("polygon-empire-glow-inner", ["==", ["get", "name"], empireName]);
-            }
-          }
-        } catch (e) {
-          // Silently handle filter errors
+        const empireId = feature.properties?.id; 
+        const empireName = feature.properties?.name || feature.properties?.Name;
+
+        // ... [Glow Logic] ...
+
+        if (empireId) {
+            try {
+                const data = await getMetadataByEmpireId(empireId);
+
+                if (data) {
+                    // STORE DATA IN REF
+                    currentMetadataRef.current = data;
+
+                    const htmlContent = `
+                        <style>
+                            .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+                            .dyno-scroll::-webkit-scrollbar { width: 3px; }
+                            .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
+                            .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
+                        </style>
+
+                        <div class="bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] w-[450px] h-[320px] px-4 py-2 font-sans flex flex-col relative overflow-hidden">
+                            
+                            <div class="flex justify-between items-center mb-2 border-b border-black/10 pb-2">
+                                
+                                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2">
+                                    ${data.name || empireName || 'Empire Details'}
+                                </h3>
+                                
+                                <div class="flex flex-col items-center shrink-0">
+                                    <span class="text-[9px] text-[#8c7b6e] font-medium tracking-tight">
+                                        To know more
+                                    </span>
+
+                                    <button 
+                                        class="bg-[#075e54] text-white px-5 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap"
+                                        onclick="window.handleAskDyno()"
+                                    >
+                                        Ask Dyno
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="dyno-scroll flex-1 overflow-y-auto pr-1 space-y-1.5">
+                                ${Object.entries(data)
+                                    .filter(([key]) => !['name', 'id', 'empire_id'].includes(key.toLowerCase()))
+                                    .map(([key, value]) => `
+                                        <div class="flex justify-between items-start text-xs border-b border-black/5 pb-1 last:border-0">
+                                            <span class="font-semibold text-[#6b5b4e] capitalize shrink-0 mr-3">${key.replace(/_/g, ' ')}</span> 
+                                            <span class="font-medium text-gray-800 text-right leading-tight break-words flex-1">${value}</span>
+                                        </div>
+                                    `).join('')}
+                            </div>
+                        </div>
+                    `;
+
+                    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "360px" })
+                        .setLngLat(e.lngLat)
+                        .setHTML(htmlContent)
+                        .addTo(map.current);
+                }
+            } catch (err) { console.error(err); }
         }
       } else {
-        // Click outside - hide glow
-        selectedEmpireNameRef.current = null;
-        try {
-          map.current.setFilter("polygon-empire-white-border", ["==", ["id"], "never-match-this-id"]);
-          map.current.setFilter("polygon-empire-glow-outer", ["==", ["id"], "never-match-this-id"]);
-          map.current.setFilter("polygon-empire-glow-middle", ["==", ["id"], "never-match-this-id"]);
-          map.current.setFilter("polygon-empire-glow-inner", ["==", ["id"], "never-match-this-id"]);
-        } catch (e) {
-          // Silently handle filter errors
-        }
+         // Cleanup
+         if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+         selectedEmpireNameRef.current = null;
+         currentMetadataRef.current = null;
+         try { map.current.setFilter("polygon-empire-white-border", ["==", ["id"], "never"]); } catch(e){} 
       }
     };
     
@@ -1087,17 +1124,56 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
     const bottomLeft = container.querySelector(".maplibregl-ctrl-bottom-left");
     const bottomRight = container.querySelector(".maplibregl-ctrl-bottom-right");
     if (bottomLeft) bottomLeft.style.bottom = "130px";
-    if (bottomRight) bottomRight.style.bottom = "130px";
+    // if (bottomRight) bottomRight.style.bottom = "130px";
 
     map.current.addControl(new ScreenshotControl(), "bottom-left");
     map.current.addControl(new MeasureDistanceControl(), "bottom-left");
     map.current.addControl(new PhotonSearchControl(), "bottom-left");
+    map.current.addControl(new CompactAttributionControl(), "bottom-right");
+    map.current.addControl(new ZoomControl(), "bottom-right");
     map.current.addControl(new ResetNorthControl(), "bottom-right");
-  }, [leftOffset, rightOffset]);
 
-  // ========================================================================
-  // MAP INITIALIZATION
-  // ========================================================================
+  }, [leftOffset, rightOffset]);
+  
+// Effect to handle the "Ask Dyno" event dispatch
+  useEffect(() => {
+    window.handleAskDyno = () => {
+      const data = currentMetadataRef.current;
+      
+      if (!data) {
+        console.warn("No metadata found for Ask Dyno");
+        return;
+      }
+
+      console.log("Ask Dyno triggering with data:", data);
+
+      // 1. Get the Empire Name
+      const name = data.name || data.Name || "this empire";
+
+      // 2. Stringify the Metadata
+      // We filter out internal IDs and join the rest into a readable string
+      const contextString = Object.entries(data)
+        .filter(([key]) => !['id', 'empire_id', 'name', '_id'].includes(key.toLowerCase())) // Exclude ID and Name (since name is in the prompt)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(', ');
+
+      const queryText = `Tell me more about ${name}. Here is the context: ${contextString}`;
+
+      // 4. Dispatch the Event
+      const event = new CustomEvent('trigger-know-more', { 
+        detail: { 
+          query: queryText, // <--- EVERYTHING is now in here
+          grade: 0 
+        } 
+      });
+      
+      window.dispatchEvent(event);
+    };
+
+    return () => {
+      delete window.handleAskDyno;
+    };
+  }, []);
 
   useEffect(() => {
     if (map.current) return;
@@ -1140,11 +1216,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       }
       attachMapViewCollector(map.current);
       maOverlayManagerRef.current = createMaOverlayManager(map, yearRef);
-
-      map.current.addControl(
-        new maplibregl.AttributionControl({ compact: true }),
-        "bottom-right"
-      );
 
       // Add error event listener for tile loading failures
       if (!map.current.__ml_error_hook) {

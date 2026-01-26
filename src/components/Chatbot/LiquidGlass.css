@@ -1,0 +1,77 @@
+/* LiquidGlass.css */
+
+/* Container: Fills the window, not the screen */
+.liquid-glass-container {
+  position: relative;
+  display: flex;
+  align-items: center; /* Centers the glass card inside the container */
+  justify-content: center;
+  width: 100%;
+  height: 100%; /* CHANGED: Was 100vh, now fits the parent window */
+  overflow: hidden;
+  
+  /* Background settings */
+  background-position: center center;
+  background-size: 500px;
+  animation: moveBackground 60s linear infinite;
+}
+
+/* The Glass Card */
+.liquidGlass-wrapper {
+  position: relative;
+  display: flex;
+  width: 100%;  /* CHANGED: Force fill width */
+  height: 100%; /* CHANGED: Force fill height */
+  /* padding: 1rem;  REMOVED: Padding can mess up window layouts */
+  
+  /* We remove border-radius here because the Window component handles the shape */
+  overflow: hidden; 
+  box-shadow: 0 6px 6px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Layer 1: The Distortion (Blur & Warp) */
+.liquidGlass-effect {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  filter: url(#glass-distortion);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Layer 2: The Tint (White overlay) */
+.liquidGlass-tint {
+  z-index: 1;
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.2); /* Lower opacity for better text visibility */
+  pointer-events: none;
+}
+
+/* Layer 3: The Shine (Borders/Reflections) */
+.liquidGlass-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5),
+    inset -1px -1px 1px 1px rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
+/* Layer 4: The Actual Content */
+.liquidGlass-content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column; /* CHANGED: Allow vertical stacking for window UI */
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes moveBackground {
+  from { background-position: 0% 0%; }
+  to { background-position: 0% -1500%; }
+}

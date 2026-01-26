@@ -1,240 +1,268 @@
 import React, { useEffect, useRef, useState } from "react";
-import save from "../../assets/icons/save.png";
 import axios from "axios";
 import { useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import RightPanelData from "./RightPanelData";
+import { motion, AnimatePresence } from "framer-motion";
+
+// --- Design Tokens ---
+const STYLES = {
+  glassPanel: "bg-[#18181b]/95 backdrop-blur-2xl border border-white/5",
+  glassPopup: "bg-[#18181b] backdrop-blur-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)]",
+  activeButton: "bg-zinc-800 text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)] border-t border-white/10 hover:bg-zinc-700 transition-all duration-200 active:scale-95",
+  actionButton: "h-12 w-full rounded-full flex items-center justify-center gap-2 font-medium transition-all active:scale-95",
+  etchedLine: "border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]",
+  inputField: "flex items-center rounded-xl bg-black/40 border border-white/5 px-4 py-2 w-full",
+  textMuted: "text-zinc-400",
+  textHighContrast: "text-white",
+  iconHover: "h-10 w-10 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors cursor-pointer",
+};
+
+// --- Animation Variants ---
+const sidebarVariants = {
+  open: { 
+    width: 320, 
+    opacity: 1, 
+    transition: { type: "spring", stiffness: 300, damping: 30 } 
+  },
+  closed: { 
+    width: 60, // Matched closer to the 60px design
+    opacity: 1, 
+    transition: { type: "spring", stiffness: 300, damping: 30 } 
+  },
+  exit: { 
+    opacity: 0, 
+    transition: { duration: 0.2 } 
+  }
+};
+
+const modalVariants = {
+  hidden: { opacity: 0, scale: 0.9, x: 10 },
+  visible: { opacity: 1, scale: 1, x: 0, transition: { type: "spring", duration: 0.4 } },
+  exit: { opacity: 0, scale: 0.9, x: 10, transition: { duration: 0.2 } }
+};
 
 function Open({ setIsOpen, project }) {
-  const BASE_URL = import.meta.env.VITE_URL_PROJECT  +  "/project-management-service";
-  const [saveOpen, setSaveOpen] = useState(false);
-  const saveRef = useRef(null);
+  const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
+  
+  const [activeModal, setActiveModal] = useState(null); // 'save' | 'share' | null
+  const modalRef = useRef(null);
+
   const [projName, setProjName] = useState(project.projectName);
   const [originalProjName, setOriginalProjName] = useState(project.projectName);
+  
   const { ownerEmail } = useSelector((state) => state.project);
   const { id } = useParams();
   const isOwner = project.ownerEmail == ownerEmail;
-  
-   // --- NEW: Function to handle the share action ---
-  const handleShare = (e) => {
-    e.stopPropagation(); // Prevent any other click events
+  const shareLink = `${window.location.origin}/clone/${id}`;
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        if (activeModal === 'save') setProjName(originalProjName);
+        setActiveModal(null);
+      }
+    };
+    if(activeModal) {
+        document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeModal, originalProjName]);
+
+  const handleCopyLink = () => {
     try {
-      // Construct the unique shareable link using the project ID
-      const shareLink = `${window.location.origin}/clone/${id}`;
-      
-      // Copy the link to the user's clipboard
       navigator.clipboard.writeText(shareLink);
-      
-      toast.success("Share link copied to clipboard!");
+      toast.success("Link copied to clipboard!");
+      setActiveModal(null);
     } catch (err) {
-      toast.error("Could not copy the link.");
-      console.error("Share error:", err);
+      toast.error("Failed to copy link.");
     }
   };
 
-
-
-  useEffect(()=>{
-    const handleSave = (event)=>{
-      if(saveRef.current && !saveRef.current.contains(event.target)){
-        setProjName(originalProjName);
-        setSaveOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleSave);
-    return ()=> document.removeEventListener("mousedown", handleSave);
-  },[originalProjName, setProjName ]);
-
   async function handleNameChange() {
     try {
-      const token = localStorage.getItem('bearerToken');
-      const res = await axios.patch(
-        BASE_URL+"/update-project",
-        {
-          ownerEmail,
-          projectName: projName,
-          projectId: id,
-        },
-        {
-          headers: {
-            client_name: "mapx","Authorization": `Bearer ${token}`
-
-          },
-        }
+      const token = localStorage.getItem("bearerToken");
+      await axios.patch(
+        BASE_URL + "/update-project",
+        { ownerEmail, projectName: projName, projectId: id },
+        { headers: { client_name: "mapx", Authorization: `Bearer ${token}` } }
       );
-      toast.success("Changed Project name!!");
+      toast.success("Project name updated!");
       setOriginalProjName(projName);
     } catch (err) {
-      toast.error(err.response.data.message);
+      toast.error(err.response?.data?.message || "Error updating name");
       setProjName(project.projectName);
     }
-    setSaveOpen(false);
+    setActiveModal(null);
   }
+
   return (
-    <div className="relative">
-      {saveOpen && (
-        <div
-          ref={saveRef}
-          className="h-[150px] w-[650px] absolute top-[25%] right-[160%] rounded-3xl flex flex-col bg-white/2.5 border border-white/50 backdrop-blur-sm 
-          shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] "
-        >
-          <div className="flex  items-center w-[95%] rounded-md bg-[#4D4354] text-white px-3 py-1 m-4">
-            <p className="pr-2">Project Name : </p>
-            <input
-              type="text"
-              value={projName}
-              onChange={(e) => setProjName(e.target.value)}
-              className=" p-2 flex-1"
-            />
-          </div>
-          <button
-            onClick={handleNameChange}
-            className="flex h-[50px] w-[150px] cursor-pointer items-center justify-center self-center rounded-lg bg-white/2.5 border border-white/50 backdrop-blur-sm 
-          shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/10 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
-          after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/10 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none hover:bg-white/40 transition-all duration-300  antialiased"
+    <motion.div 
+      className="relative h-[calc(100vh-0.5rem)] m-1 z-50"
+      variants={sidebarVariants}
+      initial="closed"
+      animate="open"
+      exit="exit"
+    >
+      <AnimatePresence>
+        {activeModal && (
+          <motion.div
+            key="modal"
+            ref={modalRef}
+            variants={modalVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className={`absolute top right-[102%] w-[420px] rounded-3xl p-6 flex flex-col gap-5 ${STYLES.glassPopup} z-[60]`}
           >
-            save
-            <img className="h-[25px]" src={save} alt="" />
-          </button>
-        </div>
-      )}
-      <div className=" w-[300px] h-dvh bg-[#2A2929] text-white flex flex-col justify-between">
-        <div className="Top-part pt-[20px]">
-          <div className="flex justify-between items-center  px-5">
+            <div className="flex justify-between items-center">
+               <h3 className="text-white text-lg font-medium">
+                 {activeModal === 'save' ? 'Edit Project' : 'Share Project'}
+               </h3>
+               <div 
+                 onClick={(e) => { e.stopPropagation(); setActiveModal(null); }} 
+                 className="cursor-pointer text-zinc-500 hover:text-white transition-colors p-1"
+               >
+                 ✕
+               </div>
+            </div>
+
+            {activeModal === 'save' ? (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label className={`text-sm ${STYLES.textMuted}`}>Project Name</label>
+                  <div className={STYLES.inputField}>
+                    <input
+                      type="text"
+                      value={projName}
+                      onChange={(e) => setProjName(e.target.value)}
+                      className="flex-1 bg-transparent text-white outline-none placeholder-zinc-600"
+                    />
+                  </div>
+                </div>
+                <button onClick={handleNameChange} className={`${STYLES.actionButton} ${STYLES.activeButton}`}>
+                  <span>Confirm Save</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col gap-2">
+                  <label className={`text-sm ${STYLES.textMuted}`}>Share Link</label>
+                  <div className={STYLES.inputField}>
+                    <input type="text" readOnly value={shareLink} className="flex-1 bg-transparent text-zinc-300 outline-none text-sm truncate" />
+                  </div>
+                </div>
+                <button 
+                  onClick={handleCopyLink} 
+                  className={`${STYLES.actionButton} bg-[#9EFAA5] text-black border-t border-white/40 shadow-[0_2px_10px_rgba(158,250,165,0.2)] hover:brightness-110`}
+                >
+                  <span>Copy Link</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                </button>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={`w-full h-full flex flex-col justify-between ${STYLES.glassPanel} rounded-4xl shadow-2xl overflow-hidden`}>
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          
+          <div className={`px-6 py-6 flex justify-between items-center ${STYLES.etchedLine}`}>
             <div
-              className="cursor-pointer pt-1 pr-5"
+              className={STYLES.iconHover}
               onClick={() => setIsOpen(false)}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width={30}
-                height={30}
-                viewBox="0 0 24 24"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" width={28} height={28} viewBox="0 0 24 24" className="text-zinc-400">
                 <g fill="none" stroke="currentColor" strokeWidth={0.5}>
-                  <rect
-                    width={20}
-                    height={18}
-                    x={2}
-                    y={3}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    rx={3}
-                  ></rect>
+                  <rect width={20} height={18} x={2} y={3} rx={3} strokeLinecap="round" strokeLinejoin="round"></rect>
                   <path d="M15 3v18"></path>
                 </g>
               </svg>
             </div>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="bg-zinc-600 rounded-full"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-            >
-              <g fill="none">
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="8"
-                  fill="#000"
-                  fillOpacity="0.25"
-                  transform="matrix(-1 0 0 1 20 4)"
-                />
-                <path
-                  stroke="#000"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M11 10.5h.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h.5m-1-7h.01"
-                  strokeWidth="1.5"
-                />
-              </g>
-            </svg>
-          </div>
-          {isOwner && (
-            <div className="flex p-2">
-              <div
-                onClick={() => {
-                  setSaveOpen(true);
-                }}
-                className="flex h-[50px] w-1/2 p-4 mx-1 mt-4 items-center justify-center gap-6 rounded-lg cursor-pointer 
-          bg-white/2.5 border border-white/50 backdrop-blur-sm 
-          shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] 
-          hover:bg-white/30 transition-all duration-300 
-          before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/10 before:via-transparent before:to-transparent before:opacity-20 before:pointer-events-none 
-          after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/10 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased"
-              >
-                <p>Save</p>
-                <div className="rounded-lg p-0.5">
-                  <img src={save} alt="" />
-                </div>
-              </div>
-              <div 
-               onClick={handleShare} // Add the handleShare function here
-               className="flex h-[50px] w-1/2 mx-1 p-4 mt-4 items-center justify-center gap-6 rounded-lg cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/10 before:via-transparent before:to-transparent before:opacity-10 before:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/20 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased"
-               >
-                <p>Share</p>
-                <div className="bg-[#9EFAA5] rounded-lg p-0.5">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="28"
-                    height="28"
-                    viewBox="0 0 28 28"
-                  >
-                    <path
-                      fill="#000"
-                      d="M12.25 3a.75.75 0 1 1 0 1.5h-5A2.75 2.75 0 0 0 4.5 7.25v13.5a2.75 2.75 0 0 0 2.75 2.75h13.5a2.75 2.75 0 0 0 2.75-2.75v-5a.75.75 0 0 1 1.5 0v5A4.25 4.25 0 0 1 20.75 25H7.25A4.25 4.25 0 0 1 3 20.75V7.25A4.25 4.25 0 0 1 7.25 3zm5.179-.928a.75.75 0 0 1 .796.098l8.25 6.75a.75.75 0 0 1 .039 1.127l-8.25 7.75A.75.75 0 0 1 17 17.25v-3.74c-1.166.036-2.463.189-3.854.802c-1.584.698-3.35 2.021-5.16 4.577l-.362.527A.75.75 0 0 1 6.25 19c0-4.406 1.34-7.56 3.51-9.608C11.738 7.527 14.325 6.656 17 6.52V2.75a.75.75 0 0 1 .429-.679m1.07 5.178a.75.75 0 0 1-.75.75c-2.66 0-5.145.772-6.959 2.483c-1.413 1.334-2.474 3.292-2.87 6.046c1.56-1.823 3.12-2.93 4.621-3.59C14.532 12.06 16.349 12 17.75 12a.75.75 0 0 1 .75.75v2.766l6.363-5.978L18.5 4.332z"
-                    />
+            {isOwner && (
+              <div className="flex gap-3">
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setActiveModal('save'); }} 
+                  className={`flex-1 h-10 w-10 cursor-pointer rounded-full flex items-center justify-center gap-3 ${STYLES.activeButton}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-90">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
                   </svg>
                 </div>
+
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setActiveModal('share'); }} 
+                  className={`flex-1 h-10 w-10 cursor-pointer rounded-full flex items-center justify-center gap-3 bg-[#9EFAA5] text-black border-t border-white/40 shadow-[0_2px_10px_rgba(158,250,165,0.3)] hover:brightness-110 transition-all active:scale-95`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+                </div>
               </div>
-            </div>
-          )}
-          <div className=" rounded-lg p-2 mt-2 bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)]">
-            <p className="mb-2 ">
-              {originalProjName}
-            </p>
-          <RightPanelData/>
+            )}
           </div>
-        </div>
-        <div className="Bottom-part ">
-          <div>
-            <div className="flex h-[60px] p-3 mb-1 items-center justify-center gap-6 rounded-lg cursor-pointer bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/10 before:via-transparent before:to-transparent before:opacity-10 before:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/20 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
-              
+
+          <div className="pt-3 pb-6">
+            <div className=" px-4 mb-6">
+                <label className={`text-xs uppercase tracking-wider font-semibold ${STYLES.textMuted}`}>Current Project</label>
+                <h2 className={`text-xl font-medium mt-1 truncate ${STYLES.textHighContrast}`}>{originalProjName}</h2>
+            </div>
+
+            
+
+            <div className={`w-full mb-6 ${STYLES.etchedLine}`}></div>
+            {/* FULL WIDTH DATA: Removed padding (p-4 -> p-0) and overflow-hidden to let children touch edges */}
+            <div className="px-4 overflow-hidden shadow-inner">
+              <RightPanelData />
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
+
 function Closed({ setIsOpen }) {
+  // Using the styling you provided, applied to the motion component
+  const glassStyle = "bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased";
+
   return (
-    <div className=" z-50 h-dvh  w-[60px] flex justify-center pt-[25px] bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 transition-all duration-300 before:absolute before:inset-0  before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased">
-      <div className=" cursor-pointer" onClick={() => setIsOpen(true)}>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="30"
-          height="30"
-          viewBox="0 0 20 20"
-        >
-          <path
-            fill="white"
-            d="M12.5 3v14H3.25A2.25 2.25 0 0 1 1 14.75v-9.5A2.25 2.25 0 0 1 3.25 3Zm4.25 0H14v14h2.75A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3"
-          />
+    <motion.div 
+      className={`h-[calc(100vh-0.5rem)] mr-1 rounded-l-3xl overflow-hidden flex flex-col items-center justify-start pt-[25px] ${glassStyle}`}
+      variants={sidebarVariants}
+      initial="open"
+      animate="closed"
+      exit="exit"
+    >
+      <div 
+        onClick={() => setIsOpen(true)}
+        className="cursor-pointer z-10 p-2" // z-10 ensures clickability over the pseudo-elements
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 20 20">
+            <path fill="#fff" d="M7.5 3v14h9.25A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3ZM3.25 3H6v14H3.25A2.25 2.25 0 0 1 1 14.75v-9.5A2.25 2.25 0 0 1 3.25 3"></path>
         </svg>
       </div>
-    </div>
+    </motion.div>
   );
 }
+
 const RightPanel = ({ project }) => {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <>
-      {isOpen && <Open setIsOpen={setIsOpen} project={project} />}
-      {!isOpen && <Closed setIsOpen={setIsOpen} />}
-    </>
+    <div className="fixed right-0 top-0 h-full z-50 flex items-center">
+      <AnimatePresence mode="wait">
+        {isOpen ? (
+          <Open key="open" setIsOpen={setIsOpen} project={project} />
+        ) : (
+          <Closed key="closed" setIsOpen={setIsOpen} />
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 

@@ -152,7 +152,7 @@ export default function MainLayout() {
               pointerEvents: "none",
             }}
           >
-            <MapLoader />
+            <MapLoader  />
           </Box>
         )}
       </Box>

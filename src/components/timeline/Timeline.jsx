@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setYear } from "../../store/mapSlice";
 import { Box } from "@mui/material";
 import { isMaRange, maBinToYear, yearToMaBin, MA_BINS, MA_MIN_YEAR } from "../../utils/era";
-
+import metalTexture from './metalSlider.png';
 const BCE_BOUNDARY_YEAR = -4500;
 const MAX_YEAR = 2025;
 const BCE_MAX_YEAR = 4500;
@@ -611,8 +611,8 @@ const speedLookup = useMemo(() => {
             style={{
               backgroundColor: "#fff",
               padding: "8px 12px",
-              borderRadius: "8px",
-              border: "2px solid #ddd",
+              borderRadius: "100px",
+              borderTop: "3px solid rgba(0, 0, 0, 0.2)",
               fontWeight: "bold",
               fontSize: "24px",
               textAlign: "center",
@@ -628,34 +628,27 @@ const speedLookup = useMemo(() => {
           
           {/* Go Button - appears when typing */}
           {showGoButton && (
-            <Box
-              sx={{
-                backgroundColor: "#4CAF50",
-                color: "#fff",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                fontSize: "18px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                userSelect: "none",
-                transition: "all 0.2s ease",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                "&:hover": {
-                  backgroundColor: "#45a049",
-                  transform: "translateY(-1px)",
-                  boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-                },
-                "&:active": {
-                  transform: "translateY(0)",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-                }
-              }}
-              onClick={() => {
-                parseAndSetYear(inputValue);
-              }}
-            >
-              Go
-            </Box>
+            <button
+  onClick={() => parseAndSetYear(inputValue)}
+  className="
+    flex items-center justify-center
+    w-12 h-12
+    rounded-full
+    bg-neutral-950
+    bg-gradient-to-b from-neutral-800 to-neutral-950
+    
+    text-neutral-400 text-sm font-semibold
+    border-b-2 border-zinc-400/50
+    ring-1 ring-white/10
+    transition-all duration-200 ease-in-out
+    hover:scale-105
+    hover:text-white
+    hover:ring-white/20
+    hover:shadow-[0_6px_12px_rgba(0,0,0,0.9)]
+  "
+>
+  Go
+</button>
           )}
         </Box>
         
@@ -725,23 +718,32 @@ const speedLookup = useMemo(() => {
 
       {/* Draggable Control */}
       <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          position: "relative",
-          height: 44,
-          width: 109,
-          border: "2px solid rgba(255,255,255,0.2)",
-          borderRadius: "20px",
-          padding: "6px",
-          margin: "0 auto",
-          marginTop: "-10px",
-          background: "rgba(0,0,0,0.28)",
-          backdropFilter: "blur(2px)",
-          pointerEvents: "auto",
-        }}
-      >
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                position: "relative",
+                height: 44,
+                width: 109,
+                
+                backgroundImage: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url(${metalTexture})`,
+                
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                // ---------------------------------
+
+                border: "2px solid rgba(255,255,255,0.2)",
+                borderRadius: "20px",
+                padding: "6px",
+                margin: "0 auto",
+                marginTop: "-10px",
+                
+                // Optional: Add an inset shadow to make it look like a deep groove
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.8)",
+                
+                pointerEvents: "auto",
+              }}
+            >
         <Box
           sx={{
             position: "absolute",
@@ -797,32 +799,52 @@ const speedLookup = useMemo(() => {
         </Box>
 
         <Box
-          ref={sliderRef}
-          sx={{
-            position: "absolute",
-            width: 62,
-            height: 27,
-            background: "#fff",
-            borderRadius: "16px",
-            border: "2px solid rgba(255,255,255,0.3)",
-            boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-            cursor: isDragging ? "grabbing" : "grab",
-            transition: isDragging ? "none" : "transform 100ms ease-out",
-            touchAction: "none",
-            userSelect: "none",
-            WebkitTapHighlightColor: "transparent",
-            "&:active": {
-              boxShadow: "0 6px 12px rgba(0,0,0,0.4)",
-            },
-            left: "50%",
-            transform: "translateX(-50%)",
-          }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
-        />
+  ref={sliderRef}
+  // --- THESE HANDLERS MAKE IT MOVE ---
+  onMouseDown={handleMouseDown}
+  onTouchStart={handleTouchStart}
+  onTouchMove={handleTouchMove}
+  onTouchEnd={handleTouchEnd}
+  onTouchCancel={handleTouchEnd}
+  // -----------------------------------
+  sx={{
+    position: "absolute",
+    width: 62,
+    height: 27,
+    
+    // --- IMAGE STYLING ---
+    // 1. Use the imported variable here:
+    backgroundImage: `url(${metalTexture})`,
+    // 2. Or, if you want to test with a web image immediately, uncomment this line:
+    // backgroundImage: "url('https://img.freepik.com/free-photo/silver-metallic-textured-background_53876-1455.jpg')",
+    
+    backgroundColor: "#ccc", // Fallback color if image fails
+    backgroundSize: "cover", // Ensures image fills the button
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    
+    // Metallic borders/shadows to make it pop
+    border: "1px solid rgba(255,255,255,0.4)",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.5)",
+    // ---------------------
+
+    borderRadius: "16px",
+    cursor: isDragging ? "grabbing" : "grab",
+    transition: isDragging ? "none" : "transform 100ms ease-out",
+    touchAction: "none",
+    userSelect: "none",
+    WebkitTapHighlightColor: "transparent",
+    
+    // Press effect
+    "&:active": {
+      filter: "brightness(0.85)", // Darkens image slightly on click
+      transform: "translateX(-50%) scale(0.98)", // Slight shrink effect
+    },
+    
+    left: "50%",
+    transform: "translateX(-50%)",
+  }}
+/>
       </Box>
     </Box>
   );

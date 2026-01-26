@@ -4,6 +4,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { myProjApiCall, sharedProjApiCall } from "../../../store/projectSlice";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 const ProjectCard = ({ data }) => {
   const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
@@ -14,7 +15,7 @@ const ProjectCard = ({ data }) => {
   const isOwner = data?.ownerEmail === ownerEmail;
   const [deleteBt, setDeleteBt] = useState(false);
   const [editBt, setEditBt] = useState(false);
-  const [shareBt, setShareBt] = useState(false); // NEW: Share popover
+  const [shareBt, setShareBt] = useState(false);
   const [projname, setProjname] = useState("");
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -31,7 +32,6 @@ const ProjectCard = ({ data }) => {
     setShareBt(false);
   }
 
-  // Copy share link
   const handleCopyShareLink = (e) => {
     e?.stopPropagation?.();
     try {
@@ -46,7 +46,6 @@ const ProjectCard = ({ data }) => {
     }
   };
 
-  // Make project private by clearing accessorList
   async function handlePrivate(e) {
     e.stopPropagation();
     try {
@@ -138,224 +137,231 @@ const ProjectCard = ({ data }) => {
     };
   }, [data]);
 
+  // --- Animation Variants ---
+  const menuVariants = {
+    hidden: { opacity: 0, y: -10, scale: 0.95 },
+    visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.2 } },
+    exit: { opacity: 0, y: -10, scale: 0.95, transition: { duration: 0.15 } }
+  };
+
   return (
-    <div
-      className="max-w-[269px] hover:scale-105 duration-700 ease-in-out cursor-pointer shrink-0 relative"
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ y: -5 }}
+      transition={{ duration: 0.3 }}
+      className="w-[280px] relative flex flex-col rounded-3xl bg-[#18181b] shadow-xl border border-zinc-800 cursor-pointer overflow-visible group"
       onClick={() => navigate("/map/" + data.id)}
     >
-      <div className="relative">
-        {!menu && isOwner && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenu(true);
-            }}
-            className="absolute right-1.5 top-1.5 p-1 bg-zinc-100 rounded-full hover:scale-115 duration-300 ease-in-out"
+      {/* --- Top Preview Section --- */}
+      <div className="relative w-full h-[180px] p-2">
+        
+        <div className="absolute top-4 left-4 z-10">
+          <div className="px-3 py-1.5 rounded-full bg-black/35 backdrop-blur-md border border-white/10 shadow-lg flex items-center gap-2">
+
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${
+                isPrivate
+                  ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"
+                  : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+              }`}
+            ></div>
+            {/* Text */}
+            <span className="text-[10px] font-medium text-zinc-200 uppercase tracking-widest leading-none">
+              {isPrivate ? "Private" : "Public"}
+            </span>
+          </div>
+        </div>
+
+        {/* Thumbnail Image */}
+        <div className="w-full h-full rounded-2xl overflow-hidden relative shadow-inner">
+          <img
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            src="https://media.sciencephoto.com/c0/27/58/65/c0275865-800px-wm.jpg"
+            alt={data.projectName}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+        </div>
+      </div>
+
+      {/* --- Bottom Info Section --- */}
+      <div className="px-5 pb-4 pt-1 flex items-center justify-between">
+        
+        {/* Title & Date (Icon removed, smaller font) */}
+        <div className="flex flex-col min-w-0 pr-2">
+          <h1 className="font-semibold text-zinc-200 text-xs tracking-wide truncate">{projname || "Untitled"}</h1>
+          <p className="text-[10px] text-zinc-500 font-medium mt-0.5">{getDate(data?.updatedAt)}</p>
+        </div>
+
+        {/* Menu Trigger Button + Dropdown Container */}
+        {isOwner && (
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setMenu(!menu)}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${menu ? 'bg-zinc-700 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+
+            {/* Dropdown Menu (Appears DOWN) */}
+            <AnimatePresence>
+              {menu && (
+                <motion.div
+                  ref={menuref}
+                  variants={menuVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  className="absolute right-0 top-full mt-2 w-44 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col py-1"
+                >
+                  {/* Share Item */}
+                  <div
+                    onClick={() => {
+                      setAllFalse();
+                      setShareBt(true);
+                      setMenu(false);
+                    }}
+                    className="px-4 py-2.5 flex items-center gap-3 text-xs text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    <span>Share Project</span>
+                  </div>
+
+                  {/* Rename Item */}
+                  <div
+                    onClick={() => {
+                      setAllFalse();
+                      setEditBt(true);
+                      setMenu(false);
+                    }}
+                    className="px-4 py-2.5 flex items-center gap-3 text-xs text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                    <span>Rename</span>
+                  </div>
+
+                  {/* Private Item */}
+                  {!isPrivate && (
+                    <div
+                      onClick={(e) => {
+                          handlePrivate(e);
+                          setMenu(false);
+                      }}
+                      className="px-4 py-2.5 flex items-center gap-3 text-xs text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                      <span>Make Private</span>
+                    </div>
+                  )}
+
+                  <div className="h-[1px] bg-zinc-700 my-1 mx-2" />
+
+                  {/* Delete Item */}
+                  <div
+                    onClick={() => {
+                      setAllFalse();
+                      setDeleteBt(true);
+                      setMenu(false);
+                    }}
+                    className="px-4 py-2.5 flex items-center gap-3 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 cursor-pointer transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    <span>Delete</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+
+      {/* --- Action Popovers (Share/Rename/Delete) --- */}
+      {/* These appear over the card content */}
+      <AnimatePresence>
+        {/* Share Popover */}
+        {shareBt && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute inset-x-2 bottom-16 bg-[#27272a] border border-zinc-700 p-4 rounded-xl shadow-2xl z-40 text-zinc-200 cursor-default"
+            onClick={(e) => e.stopPropagation()}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-              <path
-                fill="#000"
-                d="M7 4c0-.14 0-.209.008-.267a.85.85 0 0 1 .725-.725C7.79 3 7.86 3 8 3s.209 0 .267.008a.85.85 0 0 1 .725.725C9 3.79 9 3.86 9 4s0 .209-.008.267a.85.85 0 0 1-.725.725C8.21 5 8.14 5 8 5s-.209 0-.267-.008a.85.85 0 0 1-.725-.725C7 4.21 7 4.14 7 4m0 4c0-.14 0-.209.008-.267a.85.85 0 0 1 .725-.725C7.79 7 7.86 7 8 7s.209 0 .267.008a.85.85 0 0 1 .725.725C9 7.79 9 7.86 9 8s0 .209-.008.267a.85.85 0 0 1-.725.725C8.21 9 8.14 9 8 9s-.209 0-.267-.008a.85.85 0 0 1-.725-.725C7 8.21 7 8.14 7 8m0 4c0-.139 0-.209.008-.267a.85.85 0 0 1 .724-.724c.059-.008.128-.008.267-.008s.21 0 .267.008a.85.85 0 0 1 .724.724c.008.058.008.128.008.267s0 .209-.008.267a.85.85 0 0 1-.724.724c-.058.008-.128.008-.267-.008s-.209 0-.267-.008a.85.85 0 0 1-.724-.724C7 12.209 7 12.139 7 12"
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Share Project</h3>
+              <button onClick={() => setShareBt(false)} className="text-zinc-400 hover:text-white">&times;</button>
+            </div>
+            
+            <div className="bg-black/30 rounded-lg p-2 max-h-32 overflow-y-auto mb-3 text-xs border border-white/5">
+                {data.accessorList?.length > 0 ? (
+                  <ul className="space-y-1">
+                    {data.accessorList.map((email) => <li key={email} className="truncate text-zinc-400">{email}</li>)}
+                  </ul>
+                ) : (
+                  <p className="text-zinc-500 italic">No accessors yet.</p>
+                )}
+            </div>
+            <button
+              onClick={handleCopyShareLink}
+              className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              Copy Link
+            </button>
+          </motion.div>
+        )}
+
+        {/* Rename Popover */}
+        {editBt && (
+           <motion.div 
+           initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+           className="absolute inset-x-2 bottom-16 bg-[#27272a] border border-zinc-700 p-4 rounded-xl shadow-2xl z-40 text-zinc-200 cursor-default"
+           onClick={(e) => e.stopPropagation()}
+         >
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Rename Project</h3>
+              <button onClick={() => setEditBt(false)} className="text-zinc-400 hover:text-white">&times;</button>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="bg-black/30 border border-zinc-600 text-white text-xs rounded-lg p-2 w-full focus:outline-none focus:border-indigo-500 transition-colors"
+                value={projname}
+                onChange={(e) => setProjname(e.target.value)}
+                autoFocus
               />
-            </svg>
-          </div>
-        )}
-        {menu && isOwner && (
-          <div ref={menuref} className="absolute right-1.5 top-1.5 bg-zinc-100 rounded-lg z-10">
-            {/* Share -> opens popover with accessor list + copy link */}
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                setAllFalse();
-                setShareBt(true);
-              }}
-              className="px-2 py-1 rounded-lg flex items-center justify-between text-sm hover:scale-105 hover:bg-blue-100"
-            >
-              <p>Share</p>
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" className="ml-2">
-                <path
-                  fill="#000"
-                  d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81c1.66 0 3-1.34 3-3s-1.34-3-3-3s-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65c0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92"
-                />
-              </svg>
+              <button onClick={handleRename} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 text-xs font-medium">Save</button>
             </div>
-
-            {/* Make Private only when currently public (i.e., has accessors) */}
-            {!isPrivate && (
-              <div
-                onClick={handlePrivate}
-                className="w-full rounded-lg px-2 py-1 flex items-center justify-between text-sm hover:scale-105 hover:bg-red-200 text-red-700 cursor-pointer"
-              >
-                <p>Make Private</p>
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" className="ml-2">
-                  <path
-                    fill="currentColor"
-                    d="M10 5h4a2 2 0 1 0-4 0M8.5 5a3.5 3.5 0 1 1 7 0h5.75a.75.75 0 0 1 0 1.5h-1.32l-1.17 12.111A3.75 3.75 0 0 1 15.026 22H8.974a3.75 3.75 0 0 1-3.733-3.389L4.07 6.5H2.75a.75.75 0 0 1 0-1.5z"
-                  />
-                </svg>
-              </div>
-            )}
-
-            {/* Rename */}
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                setAllFalse();
-                setEditBt(true);
-              }}
-              className="px-2 py-1 rounded-lg flex justify-between items-center text-sm hover:scale-105 hover:bg-blue-100"
-            >
-              <p>Rename</p>
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" className="ml-2">
-                <path
-                  fill="#000"
-                  d="M5 19h1.425L16.2 9.225L14.775 7.8L5 17.575zm-2 2v-4.25L16.2 3.575q.3-.275.663-.425t.762-.15t.775.15t.65.45L20.425 5q.3.275.438.65T21 6.4q0 .4-.137.763t-.438.662L7.25 21zM19 6.4L17.6 5zm-3.525 2.125l-.7-.725L16.2 9.225z"
-                />
-              </svg>
-            </div>
-
-            {/* Delete */}
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                setAllFalse();
-                setDeleteBt(true);
-              }}
-              className="px-2 py-1 rounded-lg flex items-center justify-between text-sm hover:scale-105 hover:bg-red-300 text-red-600"
-            >
-              <p>Delete</p>
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" className="ml-2">
-                <path
-                  fill="currentColor"
-                  d="M10 5h4a2 2 0 1 0-4 0M8.5 5a3.5 3.5 0 1 1 7 0h5.75a.75.75 0 0 1 0 1.5h-1.32l-1.17 12.111A3.75 3.75 0 0 1 15.026 22H8.974a3.75 3.75 0 0 1-3.733-3.389L4.07 6.5H2.75a.75.75 0 0 1 0-1.5zm2 4.75a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 1.5 0zM14.25 9a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-1.5 0v-7.5a.75.75 0 0 1 .75-.75m-7.516 9.467a2.25 2.25 0 0 0 2.24 2.033h6.052a2.25 2.25 0 0 0 2.24-2.033L18.424 6.5H5.576z"
-                />
-              </svg>
-            </div>
-          </div>
+          </motion.div>
         )}
 
-        <img
-          className="w-[269px] h-[196px] object-cover rounded-lg border-1 border-zinc-600"
-          src="https://media.sciencephoto.com/c0/27/58/65/c0275865-800px-wm.jpg"
-          alt={data.projectName}
-        />
-      </div>
-
-      <div className="flex justify-between items-center">
-        <h1 className="font-semibold text-white">{projname}</h1>
-        <p className="text-sm text-zinc-400">{getDate(data?.updatedAt)}</p>
-      </div>
-
-      {/* Share popover: list of accessors + copy link button */}
-      {shareBt && (
-        <div
-          className="w-[95%] bg-zinc-800 text-white rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center py-2">
-            <p>Share</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShareBt(false);
-              }}
-              className="text-xl"
-            >
-              &times;
-            </button>
-          </div>
-
-          <div className="text-xs text-gray-300 max-h-40 overflow-auto mb-2">
-            {data.accessorList?.length > 0 ? (
-              <>
-                <p className="mb-1">People with access:</p>
-                <ul className="list-disc ml-4">
-                  {data.accessorList.map((email) => (
-                    <li key={email}>{email}</li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <p>No accessors yet. Copy the link and share it.</p>
-            )}
-          </div>
-
-          <button
-            onClick={handleCopyShareLink}
-            className="w-full rounded-full bg-blue-500 text-white px-2 py-1 text-sm cursor-pointer"
+        {/* Delete Confirmation */}
+        {deleteBt && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-red-950/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 text-center rounded-3xl cursor-default"
+            onClick={(e) => e.stopPropagation()}
           >
-            Copy share link
-          </button>
-        </div>
-      )}
-
-      {/* Rename popover */}
-      {editBt && (
-        <div
-          className="w-[95%] bg-zinc-800 text-white rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center py-2">
-            <p>Rename the project</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditBt(false);
-              }}
-              className="text-xl"
-            >
-              &times;
-            </button>
-          </div>
-          <div className="flex p-1 justify-between items-center">
-            <input
-              type="text"
-              className="bg-white text-black rounded-md text-sm p-1 w-full"
-              value={projname}
-              onChange={(e) => setProjname(e.target.value)}
-            />
-            <button onClick={handleRename} className="rounded-md bg-blue-500 text-white px-2 py-1 text-sm ml-2">
-              Rename
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Delete confirm */}
-      {deleteBt && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="w-[95%] bg-red-300 text-black rounded-md absolute top-[103px] right-1.5 p-2 cursor-default z-20"
-        >
-          <div className="flex justify-between items-center py-2">
-            <p>This action cannot be undone.</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteBt(false);
-              }}
-              className="text-xl"
-            >
-              &times;
-            </button>
-          </div>
-          <div className="flex p-1 justify-around items-center">
-            <button onClick={handleDelete} className="rounded-full bg-red-600 text-white px-3 py-1 items-center gap-2 cursor-pointer">
-              Delete
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteBt(false);
-              }}
-              className="rounded-full bg-gray-500 text-white px-3 py-1 items-center gap-2 cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+            <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center mb-3">
+              <svg className="w-5 h-5 text-red-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h3 className="text-white font-bold text-sm mb-1">Delete Project?</h3>
+            <p className="text-red-200 text-[10px] mb-4">This action cannot be undone.</p>
+            <div className="flex gap-2 w-full">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setDeleteBt(false); }}
+                className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleDelete}
+                className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-medium transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 

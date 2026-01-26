@@ -19,13 +19,14 @@ const getHeaders = () => {
  * @param {string} message - The user's input text
  * @param {string} grade - e.g., "8th Grade"
  */
-export const sendMessage = async (userId, sessionId, message, grade) => {
+export const sendMessage = async (userId, sessionId, message, grade, lang) => {
   let payload;
     payload = {
       userId: userId,
       sessionId,
       grade: grade,
-      message: message
+      message: message,
+      lang
     };
 // console.log(payload);
   try {

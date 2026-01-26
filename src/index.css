@@ -95,3 +95,12 @@ html, body, #root {
   .modal-actions { flex-direction: column; }
   .modal-actions button { width: 100%; }
 }
+
+.maplibregl-ctrl-bottom-right .my-shift-up {
+  transform: translateY(-90px) !important;
+}
+
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib,
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib * {
+  transform: none !important;
+}
