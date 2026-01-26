@@ -45,9 +45,9 @@ export default function Chat() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
+//ANCHOR - Update
   useEffect(() => {
-    console.log("Update")
+    console.log("Update - 2")
     scrollToBottom();
   }, [messages, loading]);
 
@@ -244,7 +244,7 @@ export default function Chat() {
 
     if (!textToSend.trim() || loading) return;
 
-    SpeechRecognition.stopListening();
+    await SpeechRecognition.abortListening();
 
     if (!overrideInput) {
       setInput("");
