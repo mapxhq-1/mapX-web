@@ -47,6 +47,7 @@ export default function Chat() {
   };
 
   useEffect(() => {
+    console.log("Update")
     scrollToBottom();
   }, [messages, loading]);
 
@@ -243,9 +244,7 @@ export default function Chat() {
 
     if (!textToSend.trim() || loading) return;
 
-    if (listening) {
-      SpeechRecognition.stopListening();
-    }
+    SpeechRecognition.stopListening();
 
     if (!overrideInput) {
       setInput("");
