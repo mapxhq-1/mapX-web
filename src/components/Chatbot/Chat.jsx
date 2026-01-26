@@ -252,7 +252,13 @@ export default function Chat() {
 
     if (!textToSend.trim() || loading) return;
 
-    await SpeechRecognition.abortListening();
+    if (listening) {
+        try {
+            await SpeechRecognition.abortListening();
+        } catch (e) {
+            console.warn("Could not abort listening (non-fatal):", e);
+        }
+    }
 
     if (!overrideInput) {
       setInput("");
@@ -318,78 +324,31 @@ export default function Chat() {
     }
   };
 
-  // 2. NEW: Listen for the Custom Event
-  useEffect(() => {
-    const handleTrigger = (e) => {
-        const { query, grade } = e.detail;
-        
-        // 1. Reset Chat UI
-        startNewChat(); 
-        
-        // 2. Trigger Send immediately
-        // We pass 'true' as the 3rd argument to force a fresh session ID in the API call
-        sendMessage(query, grade, true, true); 
-    };
-
-    window.addEventListener('trigger-know-more', handleTrigger);
-
-    // Cleanup
-    return () => {
-        window.removeEventListener('trigger-know-more', handleTrigger);
-    };
-  }, []); // Empty dependency array = runs on mount
-
-// --- KEYBOARD HANDLER (UPDATED) ---
 useEffect(() => {
-  const isTypingTarget = (el) => {
-    if (!el) return false;
-    const tag = el.tagName?.toLowerCase();
-    return tag === "input" || tag === "textarea" || el.isContentEditable;
-  };
-
   const onKeyDown = (e) => {
-    if (isTypingTarget(e.target)) return;
+    const isCtrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+    if (!isCtrlK || e.repeat) return;
 
-    const isTrigger = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+    e.preventDefault();
+    e.stopPropagation();
 
-    if (isTrigger && !e.repeat) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (!isListeningRef.current) {
-        resetTranscript();
-        SpeechRecognition.startListening({
-          continuous: true,
-          language: voiceLanguage,
-        });
-      }
-    }
-  };
-
-  const onKeyUp = (e) => {
-    if (isTypingTarget(e.target)) return;
-
-    const isStop = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
-
-    if (isStop) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (isListeningRef.current) {
-        SpeechRecognition.abortListening();
-      }
+    if (isListeningRef.current) {
+      SpeechRecognition.abortListening();
+    } else {
+      resetTranscript();
+      SpeechRecognition.startListening({
+        continuous: true,
+        language: voiceLanguage,
+      });
     }
   };
 
   window.addEventListener("keydown", onKeyDown, { capture: true });
-  window.addEventListener("keyup", onKeyUp, { capture: true });
 
   return () => {
     window.removeEventListener("keydown", onKeyDown, { capture: true });
-    window.removeEventListener("keyup", onKeyUp, { capture: true });
   };
 }, [voiceLanguage]);
-
 
   return (
     <>
@@ -661,7 +620,12 @@ useEffect(() => {
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
                   placeholder={listening ? "Listening..." : "Tap ctrl + k to open mic..."}
                   className="w-full text-base px-4 py-3.5 pr-[110px] border-none outline-none bg-transparent text-[#111b21] relative z-10 placeholder-[#8696a0]"
                 />
