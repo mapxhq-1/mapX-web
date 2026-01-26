@@ -76,28 +76,29 @@ const Projects = () => {
     );
   }
 
-  return (
-    <>
-      <div className='h-screen flex flex-col'>
-        <Header />
+return (
+  <div className="h-screen flex overflow-hidden py-2 pl-1">
+    <Sidebar />
 
-        <div className='flex flex-1 overflow-hidden'>
-          <Sidebar />
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <Header />
 
-          <Routes>
-            <Route index element={<Navigate to="myProjects" replace />} />
-            {/* Remove ProtectedRoute from these - already protected at Projects level */}
-            <Route path="sharedProjects" element={<ProjectGrid />} />
-            <Route path="myProjects" element={<ProjectGrid />} />
-            <Route path="allProjects" element={<ProjectGrid />} />
-            <Route path="recents" element={<ProjectGrid />} />
-            <Route path="clone/:projectId" element={<CloneProjectPage />} />
-            <Route path="/share/:projectId" element={<ShareAccept />} />
-          </Routes>
-        </div>
+      {/* Page content area */}
+      <div className="flex-1 overflow-auto">
+        <Routes>
+          <Route index element={<Navigate to="myProjects" replace />} />
+          <Route path="sharedProjects" element={<ProjectGrid />} />
+          <Route path="myProjects" element={<ProjectGrid />} />
+          <Route path="allProjects" element={<ProjectGrid />} />
+          <Route path="recents" element={<ProjectGrid />} />
+          <Route path="clone/:projectId" element={<CloneProjectPage />} />
+          <Route path="/share/:projectId" element={<ShareAccept />} />
+        </Routes>
       </div>
-    </>
-  )
+    </div>
+  </div>
+);
+
 }
 
 export default Projects

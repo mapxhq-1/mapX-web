@@ -592,8 +592,10 @@ export class ResetNorthControl {
     onAdd(m) {
         this._map = m;
         this._container = document.createElement("div");
-        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group";
-
+        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
+        // this._container.style.marginBottom = "20px";
+        this._container.style.height = "30px";
+        this._container.style.width = "30px";
         const button = document.createElement("button");
         button.type = "button";
         button.className = "maplibregl-ctrl-icon";
@@ -620,4 +622,165 @@ export class ResetNorthControl {
         }
         this._map = undefined;
     }
+}
+export class ZoomControl {
+  onAdd(m) {
+    this._map = m;
+    this._container = document.createElement("div");
+    this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
+    this._container.style.height = "70px";
+        this._container.style.width = "30px";
+    const zoomIn = document.createElement("button");
+    zoomIn.type = "button";
+    zoomIn.className = "maplibregl-ctrl-icon";
+    zoomIn.setAttribute("aria-label", "Zoom in");
+    zoomIn.innerHTML = "+";
+    zoomIn.style.fontSize = "18px";
+    zoomIn.style.fontWeight = "700";
+    zoomIn.style.display = "flex";
+    zoomIn.style.alignItems = "center";
+    zoomIn.style.justifyContent = "center";
+    zoomIn.style.height = "35px";
+
+    const zoomOut = document.createElement("button");
+    zoomOut.type = "button";
+    zoomOut.className = "maplibregl-ctrl-icon";
+    zoomOut.setAttribute("aria-label", "Zoom out");
+    zoomOut.innerHTML = "−";
+    zoomOut.style.fontSize = "18px";
+    zoomOut.style.fontWeight = "700";
+    zoomOut.style.display = "flex";
+    zoomOut.style.alignItems = "center";
+    zoomOut.style.justifyContent = "center";
+
+    zoomIn.addEventListener("click", () => {
+      this._map.zoomIn({ duration: 250 });
+    });
+
+    zoomOut.addEventListener("click", () => {
+      this._map.zoomOut({ duration: 250 });
+    });
+
+    // stop map drag/scroll when clicking control
+    this._container.addEventListener("mousedown", (e) => e.stopPropagation());
+    this._container.addEventListener("dblclick", (e) => e.stopPropagation());
+    this._container.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
+
+    this._container.appendChild(zoomIn);
+    this._container.appendChild(zoomOut);
+
+    return this._container;
+  }
+
+  onRemove() {
+    if (this._container && this._container.parentNode) {
+      this._container.parentNode.removeChild(this._container);
+    }
+    this._map = undefined;
+  }
+}
+
+export class CompactAttributionControl {
+  constructor() {
+    this._map = null;
+    this._container = null;
+    this._open = false;
+  }
+
+  onAdd(map) {
+    this._map = map;
+
+    const container = document.createElement("div");
+    container.className = "maplibregl-ctrl";
+    container.style.position = "relative";
+    container.style.display = "flex";
+    container.style.alignItems = "center";
+    container.style.justifyContent = "center";
+
+    // White circle i button
+    const button = document.createElement("button");
+    button.type = "button";
+    button.innerHTML = "i";
+    button.setAttribute("aria-label", "Attribution");
+
+    button.style.width = "30px";
+    button.style.height = "30px";
+    button.style.borderRadius = "9999px";
+    button.style.border = "1px solid rgba(0,0,0,0.25)";
+    button.style.background = "#fff";   // white circle
+    button.style.color = "#111";        // visible i
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.fontWeight = "800";
+    button.style.fontSize = "14px";
+    button.style.cursor = "pointer";
+    button.style.userSelect = "none";
+
+    // Horizontal white bar (opens left)
+    const panel = document.createElement("div");
+    panel.style.position = "absolute";
+    panel.style.right = "38px"; // to the LEFT of button
+    panel.style.bottom = "0px";
+    panel.style.display = "none";
+
+    panel.style.background = "#fff";
+    panel.style.color = "#111";
+    panel.style.padding = "6px 10px";
+    panel.style.borderRadius = "6px";
+    panel.style.fontSize = "12px";
+    panel.style.lineHeight = "1.2";
+    panel.style.boxShadow = "0 8px 20px rgba(0,0,0,0.2)";
+    panel.style.zIndex = "9999";
+
+    // force ONE LINE + show full text via horizontal scroll
+    panel.style.whiteSpace = "nowrap";
+    panel.style.overflowY = "hidden";
+
+    // smoother scroll on trackpad
+    panel.style.webkitOverflowScrolling = "touch";
+
+    const updateAttribution = () => {
+      const attribHTML =
+        Object.values(map.getStyle()?.sources || {})
+          .map((s) => s.attribution)
+          .filter(Boolean)
+          .join(" | ") || "Attribution";
+
+      panel.innerHTML = attribHTML;
+
+      panel.querySelectorAll("a").forEach((a) => {
+        a.style.color = "#111";
+        a.style.textDecoration = "underline";
+      });
+    };
+
+    updateAttribution();
+
+    button.onclick = (e) => {
+      e.stopPropagation();
+      this._open = !this._open;
+      panel.style.display = this._open ? "block" : "none";
+    };
+
+    map.on("click", () => {
+      this._open = false;
+      panel.style.display = "none";
+    });
+
+    map.on("styledata", updateAttribution);
+
+    container.appendChild(button);
+    container.appendChild(panel);
+
+    this._container = container;
+    return container;
+  }
+
+  onRemove() {
+    if (this._container?.parentNode) {
+      this._container.parentNode.removeChild(this._container);
+    }
+    this._map = null;
+  }
 }

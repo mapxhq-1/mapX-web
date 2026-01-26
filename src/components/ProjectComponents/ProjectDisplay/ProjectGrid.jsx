@@ -1,139 +1,167 @@
-import  { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import ProjectCard from "./ProjectCard";
 import NewProjectCard from "./NewProjectCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
-import { sharedProjApiCall,myProjApiCall } from "../../../store/projectSlice";
+import { sharedProjApiCall, myProjApiCall } from "../../../store/projectSlice";
 import GalaxyCanvas from "../../common/GalaxyCanvas";
+
+// --- Animation Variants ---
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      when: "beforeChildren",
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.9 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: { type: "spring", stiffness: 120, damping: 12 }
+  },
+  exit: { opacity: 0, scale: 0.9, transition: { duration: 0.2 } }
+};
 
 const ProjectGrid = () => {
   const dispatch = useDispatch();
-  const {ownerEmail,sharedProj, myProj, loadingMy, loadingShared, errorMy, errorShared, option, search, heading} = useSelector((state)=>state.project)
+  const { ownerEmail, sharedProj, myProj, loadingMy, loadingShared, errorMy, errorShared, option, search, heading } = useSelector((state) => state.project);
 
   const [sortedData, setSortedData] = useState([]);
-  
-  useEffect(()=>{
-    if(ownerEmail){
-      dispatch(myProjApiCall())
-      dispatch(sharedProjApiCall())
+
+  useEffect(() => {
+    if (ownerEmail) {
+      dispatch(myProjApiCall());
+      dispatch(sharedProjApiCall());
     }
-  },[dispatch,ownerEmail])
+  }, [dispatch, ownerEmail]);
 
-useEffect(() => {
-  let newData;
-  if (heading === "My Projects") {
-    newData = Array.isArray(myProj) ? [...myProj] : [];
-  } else if (heading === "Shared Projects") {
-    newData = Array.isArray(sharedProj) ? [...sharedProj] : [];
-  } else {
-    newData = [
-      ...(Array.isArray(sharedProj) ? sharedProj : []),
-      ...(Array.isArray(myProj) ? myProj : []),
-    ];
-  }
-  
-  // CRITICAL FIX: Convert Unix timestamps to ISO strings
-  newData = newData.map(item => ({
-    ...item,
-    updatedAt: typeof item.updatedAt === 'number' 
-      ? new Date(item.updatedAt * 1000).toISOString() 
-      : item.updatedAt,
-    createdAt: typeof item.createdAt === 'number'
-      ? new Date(item.createdAt * 1000).toISOString()
-      : item.createdAt
-  }));
-  
-  // Filter out invalid entries
-  newData = newData.filter(item => 
-    item && 
-    typeof item.projectName === 'string' && 
-    item.updatedAt
-  );
-  
-  if (heading === "Recents" || option === "Date") {
-    newData = newData.sort(
-      (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
-    );
-  } else {
-    newData = newData.sort((a, b) => 
-      a.projectName.localeCompare(b.projectName)
-    );
-  }
-  setSortedData(newData);
-}, [option, sharedProj, myProj, heading]);
+  useEffect(() => {
+    let newData;
+    if (heading === "My Projects") {
+      newData = Array.isArray(myProj) ? [...myProj] : [];
+    } else if (heading === "Shared Projects") {
+      newData = Array.isArray(sharedProj) ? [...sharedProj] : [];
+    } else {
+      newData = [
+        ...(Array.isArray(sharedProj) ? sharedProj : []),
+        ...(Array.isArray(myProj) ? myProj : []),
+      ];
+    }
 
-  if (loadingMy || loadingShared) 
-    return (
-      <>
-        <div className="relative w-full h-screen overflow-hidden">
-          {/* Galaxy background */}
-          <GalaxyCanvas />
-          <div className="relative grid gap-10 justify-center p-10 z-10">
-            <h1 className="ml-30 text-xl text-green-500">
-              Awesome Projects loading...
-            </h1>
-          </div>
-        </div>
-      </>
-    );
-  if (errorShared) {
-    return (
-      <>
-        <div className="relative w-full h-vh overflow-hidden">
-          {/* Galaxy background */}
-          <GalaxyCanvas />
-          <div className="relative grid gap-10 justify-center p-10 z-10">
-            <h1 className="ml-30 text-xl text-red-500">{errorShared}</h1>
-          </div>
-        </div>
-      </>
-    );
-  }
-  if (errorMy) {
-    return (
-      <>
-        <div className="relative w-full h-vh overflow-hidden">
-          {/* Galaxy background */}
-          <GalaxyCanvas />
-          <div className="relative grid gap-10 justify-center p-10 z-10">
-            <h1 className="ml-30 text-xl text-red-500">{errorMy}</h1>
-          </div>
-        </div>
-      </>
-    );
-  }
-  return (
-    <div className="relative w-full h-full overflow-y-auto z-0">
-      {/* Galaxy background */}
-      <GalaxyCanvas />
+    // Convert timestamps and filter invalid
+    newData = newData.map((item) => ({
+      ...item,
+      updatedAt: typeof item.updatedAt === "number" ? new Date(item.updatedAt * 1000).toISOString() : item.updatedAt,
+      createdAt: typeof item.createdAt === "number" ? new Date(item.createdAt * 1000).toISOString() : item.createdAt,
+    })).filter((item) => item && typeof item.projectName === "string" && item.updatedAt);
 
-      {/* Grid above background */}
-      <div className="relative grid grid-cols-4 auto-rows-min gap-10 justify-center p-10 z-10">
-        <NewProjectCard />
-        {sortedData.length == 0 ? (
-          <div className="text-red-500 ">
-            <p>No projects found</p>
-          </div>
-        ) : (
-          <AnimatePresence>
-            {sortedData
-              .filter((dat) =>
-                dat.projectName.toLowerCase().includes(search.toLowerCase())
-              )
-              .map((data, ind) => (
-                <motion.div
-                  key={ind}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <ProjectCard data={data} key={data.id}/>
-                </motion.div>
-              ))}
-          </AnimatePresence>
-        )}
+    // Sorting
+    if (heading === "Recents" || option === "Date") {
+      newData = newData.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    } else {
+      newData = newData.sort((a, b) => a.projectName.localeCompare(b.projectName));
+    }
+    setSortedData(newData);
+  }, [option, sharedProj, myProj, heading]);
+
+  // Filter based on Search
+  const filteredData = useMemo(() => {
+    return sortedData.filter((dat) => dat.projectName.toLowerCase().includes(search.toLowerCase()));
+  }, [sortedData, search]);
+
+  // --- Loading State ---
+  if (loadingMy || loadingShared) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <GalaxyCanvas />
+        </div>
+        <div className="z-10 bg-black/40 backdrop-blur-md px-8 py-4 rounded-full border border-white/5 shadow-2xl">
+          <h1 className="text-xl text-emerald-400 font-light tracking-widest animate-pulse uppercase">
+            Loading Projects...
+          </h1>
+        </div>
       </div>
+    );
+  }
+
+  // --- Error State ---
+  if (errorShared || errorMy) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <GalaxyCanvas />
+        </div>
+        <div className="z-10 bg-red-950/30 backdrop-blur-md px-6 py-4 rounded-xl border border-red-500/20 shadow-xl">
+          <h1 className="text-lg text-red-300 font-medium tracking-wide">
+            {errorShared || errorMy}
+          </h1>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    // ROOT: Relative w-full h-full to fit the parent outlet exactly.
+    <div className="relative w-full h-full">
+      
+      {/* Background: Absolute and pinned to corners. 
+          pointer-events-none ensures clicks pass through to cards. */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <GalaxyCanvas />
+      </div>
+
+      {sortedData.length === 0 ? (
+         // CASE 1: EMPTY STATE
+         // overflow-hidden prevents ANY scrollbar here.
+         // h-full ensures it centers vertically in the available space.
+         <div className="w-full h-full flex items-center justify-center overflow-hidden">
+            <NewProjectCard />
+         </div>
+      ) : (
+        // CASE 2: GRID STATE
+        // overflow-y-auto ONLY here. Scrollbar only appears if content overflows.
+        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-8">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredData.length > 0 ? (
+                filteredData.map((data) => (
+                  <motion.div
+                    key={data.id || data._id} 
+                    layout 
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                  >
+                    <ProjectCard data={data} />
+                  </motion.div>
+                ))
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  className="col-span-full flex flex-col items-center mt-20"
+                >
+                  <p className="text-zinc-500 text-lg font-light z-1">No matches found for "{search}"</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

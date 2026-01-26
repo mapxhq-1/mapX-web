@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react'
-import { NavLink,useLocation } from "react-router-dom";
-import { setHeading } from '../../../store/projectSlice';
-import Profile from "./Profile"
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { useSelector,useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { getUserProfile,getProfilePhoto } from '../../api/auth';
-import { setEmail,setUserToken } from '../../../store/projectSlice';
+import confetti from 'canvas-confetti';
 
+import { setHeading, setEmail, setUserToken } from '../../../store/projectSlice';
+import { getUserProfile, getProfilePhoto } from '../../api/auth';
+import Profile from "./Profile";
 
+// Assets
 import plus from '../../../assets/icons/Plus.png';
 import time from '../../../assets/icons/time.png';
 import presentation from '../../../assets/icons/presentation.png';
@@ -18,253 +18,304 @@ import folder from '../../../assets/icons/folder.png';
 import calander from '../../../assets/icons/calander.png';
 import account from '../../../assets/icons/account.png';
 import logout from '../../../assets/icons/logout.png';
-import timeB from '../../../assets/icons/timeB.png';
-import presentationB from '../../../assets/icons/presentationB.png';
-import mapB from '../../../assets/icons/mapB.png';
-import folderB from '../../../assets/icons/folderB.png';
-import accountB from '../../../assets/icons/accountB.png';
+
+const drawLongStrip = (ctx) => {
+    ctx.beginPath();
+    // slightly thinner (height 5) and MUCH longer (width 80)
+    // x = -40, y = -2.5 ensures it spins around its center
+    ctx.rect(-40, -2.5, 80, 5); 
+    ctx.fill();
+};
+  
+// 2. Chunky Rectangle
+const drawChunkyRect = (ctx) => {
+    ctx.beginPath();
+    ctx.rect(-9, -6, 18, 12);
+    ctx.fill();
+};
 
 const Sidebar = () => {
-    const BASE_URL = import.meta.env.VITE_URL_PROJECT+  "/project-management-service";
-    const {ownerEmail} = useSelector((state)=>state.project);
+    const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
+    const { ownerEmail } = useSelector((state) => state.project);
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
     const [profilePictureUrl, setProfilePictureUrl] = useState("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
-    const userId = useSelector((state)=>state.project.userToken);
-    const email = useSelector((state)=>state.project.ownerEmail);
-    const [profileOpen,setProfileOpen]= useState(false);
+    const userId = useSelector((state) => state.project.userToken);
+    const email = useSelector((state) => state.project.ownerEmail);
+    const [profileOpen, setProfileOpen] = useState(false);
+    
+    // State for feedback
+    const [feedback, setFeedback] = useState("");
+
     const dispatch = useDispatch();
     const location = useLocation();
 
-    async function createNewProj(){
-    try{
-      const token = localStorage.getItem('bearerToken');
-      const res = await axios.post(BASE_URL+'/create-new-project',{
-        ownerEmail : ownerEmail,
-        projectName : "New project"
-      }, {
-        headers: {
-          'client_name': 'mapx',"Authorization": `Bearer ${token}`
-        }
-      })
-      toast.success('New project created!!')
-      navigate("/map/"+res.data.projectId )
-    }catch(err){
-      toast.error(err.response.data.message)
-    }
-  }
-  function handleLogout(){
-    localStorage.removeItem('ownerEmail');
-    localStorage.removeItem('userToken');
-    localStorage.removeItem('bearerToken');
-    dispatch(setEmail(''));
-    dispatch(setUserToken(''));
-    window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
-  }
+    // --- Styling Logic ---
 
-    function handleClick(head){
+    const getNavItemClass = (isActive) => {
+        const base = "group relative flex items-center gap-3 px-5 py-3 mx-4 rounded-full select-none cursor-pointer mb-1 transition-all duration-200 ease-in-out";
+        
+        // SELECTED STATE
+        const activeStyle = `
+            bg-zinc-800
+            border-t-2 border-white/10 border-b-0 border-r border-white/5
+            shadow-[0_2px_10px_rgba(0,0,0,0.3)] 
+            text-white font-medium
+        `;
+
+        // DEFAULT STATE
+        const inactiveStyle = `
+            text-zinc-400 
+            border border-transparent
+            hover:bg-black/30 hover:text-zinc-200 hover:border-t-white/10 hover:shadow-lg
+        `;
+
+        if (isActive) {
+            return `${base} ${activeStyle}`;
+        }
+        
+        return `${base} ${inactiveStyle}`;
+    };
+
+    async function createNewProj() {
+        try {
+            const token = localStorage.getItem('bearerToken');
+            const res = await axios.post(BASE_URL + '/create-new-project', {
+                ownerEmail: ownerEmail,
+                projectName: "New project"
+            }, {
+                headers: {
+                    'client_name': 'mapx', "Authorization": `Bearer ${token}`
+                }
+            })
+            toast.success('New project created!!')
+            navigate("/map/" + res.data.projectId)
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Error creating project")
+        }
+    }
+
+    function handleLogout() {
+        localStorage.removeItem('ownerEmail');
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('bearerToken');
+        dispatch(setEmail(''));
+        dispatch(setUserToken(''));
+        window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
+    }
+
+    function handleClick(head) {
         dispatch(setHeading(head))
     }
-    const fetchProfile = async () => {
 
+    const handleFeedbackSubmit = () => {
+        if(!feedback.trim()) return;
+        
+        toast.success("Thanks for the feedback!");
+        setFeedback("");
+
+        // Create instance with useWorker: false to allow custom shapes
+        const myConfetti = confetti.create(null, {
+            resize: true,
+            useWorker: false 
+        });
+
+        const origin = { x: 0.08, y: 0.70 };
+        const colors = ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42'];
+
+        // Burst 1: Filler confetti (circles & chunks)
+        myConfetti({
+            particleCount: 30, 
+            spread: 50,
+            startVelocity: 20,
+            origin: origin,
+            scalar: 0.8,
+            shapes: ['circle', 'square', drawChunkyRect],
+            colors: colors,
+            gravity: 1.5,
+            drift: 0.5,
+            ticks: 150
+        });
+
+        // Burst 2: The HERO Long Strips
+        setTimeout(() => {
+             myConfetti({
+                 particleCount: 8, // Keep count low so they feel special
+                 spread: 70,       // Wider spread
+                 startVelocity: 35,
+                 origin: origin,
+                 scalar: 1.2,      // Scale them up a bit more
+                 shapes: [drawLongStrip], 
+                 colors: colors,
+                 gravity: 2,       // Falls fast like heavy paper
+                 drift: 1,         
+                 flat: true,       // 2D spinning
+                 wobble: 15,       // << Increases the "flutter" effect
+                 ticks: 250        // Stay on screen longer
+             });
+        }, 100);
+    }
+    const fetchProfile = async () => {
         if (!userId) return;
         try {
             const profile = await getUserProfile(userId);
             setUserData(profile);
             if (profile?.picture) {
-                try {
-                    setTimeout(async () => {
+                setTimeout(async () => {
+                    try {
                         const response = await getProfilePhoto(email, profile.picture);
-                        const imageUrl = URL.createObjectURL(response.data);
-                    setProfilePictureUrl(imageUrl);
-                    }, 100);
-                } catch (imgError) {
-                    console.error("Failed to fetch profile image:", imgError);
-                    setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
-                }
-            } else {
-                setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
+                        setProfilePictureUrl(URL.createObjectURL(response.data));
+                    } catch (e) {
+                        setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
+                    }
+                }, 100);
             }
-
         } catch (error) {
-            console.log("test : ",error);
-            toast.error("Failed to load profile data.");
+            console.log("Error loading profile", error);
         }
     };
-    useEffect(()=>{
+
+    useEffect(() => {
         fetchProfile();
-        if(location.pathname.includes("/myprojects")){
-            dispatch(setHeading("My projects"))
-        }else if(location.pathname.includes("/recents")){
-            dispatch(setHeading("Recents"))
-        }else if(location.pathname.includes("/sharedProjects")){
-            dispatch(setHeading("Shared Projects"))
-        }else if(location.pathname.includes("/allProjects")){
-            dispatch(setHeading("All Projects"))
-        }
-    },[location.pathname,dispatch,userId])
-  return (
-    <div className='z-1'>
-        <div className='w-[300px] bg-[#1F1F1F] h-full text-white  border-1 border-t-0 border-zinc-600'>
-            <div className="project pt-5">
-                <div className="projectSettings">
-                    <nav>
+        if (location.pathname.includes("/myprojects")) dispatch(setHeading("My projects"));
+        else if (location.pathname.includes("/recents")) dispatch(setHeading("Recents"));
+        else if (location.pathname.includes("/sharedProjects")) dispatch(setHeading("Shared Projects"));
+        else if (location.pathname.includes("/allProjects")) dispatch(setHeading("All Projects"));
+    }, [location.pathname, dispatch, userId]);
+
+    return (
+        <div className='z-1 h-full'>
+            {/* Sidebar Background: Zinc-900 */}
+            <div className='w-[300px] bg-[#18181b]/90 h-full flex flex-col justify-between border-r border-black shadow-2xl rounded-4xl tracking-wide'>
+                
+                <div className="flex-1 overflow-y-auto no-scrollbar pt-8 pb-4">
+                    
+                    {/* Header */}
+                    <div className="px-8 mb-8">
+                        <h1 className="text-2xl text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive' }}>
+                            Happy Dyno
+                        </h1>
+                    </div>
+
+                    {/* Navigation Items */}
+                    <div className="flex flex-col">
                         <div
                             onClick={createNewProj}
-                            className={
-                                `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg cursor-pointer
-                                transition-all duration-500 ease-in-out select-none text-white hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]
-                                before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`
-                            }
-                            >
-                            <>
-                                <img className="max-h-[20px] max-w-[20px]" src={plus} alt="" />
-                                <p className="pl-[15px]">New Project</p>
-                            </>
+                            className={getNavItemClass(false)}
+                        >
+                            <img className="w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity" src={plus} alt="Add" />
+                            <span className="font-medium text-sm">New Project</span>
                         </div>
 
-
-
-                        <NavLink onClick={()=>handleClick("Recents")} to='/recents' className={({ isActive }) =>
-                                    `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
-                                    transition-all duration-500 ease-in-out select-none
-                                    ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
-
-                                    ${!isActive && !profileOpen && "hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]"} 
-
-                                    before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                    after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`
-                                }>
-                                {({isActive})=>(
-                                <>
-                                    <img className='max-h-[20px] max-w-[20px]' src={isActive?timeB:time} alt="" />
-                                    <p className='pl-[15px]'>Recents</p>
-                                </>
-                                )}
+                        <NavLink onClick={() => handleClick("Recents")} to='/recents' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
+                            <img className='w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity' src={time} alt="Recents" />
+                            <span className="font-medium text-sm">Recents</span>
                         </NavLink>
-                        <NavLink onClick={()=>handleClick("My Projects")} to='/myProjects' className={({ isActive }) =>
-                                    `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
-                                    transition-all duration-500 ease-in-out select-none
-                                    ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
 
-                                    ${!isActive && !profileOpen && "hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]"} 
-
-                                    before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                    after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`
-                                }>
-                                {({isActive})=>(
-                                <>
-                                    <img className='max-h-[20px] max-w-[20px]' src={isActive?presentationB:presentation} alt="" />
-                                    <p className='pl-[15px]'>My Projects</p>
-                                </>
-                                )}
+                        <NavLink onClick={() => handleClick("My Projects")} to='/myProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
+                            <img className='w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity' src={presentation} alt="My Projects" />
+                            <span className="font-medium text-sm">My Projects</span>
                         </NavLink>
-                        <NavLink onClick={()=>handleClick("Shared Projects")} to='/sharedProjects' className={({ isActive }) =>
-                                    `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
-                                    transition-all duration-500 ease-in-out select-none
-                                    ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
 
-                                    ${!isActive && !profileOpen && "hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]"} 
-
-                                    before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                    after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`
-                                }>
-                                {({isActive})=>(
-                                <>
-                                    <img className='max-h-[20px] max-w-[20px]' src={isActive?mapB:map} alt="" />
-                                    <p className='pl-[15px]'>Shared Projects</p>
-                                </>
-                            )}
+                        <NavLink onClick={() => handleClick("Shared Projects")} to='/sharedProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
+                            <img className='w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity' src={map} alt="Shared" />
+                            <span className="font-medium text-sm">Shared Projects</span>
                         </NavLink>
-                        <NavLink onClick={()=>handleClick("All Projects")} to='/allProjects' className={({ isActive }) =>
-                                    `relative flex flex-row items-center gap-2 text-md px-[40px] py-[20px] rounded-lg
-                                    transition-all duration-500 ease-in-out select-none
-                                    ${isActive && !profileOpen ? "bg-[#D5EDFF] text-[#1403FF]" : "text-white"} 
 
-                                    ${!isActive && !profileOpen && "hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]"} 
-
-                                    before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                    after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30`
-                                }>
-                                {({isActive})=>(
-                                <>
-                                    <img className='max-h-[20px] max-w-[20px]' src={isActive?folderB:folder} alt="" />
-                                    <p className='pl-[15px]'>All Projects</p>
-                                </>
-                                )}
+                        <NavLink onClick={() => handleClick("All Projects")} to='/allProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
+                            <img className='w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity' src={folder} alt="All" />
+                            <span className="font-medium text-sm">All Projects</span>
                         </NavLink>
-                        
-                    </nav>
-                </div>
-                <div className="help ">
-                    <p className='px-[40px] py-[20px] text-lg font-light text-[#1B76D0]'>Help</p>
-                    <nav>
-                        <a href='https://cal.com/sankalp-sadekar-mapx' target='_blank'>
-                            <div className='relative flex flex-row items-center gap-2 text-sm pl-[40px] py-[25px] px-5 cursor-pointer text-white 
-                                rounded-lg transition-all duration-500 ease-in-out select-none
-                                hover:bg-white/10  hover:backdrop-blur-md
-                                hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]
-                                before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30'>
-                                <img className='max-h-[20px] max-w-[20px]' src={`${calander}`} alt="" />
-                                <p className='pl-[15px]'>Schedule a call</p>
+                    </div>
+
+                    <div className="my-4 border-t-2 border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]" />
+
+                    {/* Support */}
+                    <div>
+                        <p className='px-9 mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600'>Support</p>
+                        <a href='https://cal.com/sankalp-sadekar-mapx' target='_blank' rel="noreferrer">
+                            <div className={getNavItemClass(false)}>
+                                <img className='w-4 h-4 opacity-60 group-hover:opacity-100' src={calander} alt="Schedule" />
+                                <span className="font-medium text-sm">Schedule Call</span>
                             </div>
                         </a>
-                    </nav>
+                    </div>
+
+                    {/* NEW FEEDBACK SECTION */}
+                    <div className="mt-4 px-9">
+                        <textarea 
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            className="w-full h-25 bg-black/20 text-zinc-300 text-[12px] rounded-lg p-2 outline-none resize-none border border-white/5 focus:border-white/10 transition-colors placeholder:text-zinc-600"
+                            placeholder="Let’s make Dyno cool — share your thoughts! 🦕"
+                            rows="3"
+                        />
+                        <button 
+                            onClick={handleFeedbackSubmit}
+                            className="mt-1 w-full py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wider transition-all duration-200
+                                     bg-black text-zinc-500 border border-zinc-800
+                                     hover:bg-zinc-200 hover:text-black hover:border-zinc-200"
+                        >
+                            Submit
+                        </button>
+                    </div>
+
+                </div>
+
+                {/* Bottom Profile Widget */}
+                <div className="p-4">
+                    <div className="bg-black/30 rounded-[24px] p-4 border border-zinc-900 shadow-inner">
+                        <div className="flex items-center gap-3 mb-4 pl-1">
+                            <img className='h-10 w-10 object-cover rounded-full ring-2 ring-zinc-800' src={profilePictureUrl} alt="Profile" />
+                            <div className='flex flex-col overflow-hidden'>
+                                <p className='font-semibold text-sm text-zinc-300 truncate'>
+                                    {userData ? userData.first_name : "User"}
+                                </p>
+                                <p className='text-[10px] text-zinc-500 truncate'>
+                                    {email}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => setProfileOpen(!profileOpen)}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-full text-xs font-medium transition-all duration-200
+                                ${profileOpen 
+                                    ? 'bg-zinc-700 text-white border-t border-white/10 shadow-lg' 
+                                    : 'bg-black text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200'
+                                }`}
+                            >
+                                <img className={`w-3.5 h-3.5 ${profileOpen ? 'invert' : 'opacity-60'} hover:opacity-100`} src={account} alt="" />
+                                Settings
+                            </button>
+
+                            <button 
+                                onClick={handleLogout}
+                                className="h-8 w-8 flex items-center justify-center rounded-full bg-black text-zinc-500 hover:bg-red-900/20 hover:text-red-400 transition-all"
+                                title="Logout"
+                            >
+                                <img className='w-3.5 h-3.5 opacity-70' src={logout} alt="Logout" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {profileOpen && (
+                        <div className="absolute bottom-4 left-[310px] z-50">
+                            <Profile 
+                                setProfileOpen={setProfileOpen} 
+                                userId={userId} 
+                                email={email} 
+                                profilePictureUrl={profilePictureUrl}
+                                userData={userData}
+                                fetchProfile={fetchProfile}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
-            <hr/>
-            <div className="setting ">
-                <p className='text-lg px-[40px] py-[19px] font-light text-[#1B76D0]'>Settings</p>
-                <nav>
-                    <button className='cursor-pointer w-full' onClick={()=>setProfileOpen(!profileOpen)}>
-                        <div className={`relative flex flex-row items-center gap-2 text-sm py-[20px] pl-[40px] px-5 cursor-pointer text-white 
-                                rounded-lg transition-all duration-500 ease-in-out select-none
-                                hover:bg-white/10  hover:backdrop-blur-md
-                                hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]
-                                before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30
-                                ${profileOpen?"bg-[#D5EDFF] text-[#1403FF]" : "text-white"}
-                                ${profileOpen && "hover:bg-white/10  hover:backdrop-blur-md hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]"} 
-                            `}>
-                            <img className='max-h-[20px] max-w-[20px]' src={profileOpen?accountB:account} alt="" />
-                            <p className='pl-[15px]'>Account Settings</p>
-                        </div>
-                    </button>
-                    <div onClick={handleLogout} className='relative flex flex-row items-center gap-2 text-sm py-[20px] pl-[40px] px-5 cursor-pointer text-white 
-                                rounded-lg transition-all duration-500 ease-in-out select-none
-                                hover:bg-white/10  hover:backdrop-blur-md
-                                hover:shadow-[inset_0_1px_0px_rgba(255,255,255,0.6),0_4px_15px_rgba(0,0,0,0.25)]
-                                before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-0 hover:before:opacity-40
-                                after:absolute after:inset-0 after:rounded-lg after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-0 hover:after:opacity-30'>
-                        <img className='max-h-[20px] max-w-[20px]' src={`${logout}`} alt="" />
-                        <p className='pl-[15px]'>logout</p>
-                    </div>
-                </nav>
-            </div>
-            <div>
-                <button className='pl-4 p-2 flex'>
-                    <img className='h-[50px] w-[50px] object-cover rounded-full' src={profilePictureUrl} alt="" />
-                    <div className='pl-2'>
-                        <p className='font-semibold text-left'>{userData?userData.first_name+" "+userData.last_name:"Loading"}</p>
-                        <p className='font-light text-sm text-zinc-400 text-left'>{email}</p>
-                    </div>
-                </button>
-              {profileOpen && (
-  <Profile 
-    setProfileOpen={setProfileOpen} 
-    userId={userId} 
-    email={email} 
-    profilePictureUrl={profilePictureUrl}
-    userData={userData}
-    fetchProfile={fetchProfile}
-  />
-)}
-            </div>
         </div>
-    </div>
-  )
+    )
 }
 
-export default Sidebar
+export default Sidebar;

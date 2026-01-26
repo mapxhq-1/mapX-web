@@ -5,7 +5,7 @@ import { isMaRange, yearToMaBin } from "../../utils/era";
 /**
  * Load-everything settings
  */
-const PRELOAD_ALL_ON_LOAD = true;   // eagerly reproject+cache all frames on map load
+const PRELOAD_ALL_ON_LOAD = false;   // eagerly reproject+cache all frames on map load
 const PRELOAD_CONCURRENCY = 3;      // how many images to prepare at once (tune for your CPU)
 const PREVIEW_MAX_WIDTH   = 1024;   // preview cap
 const FULL_MAX_WIDTH      = 2048;   // full cap (keep ≤4096 for older GPUs)

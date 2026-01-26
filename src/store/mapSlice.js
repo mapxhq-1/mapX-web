@@ -171,33 +171,57 @@ const mapSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchAllEmpirePolygons.fulfilled, (state, action) => {
-        state.loading = false; // Set loading false when done
+        state.loading = false; 
         const empires = [];
-        for (let i = 0; i < (action.payload || []).length; i++) {
-          const empire = action.payload[i];
-          const { startYear, endYear, content } = empire || {};
+        
+        const payload = action.payload || [];
+
+        for (let i = 0; i < payload.length; i++) {
+          const item = payload[i];
+          
+          // 1. DESTRUCTURE YOUR SPECIFIC FIELDS
+          // We grab objectId (the real ID) and empireName
+          const { startYear, endYear, content, objectId, empireName } = item || {};
+          
           const start = convertYearToInteger(startYear);
           const end = convertYearToInteger(endYear);
+          
           if (start === null || end === null) continue;
-          const features = (content && Array.isArray(content.features)) ? content.features : [];
-          if (!features.length) continue;
-          empires.push({ start, end, features });
+          
+          const rawFeatures = (content && Array.isArray(content.features)) ? content.features : [];
+          if (!rawFeatures.length) continue;
+
+          // 2. INJECT ID INTO PROPERTIES
+          // This bridges the gap between your API structure and the MapView
+          const enrichedFeatures = rawFeatures.map(feature => ({
+            ...feature,
+            properties: {
+              ...feature.properties,
+              // FORCE the correct ID and Name into properties
+              id: objectId,       // e.g., "68e1f62d85d0863839c622ea"
+              name: empireName,   // e.g., "French Pondicherry"
+              
+              // Keep original properties just in case
+              original_id: feature.properties?.id 
+            }
+          }));
+
+          empires.push({ start, end, features: enrichedFeatures });
         }
         
         state.empires = empires;
         
-        // BUILD INDEX ONCE
+        // ... (standard indexing logic) ...
         const { yearToEmpireIds, empireIdToFeatures } = buildYearIndex(empires);
         state.yearToEmpireIds = yearToEmpireIds;
         state.empireIdToFeatures = empireIdToFeatures;
         
-        // Compute initial polygons - force new array reference
         const newPolygons = computePolygonsForYear(
           yearToEmpireIds,
           empireIdToFeatures,
           state.year
         );
-        state.polygons = [...newPolygons]; // Spread to ensure new reference
+        state.polygons = [...newPolygons];
       })
       .addCase(fetchAllEmpirePolygons.rejected, (state, action) => {
         state.loading = false;

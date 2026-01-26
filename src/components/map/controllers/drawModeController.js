@@ -67,8 +67,9 @@ export function createDrawModeController(options) {
         try { mapRef.current?.off("click", onSelectClick); } catch (_) {}
     };
 
-    const setMode = (mode) => {
-        console.log(`[DrawController] Switching mode to: "${mode}"`);
+    // --- UPDATED: Accepts optional 'color' argument ---
+    const setMode = (mode, color = null) => {
+        console.log(`[DrawController] Switching mode to: "${mode}"${color ? ` with color: ${color}` : ''}`);
         
         // Step 1: Clean up previous mode
         cleanup();
@@ -87,6 +88,9 @@ export function createDrawModeController(options) {
                 break;
 
             case "highlight":
+                if (color && highlight && typeof highlight.setColor === 'function') {
+                    highlight.setColor(color);
+                }
                 highlight?.setActive(true);
                 cursorManager?.show(highlighterIcon, 28);
                 setCanvasCursor("none"); 
@@ -118,7 +122,8 @@ export function createDrawModeController(options) {
             case "note":
                 if (noteManager) {
                     console.log("[DrawController] Activating NoteManager...");
-                    noteManager.activate();
+
+                    noteManager.activate(color);
                     
                     // FORCE cursor to none here as well. 
                     // This creates a "belt and suspenders" approach to ensure 
