@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState,useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
 import LiquidGlass from "./LiquidGlass";
 import dyno from './dyno.png'
@@ -19,6 +19,22 @@ const ResizableWindow = ({
   const [prevBounds, setPrevBounds] = useState(null);
   const isDraggingRef = useRef(false);
 
+  useEffect(() => {
+    const handleAutoOpen = () => {
+      // Automatically open the window (un-minimize)
+      setIsMinimized(false);
+      
+      // Optional: If you want it to pop up to default size instead of full screen
+      // setIsMaximized(false); 
+    };
+
+    window.addEventListener('trigger-know-more', handleAutoOpen);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('trigger-know-more', handleAutoOpen);
+    };
+  }, []);
   // --- Handlers ---
   const handleHeaderClick = () => {
     if (isDraggingRef.current) return;

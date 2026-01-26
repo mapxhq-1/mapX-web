@@ -233,7 +233,7 @@ export default function Chat() {
   };
 
   // 1. REFACTORED: Accept override parameters
-  const sendMessage = async (overrideInput = null, overrideGrade = null, forceNewSession = false) => {
+  const sendMessage = async (overrideInput = null, overrideGrade = null, forceNewSession = false, skipAutoFly = false) => {
     const textToSend = overrideInput || input;
     // If overrideGrade is passed (even 0 or -1), use it. Otherwise use state.
     const gradeToSend = overrideGrade !== null ? overrideGrade : selectedGrade; 
@@ -288,7 +288,7 @@ export default function Chat() {
         setMessages(newUiMessages);
 
         const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
-        if (lastHistoryItem.flyToPosition && autoFlyCount < 2) {
+        if (lastHistoryItem.flyToPosition && autoFlyCount < 2 && !skipAutoFly) {
           const flyData = lastHistoryItem.flyToPosition;
           const empireMatchData = {
             lat: flyData.lat,
@@ -321,7 +321,7 @@ export default function Chat() {
         
         // 2. Trigger Send immediately
         // We pass 'true' as the 3rd argument to force a fresh session ID in the API call
-        sendMessage(query, grade, true); 
+        sendMessage(query, grade, true, true); 
     };
 
     window.addEventListener('trigger-know-more', handleTrigger);
