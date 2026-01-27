@@ -30,7 +30,6 @@ export const cloneProject = async (projectId, email) => {
 
 export const saveFeedback = ({ userId, feedback }) => {
   const token = localStorage.getItem('bearerToken');
-  console.log(token)
   return axios.post(
     `${BASE_URL}/save_the_feedback`,
     null, 
