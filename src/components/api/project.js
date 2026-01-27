@@ -27,3 +27,21 @@ export const cloneProject = async (projectId, email) => {
     throw error;
   }
 };
+
+export const saveFeedback = ({ userId, feedback }) => {
+  const token = localStorage.getItem('bearerToken');
+  console.log(token)
+  return axios.post(
+    `${BASE_URL}/save_the_feedback`,
+    null, 
+    {
+      headers: {
+        client_name: "mapx", "Authorization": `Bearer ${token}`
+      },
+      params: {
+        userId,
+        feedback,
+      },
+    }
+  );
+};

@@ -7,6 +7,8 @@ import confetti from 'canvas-confetti';
 
 import { setHeading, setEmail, setUserToken } from '../../../store/projectSlice';
 import { getUserProfile, getProfilePhoto } from '../../api/auth';
+import { saveFeedback } from '../../api/project';
+
 import Profile from "./Profile";
 
 // Assets
@@ -108,53 +110,72 @@ const Sidebar = () => {
         dispatch(setHeading(head))
     }
 
-    const handleFeedbackSubmit = () => {
-        if(!feedback.trim()) return;
-        
-        toast.success("Thanks for the feedback!");
-        setFeedback("");
+    const handleFeedbackSubmit = async () => {
+        if (!feedback.trim()) return;
 
-        // Create instance with useWorker: false to allow custom shapes
-        const myConfetti = confetti.create(null, {
+        try {
+            const userId = localStorage.getItem("ownerEmail"); 
+
+            if (!userId) {
+            toast.error("User not logged in");
+            return;
+            }
+
+            await saveFeedback({
+            userId,
+            feedback,
+            });
+
+            toast.success("Thanks for the feedback!");
+            setFeedback("");
+
+            // 🎉 Confetti stays exactly the same
+            const myConfetti = confetti.create(null, {
             resize: true,
-            useWorker: false 
-        });
+            useWorker: false,
+            });
 
-        const origin = { x: 0.08, y: 0.70 };
-        const colors = ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42'];
+            const origin = { x: 0.08, y: 0.7 };
+            const colors = ["#26ccff", "#a25afd", "#ff5e7e", "#88ff5a", "#fcff42"];
 
-        // Burst 1: Filler confetti (circles & chunks)
-        myConfetti({
-            particleCount: 30, 
+            myConfetti({
+            particleCount: 30,
             spread: 50,
             startVelocity: 20,
-            origin: origin,
+            origin,
             scalar: 0.8,
-            shapes: ['circle', 'square', drawChunkyRect],
-            colors: colors,
+            shapes: ["circle", "square", drawChunkyRect],
+            colors,
             gravity: 1.5,
             drift: 0.5,
-            ticks: 150
-        });
+            ticks: 150,
+            });
 
-        // Burst 2: The HERO Long Strips
-        setTimeout(() => {
-             myConfetti({
-                 particleCount: 8, // Keep count low so they feel special
-                 spread: 70,       // Wider spread
-                 startVelocity: 35,
-                 origin: origin,
-                 scalar: 1.2,      // Scale them up a bit more
-                 shapes: [drawLongStrip], 
-                 colors: colors,
-                 gravity: 2,       // Falls fast like heavy paper
-                 drift: 1,         
-                 flat: true,       // 2D spinning
-                 wobble: 15,       // << Increases the "flutter" effect
-                 ticks: 250        // Stay on screen longer
-             });
-        }, 100);
-    }
+            setTimeout(() => {
+            myConfetti({
+                particleCount: 8,
+                spread: 70,
+                startVelocity: 35,
+                origin,
+                scalar: 1.2,
+                shapes: [drawLongStrip],
+                colors,
+                gravity: 2,
+                drift: 1,
+                flat: true,
+                wobble: 15,
+                ticks: 250,
+            });
+            }, 100);
+
+        } catch (err) {
+            console.error(err);
+            toast.error(
+            err.response?.data?.message || "Failed to submit feedback"
+            );
+        }
+        };
+
     const fetchProfile = async () => {
         if (!userId) return;
         try {
