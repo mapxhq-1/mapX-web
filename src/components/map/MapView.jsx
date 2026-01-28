@@ -15,7 +15,7 @@ import { getBaseStyle, getBaseStyleWithFallback, getEffectiveProvider, isEsriPro
 import { createCursorManager } from "./utils/cursorManager";
 import { buildEmpireLabelPoints as buildLabelPoints, createTextFeature, sanitizeText } from "./utils/textToolHelpers";
 import { addDrawingSources, addDrawingLayers, LAYER_IDS } from "./utils/mapLayers";
-
+import { useLayerManager } from "./hooks/useLayerManager";
 // Overlays
 import { createSelectionOverlay } from "./overlays/selectionOverlay";
 import { createTextToolbar } from "./overlays/textToolbar";
@@ -1134,7 +1134,9 @@ const onEmpireClick = async (e) => {
     map.current.addControl(new ResetNorthControl(), "bottom-right");
 
   }, [leftOffset, rightOffset]);
-  
+
+  const customLayers = useSelector((state) => state.layers.layers);
+  useLayerManager(map, customLayers);
 // Effect to handle the "Ask Dyno" event dispatch
   useEffect(() => {
     window.handleAskDyno = () => {

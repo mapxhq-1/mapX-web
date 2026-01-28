@@ -35,3 +35,42 @@ export async function getEmpireDetailsById(id) {
     throw err;
   }
 }
+export async function getAllLayers(){
+  const token = localStorage.getItem('bearerToken');
+  try {
+    const res = await axios.get(
+      BASE_URL+`/get_all_geo_layers`,
+      {
+        headers: {
+          client_name: "mapx",
+          "Authorization": `Bearer ${token}`
+        },
+      }
+    );
+    console.log(res.data.response);
+    return res.data.response; 
+  } catch (err) {
+    console.error("Error fetching empire details:", err);
+    throw err;
+  }
+}
+
+export async function searchGeoLayers(layerType = null){
+  const token = localStorage.getItem('bearerToken');
+  try {
+    const res = await axios.get(
+      BASE_URL+`/search_geo_layers`,
+      {
+        headers: {
+          client_name: "mapx",
+          "Authorization": `Bearer ${token}`
+        },params: {layerType}
+      }
+    );
+    console.log(res.data.response);
+    return res.data.response; 
+  } catch (err) {
+    console.error("Error fetching empire details:", err);
+    throw err;
+  }
+}
