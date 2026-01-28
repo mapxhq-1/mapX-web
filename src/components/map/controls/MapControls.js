@@ -5,10 +5,15 @@ import { isEsriProvider } from "../utils/mapStyles";
 // Photon Search Control
 // ============================================================================
 export class PhotonSearchControl {
+
     onAdd(m) {
         this._map = m;
         this._container = document.createElement("div");
-        this._container.className = "maplibregl-ctrl";
+        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
+        
+        // MODIFIED: Minimize bottom margin to sit on the timeline
+        this._container.style.marginBottom = "4px"; 
+        this._container.style.height = "30px";
         this._container.style.background = "white";
         this._container.style.borderRadius = "4px";
         this._container.style.boxShadow = "0 1px 2px rgba(0,0,0,0.15)";
@@ -200,7 +205,7 @@ export class ScreenshotControl {
         this._map = m;
         this._container = document.createElement("div");
         this._container.className = "maplibregl-ctrl maplibregl-ctrl-group";
-
+        this._container.style.marginBottom = "25px";
         const button = document.createElement("button");
         button.type = "button";
         button.className = "maplibregl-ctrl-icon";
@@ -391,6 +396,7 @@ export class MeasureDistanceControl {
         this._map = m;
         this._container = document.createElement("div");
         this._container.className = "maplibregl-ctrl maplibregl-ctrl-group";
+        this._container.style.marginBottom = "4px"; // Keep small gap between stacked buttons
         this._button = document.createElement("button");
         this._button.type = "button";
         this._button.className = "maplibregl-ctrl-icon";
@@ -593,7 +599,7 @@ export class ResetNorthControl {
         this._map = m;
         this._container = document.createElement("div");
         this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
-        // this._container.style.marginBottom = "20px";
+        this._container.style.marginBottom = "4px";
         this._container.style.height = "30px";
         this._container.style.width = "30px";
         const button = document.createElement("button");
@@ -629,7 +635,8 @@ export class ZoomControl {
     this._container = document.createElement("div");
     this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
     this._container.style.height = "70px";
-        this._container.style.width = "30px";
+    this._container.style.width = "30px";
+     this._container.style.marginBottom = "-15px";
     const zoomIn = document.createElement("button");
     zoomIn.type = "button";
     zoomIn.className = "maplibregl-ctrl-icon";
@@ -697,23 +704,24 @@ export class CompactAttributionControl {
     container.style.alignItems = "center";
     container.style.justifyContent = "center";
 
-    // White circle i button
+  // White circle i button
     const button = document.createElement("button");
     button.type = "button";
     button.innerHTML = "i";
     button.setAttribute("aria-label", "Attribution");
 
-    button.style.width = "30px";
-    button.style.height = "30px";
+    // MODIFIED: Smaller size (20px) and font
+    button.style.width = "20px"; 
+    button.style.height = "20px";
     button.style.borderRadius = "9999px";
     button.style.border = "1px solid rgba(0,0,0,0.25)";
-    button.style.background = "#fff";   // white circle
-    button.style.color = "#111";        // visible i
+    button.style.background = "#fff";
+    button.style.color = "#111";
     button.style.display = "flex";
     button.style.alignItems = "center";
     button.style.justifyContent = "center";
     button.style.fontWeight = "800";
-    button.style.fontSize = "14px";
+    button.style.fontSize = "11px"; // MODIFIED: Smaller font
     button.style.cursor = "pointer";
     button.style.userSelect = "none";
 
