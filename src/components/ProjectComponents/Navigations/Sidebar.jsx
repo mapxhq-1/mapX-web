@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
@@ -52,6 +52,19 @@ const Sidebar = () => {
     const dispatch = useDispatch();
     const location = useLocation();
 
+    // --- GLOW LOGIC FOR NEW PROJECT BUTTON ---
+    const btnRef = useRef(null);
+    const [spot, setSpot] = useState({ x: 0, y: 0 });
+    const [isHover, setIsHover] = useState(false);
+  
+    const handleMove = (e) => {
+      const el = btnRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setSpot({ x, y });
+    };
     // --- Styling Logic ---
 
     const getNavItemClass = (isActive) => {
@@ -221,11 +234,42 @@ const Sidebar = () => {
                     {/* Navigation Items */}
                     <div className="flex flex-col">
                         <div
+                            ref={btnRef}
+                            onMouseEnter={() => setIsHover(true)}
+                            onMouseLeave={() => setIsHover(false)}
+                            onMouseMove={handleMove}
+                            style={{
+                                "--mx": `${spot.x}px`,
+                                "--my": `${spot.y}px`,
+                            }}
                             onClick={createNewProj}
-                            className={getNavItemClass(false)}
+                            className={`${getNavItemClass(false)} overflow-hidden`}
                         >
-                            <img className="w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity" src={plus} alt="Add" />
-                            <span className="font-medium text-sm">New Project</span>
+                            {/* --- Glow Effects --- */}
+                            <span
+                                className={`pointer-events-none absolute inset-0 transition-opacity duration-200 ${isHover ? "opacity-100" : "opacity-0"}`}
+                                style={{
+                                    background: `radial-gradient(120px circle at var(--mx) var(--my), rgba(178, 255, 137, 0.25), rgba(178, 255, 137, 0.12) 35%, rgba(0, 0, 0, 0) 70%)`,
+                                    filter: "blur(10px)",
+                                }}
+                            />
+                            <span
+                                className={`pointer-events-none absolute inset-0 transition-opacity duration-200 ${isHover ? "opacity-100" : "opacity-0"}`}
+                                style={{
+                                    background: `radial-gradient(60px circle at var(--mx) var(--my), rgba(178, 255, 137, 0.35), rgba(178, 255, 137, 0.10) 55%, rgba(0, 0, 0, 0) 75%)`,
+                                    filter: "blur(6px)",
+                                    mixBlendMode: "screen",
+                                }}
+                            />
+                            <span
+                                className={`pointer-events-none absolute inset-x-4 top-[1px] h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent transition-opacity duration-300 ${isHover ? "opacity-70" : "opacity-40"}`}
+                            />
+
+                            {/* --- Button Content --- */}
+                            <div className="relative z-10 flex items-center gap-3">
+                                <img className="w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity" src={plus} alt="Add" />
+                                <span className="font-medium text-sm">New Project</span>
+                            </div>
                         </div>
 
                         <NavLink onClick={() => handleClick("Recents")} to='/recents' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>

@@ -627,28 +627,43 @@ const speedLookup = useMemo(() => {
           />
           
           {/* Go Button - appears when typing */}
+          {/* ✅ UPDATED: LARGER GREEN "GO" BUTTON */}
           {showGoButton && (
             <button
-  onClick={() => parseAndSetYear(inputValue)}
-  className="
-    flex items-center justify-center
-    w-12 h-12
-    rounded-full
-    bg-neutral-950
-    bg-gradient-to-b from-neutral-800 to-neutral-950
-    
-    text-neutral-400 text-sm font-semibold
-    border-b-2 border-zinc-400/50
-    ring-1 ring-white/10
-    transition-all duration-200 ease-in-out
-    hover:scale-105
-    hover:text-white
-    hover:ring-white/20
-    hover:shadow-[0_6px_12px_rgba(0,0,0,0.9)]
-  "
->
-  Go
-</button>
+              onClick={() => parseAndSetYear(inputValue)}
+              className="
+                flex items-center justify-center
+                
+                /* 📏 INCREASED SIZE to match input height */
+                w-15 h-15 
+                
+                /* Round shape */
+                rounded-full
+                
+                /* 🟢 VIBRANT GREEN COLOR */
+                bg-green-600 
+                hover:bg-green-500
+                bg-gradient-to-b from-green-500 to-green-700
+                
+                /* 🔤 LARGER TEXT */
+                text-white text-lg font-bold
+                
+                /* Borders & Rings */
+                border-b-4 border-green-900/30
+                ring-1 ring-white/20
+                
+                /* 👆 TOUCH SENSITIVITY & ANIMATION */
+                transition-all duration-200 ease-in-out
+                active:scale-95         /* Slight press effect */
+                active:border-b-0       /* Button presses down visually */
+                active:translate-y-1
+                
+                hover:scale-105         /* Subtle grow on hover */
+                hover:shadow-[0_0_25px_rgba(74,222,128,0.5)] /* Green Glow */
+              "
+            >
+              GO
+            </button>
           )}
         </Box>
         
