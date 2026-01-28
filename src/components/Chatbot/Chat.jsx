@@ -49,7 +49,7 @@ export default function Chat() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-//ANCHOR - Update
+  //ANCHOR - Update
   useEffect(() => {
     console.log("ChatBot")
     scrollToBottom();
@@ -93,8 +93,6 @@ export default function Chat() {
     }
   };
 
-  // ... (deleteChatDirectly, mapHistoryToUi, loadOldChat, etc... keep as is) ...
-  // Keeping these hidden for brevity, they do not need changes
   const deleteChatDirectly = async (e, idToDelete) => {
     e.stopPropagation();
     try {
@@ -112,7 +110,17 @@ export default function Chat() {
 
   const mapHistoryToUi = (historyItem) => {
     const uiMsgs = [];
-    uiMsgs.push({ role: "user", content: historyItem.userInput, timestamp: historyItem.timestamp });
+    
+    // --- NEW LOGIC: Hide context in history ---
+    let userContent = historyItem.userInput || "";
+    const identifier = "//////";
+    
+    if (userContent.includes(identifier)) {
+      userContent = userContent.split(identifier)[0].trim();
+    }
+    // ------------------------------------------
+
+    uiMsgs.push({ role: "user", content: userContent, timestamp: historyItem.timestamp });
 
     let empireData = null;
     if (historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
@@ -222,7 +230,7 @@ export default function Chat() {
     if (window.innerWidth < 768) setMobileMenuOpen(false);
   };
 
-  const handleMicClick = async  () => {
+  const handleMicClick = async () => {
     if (listening) {
       await SpeechRecognition.abortListening();
     } else {
@@ -237,47 +245,61 @@ export default function Chat() {
     }
   };
 
-  // 1. REFACTORED: Accept override parameters
-  const sendMessage = async (overrideInput = null, overrideGrade = null, forceNewSession = false, skipAutoFly = false) => {
+  const sendMessage = async (
+    overrideInput = null,
+    overrideGrade = null,
+    forceNewSession = false,
+    skipAutoFly = false,
+    isHidden = false 
+  ) => {
     const textToSend = overrideInput || input;
-    // If overrideGrade is passed (even 0 or -1), use it. Otherwise use state.
-    const gradeToSend = overrideGrade !== null ? overrideGrade : selectedGrade; 
-    
-    // If forcing a new session, use null explicitly. Otherwise use state sessionId.
+    const gradeToSend = overrideGrade !== null ? overrideGrade : selectedGrade;
     const activeSessionId = forceNewSession ? null : sessionId;
 
     if (!textToSend.trim() || loading) return;
 
     if (listening) {
-        try {
-            await SpeechRecognition.abortListening();
-        } catch (e) {
-            console.warn("Could not abort listening (non-fatal):", e);
-        }
+      try {
+        await SpeechRecognition.abortListening();
+      } catch (e) {
+        console.warn("Could not abort listening:", e);
+      }
     }
 
     if (!overrideInput) {
       setInput("");
       resetTranscript();
     }
-    
+
     setLoading(true);
 
-    const userMessage = { role: "user", content: textToSend };
-    // If it's a new session, clear messages first
-    if (forceNewSession) {
+    // --- NEW LOGIC: SEPARATE DISPLAY TEXT FROM PAYLOAD ---
+    let displayContent = textToSend;
+    const identifier = "//////";
+    
+    if (textToSend.includes(identifier)) {
+        // Only show the part BEFORE the identifier
+        displayContent = textToSend.split(identifier)[0].trim();
+    }
+
+    // Create the message object with the CLEAN text
+    const userMessage = { role: "user", content: displayContent };
+
+    // CONDITIONAL: Only update UI if NOT hidden
+    if (!isHidden) {
+      if (forceNewSession) {
         setMessages([userMessage]);
-    } else {
+      } else {
         setMessages((prev) => [...prev, userMessage]);
+      }
     }
 
     try {
-      const lang = voiceLanguage ==="kn-IN"?"kn":"";
-      
-      // Use the variables we created above
+      const lang = voiceLanguage === "kn-IN" ? "kn" : "";
+
+      // SEND THE FULL 'textToSend' (with context) TO BACKEND
       const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang);
 
-      // If we didn't have a session ID before, or forced a new one, update state
       if ((!activeSessionId) && data.sessionId) {
         setSessionId(data.sessionId);
         loadHistoryList();
@@ -297,6 +319,7 @@ export default function Chat() {
         setMessages(newUiMessages);
 
         const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
+        
         if (lastHistoryItem.flyToPosition && autoFlyCount < 2 && !skipAutoFly) {
           const flyData = lastHistoryItem.flyToPosition;
           const empireMatchData = {
@@ -319,32 +342,51 @@ export default function Chat() {
       setLoading(false);
     }
   };
+ 
+  
+  useEffect(() => {
+    const handleKnowMoreTrigger = (e) => {
+      const { query, grade } = e.detail || {};
+      
+      if (query) {
+        if (window.innerWidth < 768) setMobileMenuOpen(false);
+        sendMessage(query, grade || 0, false, true, false); 
+      }
+    };
 
-useEffect(() => {
-  const onKeyDown = (e) => {
-    const isCtrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
-    if (!isCtrlK || e.repeat) return;
+    window.addEventListener('trigger-know-more', handleKnowMoreTrigger);
+    
+    return () => {
+      window.removeEventListener('trigger-know-more', handleKnowMoreTrigger);
+    };
+  }, [sendMessage]);
 
-    e.preventDefault();
-    e.stopPropagation();
 
-    if (isListeningRef.current) {
-      SpeechRecognition.abortListening();
-    } else {
-      resetTranscript();
-      SpeechRecognition.startListening({
-        continuous: true,
-        language: voiceLanguage,
-      });
-    }
-  };
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const isCtrlK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+      if (!isCtrlK || e.repeat) return;
 
-  window.addEventListener("keydown", onKeyDown, { capture: true });
+      e.preventDefault();
+      e.stopPropagation();
 
-  return () => {
-    window.removeEventListener("keydown", onKeyDown, { capture: true });
-  };
-}, [voiceLanguage]);
+      if (isListeningRef.current) {
+        SpeechRecognition.abortListening();
+      } else {
+        resetTranscript();
+        SpeechRecognition.startListening({
+          continuous: true,
+          language: voiceLanguage,
+        });
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
+    };
+  }, [voiceLanguage]);
 
   return (
     <>
@@ -382,15 +424,15 @@ useEffect(() => {
 
       {/* MAIN CONTAINER */}
       <div className="flex h-full w-full relative rounded-[25px] overflow-hidden font-sans bg-[#f1ebe3] text-[#111b21]">
-        
+
         {/* --- SIDEBAR (Desktop) --- */}
-        <div 
+        <div
           className={`hidden md:flex flex-col shrink-0 border-r border-[#004f42] transition-all duration-300 overflow-hidden bg-[#075e54] text-white`}
           style={{ width: sidebarOpen ? "250px" : "0px" }}
         >
           <div className="p-4">
-            <button 
-              onClick={startNewChat} 
+            <button
+              onClick={startNewChat}
               className="flex items-center gap-2.5 bg-[#006D5B] hover:bg-[#128c7e] text-white border-none rounded-full py-3 px-4 w-full shadow-md transition-colors duration-200 font-bold text-sm"
             >
               <span className="text-lg">+</span> New Chat
@@ -405,11 +447,10 @@ useEffect(() => {
               return (
                 <div key={chat.id}
                   onClick={() => { loadOldChat(chat.id); setSidebarOpen(false) }}
-                  className={`group flex items-center justify-between gap-2.5 mb-1 px-3 py-2.5 rounded-full cursor-pointer text-[13px] transition-all duration-200 ${
-                    isActive 
-                    ? "bg-[#006D5B] text-white border-b-3 border-[#044a3a]/50 translate-y-px" // 3D Effect: Bottom border only
-                    : "text-[#e9edef] hover:bg-[#006D5B] hover:text-white border-b-4 border-transparent hover:border-[#044a3a]/30" 
-                  }`}
+                  className={`group flex items-center justify-between gap-2.5 mb-1 px-3 py-2.5 rounded-full cursor-pointer text-[13px] transition-all duration-200 ${isActive
+                      ? "bg-[#006D5B] text-white border-b-3 border-[#044a3a]/50 translate-y-px" // 3D Effect: Bottom border only
+                      : "text-[#e9edef] hover:bg-[#006D5B] hover:text-white border-b-4 border-transparent hover:border-[#044a3a]/30"
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 overflow-hidden">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 ${isActive ? 'opacity-100' : 'opacity-70'}`}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2-2z"></path></svg>
@@ -417,9 +458,8 @@ useEffect(() => {
                   </div>
                   <button
                     onClick={(e) => deleteChatDirectly(e, chat.id)}
-                    className={`p-1 border-none bg-transparent cursor-pointer transition-opacity duration-200 ${
-                      isActive ? "text-[#ff6b6b] opacity-100" : "text-[#aebac1] opacity-0 group-hover:opacity-100 hover:text-[#ff6b6b]"
-                    }`}
+                    className={`p-1 border-none bg-transparent cursor-pointer transition-opacity duration-200 ${isActive ? "text-[#ff6b6b] opacity-100" : "text-[#aebac1] opacity-0 group-hover:opacity-100 hover:text-[#ff6b6b]"
+                      }`}
                     title="Delete Chat"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -439,11 +479,11 @@ useEffect(() => {
         {mobileMenuOpen && (
           <div className="absolute inset-0 z-[200] bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}>
             <div className="w-[85%] max-w-[300px] h-full bg-[#006D5B] text-white p-5 shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-              <button 
-                  onClick={startNewChat} 
-                  className="mb-5 p-4 w-full border-none rounded-full text-base font-medium text-white bg-[#006D5B] hover:bg-[#128c7e]"
+              <button
+                onClick={startNewChat}
+                className="mb-5 p-4 w-full border-none rounded-full text-base font-medium text-white bg-[#006D5B] hover:bg-[#128c7e]"
               >
-                  + New Chat
+                + New Chat
               </button>
               <div className="mt-2.5 flex-1 overflow-y-auto custom-scrollbar-sidebar">
                 <div className="text-xs uppercase text-[#e9edef]/70 mb-2.5 font-bold">Recent Chats</div>
@@ -471,9 +511,9 @@ useEffect(() => {
           {/* Top Bar */}
           <div className="px-4 py-3 flex items-center justify-between min-h-[60px]">
             <div className="flex items-center">
-              <button 
-                  onClick={() => { if (window.innerWidth < 768) setMobileMenuOpen(true); else setSidebarOpen(!sidebarOpen); }} 
-                  className="bg-transparent border-none cursor-pointer p-2.5 mr-2 text-[#54656f] hover:bg-black/5 rounded-full flex items-center justify-center transition-colors"
+              <button
+                onClick={() => { if (window.innerWidth < 768) setMobileMenuOpen(true); else setSidebarOpen(!sidebarOpen); }}
+                className="bg-transparent border-none cursor-pointer p-2.5 mr-2 text-[#54656f] hover:bg-black/5 rounded-full flex items-center justify-center transition-colors"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
               </button>
@@ -495,11 +535,11 @@ useEffect(() => {
                 <div key={idx} className={`flex gap-3 w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`
                       flex-initial max-w-[85%] min-w-0 p-3 px-4.5 rounded-t-2xl 
-                      ${msg.role === "user" 
-                          ? "bg-[#d9fdd3] text-[#111b21] rounded-bl-2xl shadow-md" 
-                          : "bg-transparent text-[#111b21] rounded-br-2xl shadow-none" 
-                      }
-                  `}>
+                      ${msg.role === "user"
+                      ? "bg-[#d9fdd3] text-[#111b21] rounded-bl-2xl shadow-md"
+                      : "bg-transparent text-[#111b21] rounded-br-2xl shadow-none"
+                    }
+                    `}>
 
                     {/* Content */}
                     <div className="text-base leading-relaxed">
@@ -555,9 +595,18 @@ useEffect(() => {
               ))}
 
               {loading && (
-                <div className="flex gap-3 w-full justify-start pl-4.5">
-                  <div className="flex items-center gap-1 h-8">
-                    <div className="w-2 h-2 bg-[#888] rounded-full animate-pulse"></div>
+                <div className="flex gap-3 w-full justify-start pl-4.5 mt-2">
+                  <div className="flex items-center gap-2 h-8">
+                    {/* Optional: Small Spinner Icon */}
+                    <svg className="animate-spin h-3 w-3 text-[#075e54]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    
+                    {/* The Text */}
+                    <span className="text-sm text-[#54656f] italic animate-pulse font-medium">
+                      Dyno is thinking...
+                    </span>
                   </div>
                 </div>
               )}
@@ -599,10 +648,10 @@ useEffect(() => {
               </div>
 
               {/* INPUT CONTAINER */}
-              <div 
-                  className={`
+              <div
+                className={`
                       relative w-full rounded-3xl overflow-hidden bg-white shadow-sm
-                  `}
+                    `}
               >
 
                 {/* Breathing Glow Effect (Green) */}
@@ -633,12 +682,12 @@ useEffect(() => {
                       onClick={handleMicClick}
                       title="Speech to Text"
                       className={`
-                        w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10
-                        ${listening
-                            ? "bg-[#25d366] text-white hover:bg-[#128c7e] shadow-[0_0_10px_rgba(37,211,102,0.3)]"
-                            : "bg-zinc-100/50 text-[#54656f] hover:bg-[#f0f1e3]"
+                          w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10
+                          ${listening
+                          ? "bg-[#25d366] text-white hover:bg-[#128c7e] shadow-[0_0_10px_rgba(37,211,102,0.3)]"
+                          : "bg-zinc-100/50 text-[#54656f] hover:bg-[#f0f1e3]"
                         }
-                      `}
+                        `}
                     >
                       {listening ? (
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12" /></svg>
@@ -652,12 +701,12 @@ useEffect(() => {
                     onClick={() => sendMessage()}
                     disabled={!input.trim() || loading}
                     className={`
-                      w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10
-                      ${input.trim() && !loading
-                          ? "bg-[#075e54] text-white hover:bg-[#006D5B] cursor-pointer"
-                          : "bg-transparent text-[#aebac1] cursor-not-allowed"
+                        w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10
+                        ${input.trim() && !loading
+                        ? "bg-[#075e54] text-white hover:bg-[#006D5B] cursor-pointer"
+                        : "bg-transparent text-[#aebac1] cursor-not-allowed"
                       }
-                    `}
+                      `}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
                   </button>
@@ -677,7 +726,7 @@ useEffect(() => {
               <div className="p-4 overflow-y-auto custom-scrollbar-chat">
                 {activeCitations.map((c, i) => (
                   <div key={i} className="mb-2.5 p-3 bg-[#f0f2f5] rounded-lg text-[13px] text-[#111b21] leading-snug">
-                      {typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}
+                    {typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}
                   </div>
                 ))}
               </div>

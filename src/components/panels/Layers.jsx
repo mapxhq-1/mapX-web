@@ -77,7 +77,7 @@ const Layers = ({ searchQuery = "" }) => {
           setTypesList(uniqueTypes);
 
           let defaultType = "";
-          if (uniqueTypes.includes("World Rivers")) defaultType = "World Rivers";
+          if (uniqueTypes.includes("Trade Routes")) defaultType = "Trade Routes";
           else if (uniqueTypes.length > 0) defaultType = uniqueTypes[0];
           setSelectedType(defaultType);
 

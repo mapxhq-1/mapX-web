@@ -2,7 +2,22 @@ import maplibregl from "maplibre-gl";
 import { fetchAllNotes } from "../api/note";
 import { getEraForYear, getAbsoluteYear } from "../../utils/era";
 import { isMaEra } from "./maEraGuards";
-import noteIcon from "../../assets/icons/note_icon.png";
+
+import noteIconYellow from "../../assets/Notes/yellow.png"; 
+import noteIconBlue from "../../assets/Notes/blue.png";
+import noteIconWhite from "../../assets/Notes/white.png";
+import noteIconRed from "../../assets/Notes/pink.png";
+import noteIconGreen from "../../assets/Notes/green.png";
+import noteIconPurple from "../../assets/Notes/purple.png";
+
+const noteIcons = {
+    "#FFE299": noteIconYellow,
+    "#A8DAFF": noteIconBlue,
+    "#ffffff": noteIconWhite,
+    "#FFAFA3": noteIconRed,
+    "#B3EFBD": noteIconGreen,
+    "#D3BDFF": noteIconPurple,
+};
 
 export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, projectIdParam, reduxStore }) => {
     let active = false;
@@ -67,7 +82,7 @@ export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, pro
             box.appendChild(fold);
         }
     };
-    const renderMini = (rootEl) => {
+    const renderMini = (rootEl, backgroundColor) => {
         rootEl.style.background = 'transparent';
         rootEl.style.border = 'none';
         rootEl.style.boxShadow = 'none';
@@ -79,14 +94,17 @@ export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, pro
         rootEl.style.height = 'auto';
         rootEl.style.maxWidth = 'none';
         rootEl.style.maxHeight = 'none';
+        
         const row = document.createElement('div');
         row.style.display = 'inline-flex';
         row.style.alignItems = 'center';
         row.style.gap = '4px';
         row.style.width = 'fit-content';
         row.style.height = 'fit-content';
+        
         const img = document.createElement('img');
-        img.src = noteIcon;
+        img.src = noteIcons[backgroundColor] || noteIconDefault;
+        
         img.alt = 'Note Icon';
         img.style.width = '24px';
         img.style.height = '24px';
@@ -120,7 +138,7 @@ export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, pro
         rootEl.addEventListener('wheel', stopEvt, { passive: true });
         const z = map.current.getZoom();
         if (z < NOTE_ICON_ZOOM) {
-            renderMini(rootEl);
+            renderMini(rootEl, state.backgroundColor);
             state.expanded = false;
             state.titleEl = null;
             state.bodyEl = null;
@@ -200,16 +218,25 @@ export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, pro
         state.bodyEl = body;
     };
     
-    const ensureCursorEl = () => {
+const ensureCursorEl = () => {
         if (cursorEl) return cursorEl;
+        
         const el = document.createElement("div");
         el.style.position = "absolute";
         el.style.pointerEvents = "none";
         el.style.zIndex = "24";
         el.style.transform = "translate(-50%, -50%)";
-        el.style.fontSize = "18px";
-        el.style.lineHeight = "1";
-        el.innerHTML = noteSvgInner;
+        
+        // Create an image element instead of setting innerHTML
+        const img = document.createElement("img");
+        img.className = "cursor-note-icon"; // Useful for targeting later
+        img.style.width = "32px";
+        img.style.height = "32px";
+        
+        // Initial source based on activeColor
+        img.src = noteIcons[activeColor] || noteIcons["#FFE299"];
+        
+        el.appendChild(img);
         map.current.getContainer().appendChild(el);
         cursorEl = el;
         return el;
@@ -345,6 +372,12 @@ export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, pro
             activeColor = color;
         }
 
+        if (cursorEl) {
+            const img = cursorEl.querySelector('img');
+            if (img) {
+                img.src = noteIcons[activeColor] || noteIcons["#FFE299"];
+            }
+        }
         if (active) return;
         active = true;
         const el = ensureCursorEl();
@@ -358,6 +391,7 @@ export const createNoteManager = ({ map, dispatch, openNotesAction, yearRef, pro
         
         onClick = (e) => {
             // Open modal for creating new note
+            // console.log({activeColor})
             dispatch(openNotesAction({
                 id: `new`,
                 title: '',

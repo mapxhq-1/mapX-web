@@ -47,7 +47,7 @@ export async function getAllLayers(){
         },
       }
     );
-    console.log(res.data.response);
+    // console.log(res.data.response);
     return res.data.response; 
   } catch (err) {
     console.error("Error fetching empire details:", err);
@@ -67,7 +67,7 @@ export async function searchGeoLayers(layerType = null){
         },params: {layerType}
       }
     );
-    console.log(res.data.response);
+    // console.log(res.data.response);
     return res.data.response; 
   } catch (err) {
     console.error("Error fetching empire details:", err);

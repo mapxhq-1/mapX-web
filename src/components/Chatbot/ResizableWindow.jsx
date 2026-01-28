@@ -1,7 +1,8 @@
-import React, { useState,useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
 import LiquidGlass from "./LiquidGlass";
-import dyno from './dyno.png'
+import dyno from './dyno.png';
+
 // Shared classes for resize handles
 const HANDLE_BASE = "absolute z-[1000000] transition-all duration-200 ease-in-out";
 const HANDLE_CORNER = `${HANDLE_BASE} !w-6 !h-6 z-[1000001] hover:bg-cyan-400/30`;
@@ -17,27 +18,26 @@ const ResizableWindow = ({
   const [size, setSize] = useState(initialSize);
   const [isDragging, setIsDragging] = useState(false);
   const [prevBounds, setPrevBounds] = useState(null);
+  
+  // Refs for logic
   const isDraggingRef = useRef(false);
+  
+  // We need separate refs for Header vs Bubble to avoid conflicts
+  const headerStartRef = useRef({ x: 0, y: 0 });
+  const bubbleStartRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleAutoOpen = () => {
-      // Automatically open the window (un-minimize)
       setIsMinimized(false);
-      
-      // Optional: If you want it to pop up to default size instead of full screen
-      // setIsMaximized(false); 
     };
-
     window.addEventListener('trigger-know-more', handleAutoOpen);
-
-    // Cleanup
     return () => {
       window.removeEventListener('trigger-know-more', handleAutoOpen);
     };
   }, []);
-  // --- Handlers ---
-  const handleHeaderClick = () => {
-    if (isDraggingRef.current) return;
+
+  // --- Core Maximize Logic ---
+  const performMaximize = () => {
     if (isMinimized) {
       setIsMinimized(false);
       return;
@@ -55,13 +55,48 @@ const ResizableWindow = ({
     setIsMaximized(!isMaximized);
   };
 
-  const handleBubbleClick = () => {
-    if (isDraggingRef.current) return;
-    setIsMinimized(false);
+  // --- HEADER HANDLERS (Maximize) ---
+  const handleHeaderPointerDown = (e) => {
+    // Record where we started touching the header
+    headerStartRef.current = { x: e.clientX, y: e.clientY };
   };
 
+  const handleHeaderPointerUp = (e) => {
+    // Calculate distance moved
+    const deltaX = Math.abs(e.clientX - headerStartRef.current.x);
+    const deltaY = Math.abs(e.clientY - headerStartRef.current.y);
+
+    // If moved less than 5px, it's a CLICK (Tap), not a drag.
+    if (deltaX < 5 && deltaY < 5) {
+      // Logic: If on desktop (mouse), allow dragging check? 
+      // Actually, standardizing on Pointer events solves both.
+      performMaximize();
+    }
+  };
+
+  // --- BUBBLE HANDLERS (Minimize Restore) ---
+  // This is the "Alternative Method" -> Manual coordinate checking
+  const handleBubblePointerDown = (e) => {
+    bubbleStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleBubblePointerUp = (e) => {
+    // Calculate how far the bubble was dragged
+    const deltaX = Math.abs(e.clientX - bubbleStartRef.current.x);
+    const deltaY = Math.abs(e.clientY - bubbleStartRef.current.y);
+
+    // If moved less than 5px, treat it as a TAP to open
+    // This ignores Rnd's "isDragging" state completely.
+    if (deltaX < 5 && deltaY < 5) {
+      setIsMinimized(false);
+    }
+  };
+
+  // --- BUTTON HANDLERS ---
   const toggleMinimize = (e) => {
-    e.stopPropagation();
+    e.stopPropagation(); // Stop event from reaching the header
+    // e.nativeEvent.stopImmediatePropagation(); // Hard stop for some browsers
+    
     if (isMaximized) {
       setIsMaximized(false);
       if (prevBounds) {
@@ -74,13 +109,12 @@ const ResizableWindow = ({
 
   const toggleMaximizeButton = (e) => {
     e.stopPropagation();
-    handleHeaderClick();
+    performMaximize();
   };
 
   // --- Layout Helpers ---
   const getTargetSize = () => isMinimized ? { width: 64, height: 64 } : isMaximized ? { width: "100%", height: "100%" } : size;
   const getTargetPos = () => isMaximized && !isMinimized ? { x: 0, y: 0 } : position;
-
   const transitionClass = isDragging ? "transition-none" : "transition-[width,height,transform] duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]";
 
   return (
@@ -88,8 +122,15 @@ const ResizableWindow = ({
       size={getTargetSize()}
       position={getTargetPos()}
       cancel=".no-drag"
-      onDragStart={() => { setIsDragging(true); isDraggingRef.current = true; }}
-      onDragStop={(e, d) => { setIsDragging(false); if (!isMaximized) setPosition({ x: d.x, y: d.y }); setTimeout(() => { isDraggingRef.current = false; }, 100); }}
+      onDragStart={() => { 
+        setIsDragging(true); 
+        isDraggingRef.current = true; 
+      }}
+      onDragStop={(e, d) => { 
+        setIsDragging(false); 
+        if (!isMaximized) setPosition({ x: d.x, y: d.y }); 
+        setTimeout(() => { isDraggingRef.current = false; }, 100); 
+      }}
       onResizeStart={() => setIsDragging(true)}
       onResizeStop={(e, dir, ref, delta, pos) => { setIsDragging(false); if (!isMinimized && !isMaximized) { setSize({ width: ref.style.width, height: ref.style.height }); setPosition(pos); } }}
       minWidth={isMinimized ? 60 : 320}
@@ -110,25 +151,52 @@ const ResizableWindow = ({
       enableResizing={!isMaximized && !isMinimized}
       className={`fixed flex flex-col box-border z-[999999] overflow-hidden ${isMinimized ? "rounded-full" : "rounded-2xl"} ${isMaximized && !isMinimized ? "!rounded-none" : ""} ${transitionClass}`}
     >
-      {/* This is the fix: LiquidGlass now fills the 100% height of this Rnd container.
-      */}
       <LiquidGlass>
         
-        {/* Minimized Bubble */}
-        <div className={`rounded-full drag-handle w-full h-full bg-zinc-500/60 border-1 border-zinc-400items-center justify-center cursor-pointer text-white ${ isMinimized ? "flex" : "hidden" }`} onClick={handleBubbleClick} >
+        {/* --- MINIMIZED BUBBLE (FIXED) --- */}
+        <div 
+           className={`rounded-full drag-handle w-full h-full bg-zinc-500/60 border-1 border-zinc-400 items-center justify-center cursor-pointer text-white ${ isMinimized ? "flex" : "hidden" }`} 
+           // Replaced onClick with Pointer Events to bypass Drag conflicts
+           onPointerDown={handleBubblePointerDown}
+           onPointerUp={handleBubblePointerUp}
+        >
           <img src={dyno} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
         </div>
 
-        {/* Maximized Content */}
+        {/* --- MAXIMIZED CONTENT --- */}
         <div className={`${!isMinimized ? "flex" : "hidden"} flex-col h-full w-full relative`}>
+          
           {/* Header */}
-          <div className="drag-handle flex justify-between items-center px-4 h-[40px] border-b border-white/20 cursor-move shrink-0 select-none bg-white/10 z-20" onClick={handleHeaderClick}>
+          <div 
+            className="drag-handle flex justify-between items-center px-4 h-[40px] border-b border-white/20 cursor-move shrink-0 select-none bg-white/10 z-20"
+            // Using Pointer Events here too for consistency
+            onPointerDown={handleHeaderPointerDown}
+            onPointerUp={handleHeaderPointerUp}
+          >
              <div className="flex items-center gap-3">
                <span className=" text-white dark:text-white text-[15px] potta-one">Happy Dyno</span>
              </div>
-             <div className="no-drag flex gap-2" onPointerDown={(e) => e.stopPropagation()}>
-                <button onClick={toggleMinimize} className="w-6 h-6 rounded-full bg-black/70 hover:bg-white/30 flex items-center justify-center text-white"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-                <button onClick={toggleMaximizeButton} className="w-6 h-6 rounded-full bg-black/70 hover:bg-white/30 flex items-center justify-center text-white"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg></button>
+
+             {/* BUTTONS CONTAINER */}
+             <div 
+                className="no-drag flex gap-2" 
+                // Stop propagation on everything to be safe
+                onPointerDown={(e) => e.stopPropagation()} 
+                onPointerUp={(e) => e.stopPropagation()} 
+                onClick={(e) => e.stopPropagation()}
+             >
+                <button 
+                  onClick={toggleMinimize} 
+                  className="w-6 h-6 rounded-full bg-black/70 hover:bg-white/30 flex items-center justify-center text-white"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <button 
+                  onClick={toggleMaximizeButton} 
+                  className="w-6 h-6 rounded-full bg-black/70 hover:bg-white/30 flex items-center justify-center text-white"
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                </button>
              </div>
           </div>
 
