@@ -993,7 +993,7 @@ const onEmpireClick = async (e) => {
                             .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
                         </style>
 
-                        <div class="bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] w-[340px] h-[200px] p-4 font-sans flex flex-col relative overflow-hidden">
+                        <div class="bg-[#f1ebe3] resize rounded-lg shadow-xl border border-[#d4c5b0] w-[340px] h-[200px] p-4 font-sans flex flex-col relative overflow-hidden">
                             
                             <div class="flex justify-between items-center mb-2 border-b border-black/10 pb-2">
                                 
@@ -1028,7 +1028,7 @@ const onEmpireClick = async (e) => {
                         </div>
                     `;
 
-                    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "360px" })
+                    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
                         .setLngLat(e.lngLat)
                         .setHTML(htmlContent)
                         .addTo(map.current);

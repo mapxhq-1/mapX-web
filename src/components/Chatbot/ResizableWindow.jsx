@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
 import LiquidGlass from "./LiquidGlass";
-import dyno from './dyno.png';
+
 
 // Shared classes for resize handles
 const HANDLE_BASE = "absolute z-[1000000] transition-all duration-200 ease-in-out";
@@ -160,7 +160,7 @@ const ResizableWindow = ({
            onPointerDown={handleBubblePointerDown}
            onPointerUp={handleBubblePointerUp}
         >
-          <img src={dyno} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
+          <img src="/logo/dyno.png" alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
         </div>
 
         {/* --- MAXIMIZED CONTENT --- */}
