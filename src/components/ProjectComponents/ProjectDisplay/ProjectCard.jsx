@@ -144,13 +144,20 @@ const ProjectCard = ({ data }) => {
     exit: { opacity: 0, y: -10, scale: 0.95, transition: { duration: 0.15 } }
   };
 
+ // ADD THIS LINE: Check if any interaction is active
+  const isActive = menu || deleteBt || editBt || shareBt;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -5 }}
       transition={{ duration: 0.3 }}
-      className="w-[280px] relative flex flex-col rounded-3xl bg-[#18181b] shadow-xl border border-zinc-800 cursor-pointer overflow-visible group"
+      // MODIFIED LINE BELOW: Added dynamic z-index logic
+      // If isActive is true, we force z-50 to bring this card to the very front.
+      className={`w-[280px] relative flex flex-col rounded-3xl bg-[#18181b] shadow-xl border border-zinc-800 cursor-pointer overflow-visible group ${
+        isActive ? "z-50" : "z-0"
+      }`}
       onClick={() => navigate("/map/" + data.id)}
     >
       {/* --- Top Preview Section --- */}
@@ -212,7 +219,7 @@ const ProjectCard = ({ data }) => {
                   initial="hidden"
                   animate="visible"
                   exit="exit"
-                  className="absolute right-0 top-full mt-2 w-44 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col py-1"
+                  className="absolute right-0 top-full mt-2 w-44 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-[200] overflow-hidden flex flex-col py-1"
                 >
                   {/* Share Item */}
                   <div
