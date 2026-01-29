@@ -205,7 +205,7 @@ export class ScreenshotControl {
         this._map = m;
         this._container = document.createElement("div");
         this._container.className = "maplibregl-ctrl maplibregl-ctrl-group";
-        this._container.style.marginBottom = "25px";
+        this._container.style.marginBottom = "-23px";
         const button = document.createElement("button");
         button.type = "button";
         button.className = "maplibregl-ctrl-icon";
