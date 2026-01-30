@@ -367,7 +367,8 @@ fetchThinkingText(displayContent)
   .then(texts => {
     setThinkingTexts(texts.length ? texts : ["Thinking…"]);
   })
-  .catch(() => {
+  .catch((err) => {
+    console.log(err)
     setThinkingTexts(["Thinking…"]);
   });
 
