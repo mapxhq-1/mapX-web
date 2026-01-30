@@ -21,6 +21,65 @@ export default function Chat() {
     browserSupportsSpeechRecognition
   } = useSpeechRecognition();
 
+  async function fetchThinkingText(query) {
+  const res = await fetch(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        temperature: 0.7,
+        max_tokens: 60,
+        messages: [
+          {
+            role: "user",
+            content: `You are generating background “thinking” status text for an AI assistant.
+
+The assistant answers questions ONLY about:
+- History
+- Ancient and medieval empires
+- Civilizations
+- Geography and the globe
+- Historical timelines and places
+
+Generate exactly 5 short thinking status messages.
+Each message:
+- 2 to 6 words only
+- Neutral and analytical tone
+- Related to historical or geographical reasoning
+- No answers
+- No facts
+- No explanations
+- No sports
+- No modern events
+- No emojis
+- No punctuation
+- Use the user query and think in that context
+
+User query (for context only):
+"${query}"`
+          }
+        ]
+      })
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  const data = await res.json();
+
+  return data.choices[0].message.content
+    .split("\n")
+    .map(t => t.replace(/^[-•]/, "").trim())
+    .filter(Boolean);
+}
+
   // --- STATE ---
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -37,6 +96,8 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatHistoryList, setChatHistoryList] = useState([]);
+  const [thinkingTexts, setThinkingTexts] = useState([]);
+  const [thinkingIndex, setThinkingIndex] = useState(0);
 
   const email = useSelector((state) => state.project.ownerEmail);
   const messagesEndRef = useRef(null);
@@ -299,6 +360,17 @@ export default function Chat() {
 
     try {
       const lang = voiceLanguage === "kn-IN" ? "kn" : "";
+      setThinkingTexts([]);
+setThinkingIndex(0);
+
+fetchThinkingText(displayContent)
+  .then(texts => {
+    setThinkingTexts(texts.length ? texts : ["Thinking…"]);
+  })
+  .catch(() => {
+    setThinkingTexts(["Thinking…"]);
+  });
+
 
       // SEND THE FULL 'textToSend' (with context) TO BACKEND
       const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang);
@@ -346,7 +418,16 @@ export default function Chat() {
     }
   };
  
-  
+  useEffect(() => {
+  if (!loading || thinkingTexts.length === 0) return;
+
+  const id = setInterval(() => {
+    setThinkingIndex(i => (i + 1) % thinkingTexts.length);
+  }, 1200);
+
+  return () => clearInterval(id);
+}, [loading, thinkingTexts]);
+
   useEffect(() => {
     const handleKnowMoreTrigger = (e) => {
       const { query, grade } = e.detail || {};
@@ -606,10 +687,10 @@ export default function Chat() {
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     
-                    {/* The Text */}
                     <span className="text-sm text-[#54656f] italic animate-pulse font-medium">
-                      Dyno is thinking...
-                    </span>
+  {thinkingTexts[thinkingIndex] || "Thinking…"}
+</span>
+
                   </div>
                 </div>
               )}
