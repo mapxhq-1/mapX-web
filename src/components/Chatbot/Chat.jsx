@@ -115,7 +115,10 @@ export default function Chat() {
     let userContent = historyItem.userInput || "";
     const identifier = "//////";
     
-    if (userContent.includes(identifier)) {
+    // Check if identifier exists
+    const hasIdentifier = userContent.includes(identifier);
+    
+    if (hasIdentifier) {
       userContent = userContent.split(identifier)[0].trim();
     }
     // ------------------------------------------
@@ -123,7 +126,8 @@ export default function Chat() {
     uiMsgs.push({ role: "user", content: userContent, timestamp: historyItem.timestamp });
 
     let empireData = null;
-    if (historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
+    // Only set empireData (which shows the button) if identifier is NOT present
+    if (!hasIdentifier && historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
       empireData = {
         name: historyItem.flyToPosition.location || "Location",
         lat: historyItem.flyToPosition.lat,
@@ -278,7 +282,6 @@ export default function Chat() {
     const identifier = "//////";
     
     if (textToSend.includes(identifier)) {
-        // Only show the part BEFORE the identifier
         displayContent = textToSend.split(identifier)[0].trim();
     }
 

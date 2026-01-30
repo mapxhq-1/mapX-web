@@ -3,11 +3,9 @@ import maplibregl from "maplibre-gl";
 
 export const useLayerManager = (map, customLayers) => {
   const animationRef = useRef(null);
-  
-  // State: { [id]: { fullData, displayData, speed, lastRestartTrigger, isFinished } }
   const layerStates = useRef({});
 
-  // --- 1. SETUP LAYERS ---
+  // --- 1. RENDER & INITIALIZE ---
   useEffect(() => {
     if (!map.current) return;
     if (!Array.isArray(customLayers)) return;
@@ -20,30 +18,36 @@ export const useLayerManager = (map, customLayers) => {
       const isVisible = layer.visible ? "visible" : "none";
       const validData = layer.data || { type: "FeatureCollection", features: [] };
       const layerType = layer.metadata?.type || "";
+      
+      // --- CHANGED LOGIC: Only animate Trade Routes ---
       const shouldAnimate = 
-         layerType.includes("River") || 
          layerType.includes("Trade") || 
          layerType.includes("Route");
 
-      // Initialize Animation State
+      // Initialize Animation State (ONLY for Trade Routes)
       if (shouldAnimate && layer.data && !layerStates.current[layer.id]) {
           const emptyGeoJSON = JSON.parse(JSON.stringify(validData));
           
           emptyGeoJSON.features.forEach(f => {
-              if (f.geometry.type === "LineString") f.geometry.coordinates = []; 
-              else if (f.geometry.type === "MultiLineString") f.geometry.coordinates = f.geometry.coordinates.map(() => []);
+              if (f.geometry.type === "LineString") {
+                  f.geometry.coordinates = []; 
+              } else if (f.geometry.type === "MultiLineString") {
+                  f.geometry.coordinates = f.geometry.coordinates.map(() => []);
+              }
           });
 
           layerStates.current[layer.id] = {
-              fullData: validData,           
-              displayData: emptyGeoJSON,     
+              fullData: validData,       
+              displayData: emptyGeoJSON, 
               speed: 0,
               isFinished: false,
-              lastRestartTrigger: layer.restartTrigger || 0 // Track Redux trigger
+              pauseCounter: 0,
+              lastRestartTrigger: layer.restartTrigger || 0
           };
       }
 
       // Add Source
+      // If animating, start empty. If River (static), start full.
       const initialData = (shouldAnimate && layerStates.current[layer.id]) 
           ? layerStates.current[layer.id].displayData 
           : validData;
@@ -51,16 +55,21 @@ export const useLayerManager = (map, customLayers) => {
       if (!map.current.getSource(sourceId)) {
         map.current.addSource(sourceId, { type: "geojson", data: initialData });
       } else if (!shouldAnimate) {
+        // Force update static layers (Rivers) to full data immediately
         map.current.getSource(sourceId).setData(validData);
       }
 
-      // Add Layers (Line & Fill) - Logic unchanged
+      // Add Line Layer
       if (!map.current.getLayer(lineId)) {
         map.current.addLayer({
           id: lineId,
           type: "line",
           source: sourceId,
-          layout: { visibility: isVisible, "line-cap": "round", "line-join": "round" },
+          layout: { 
+            visibility: isVisible, 
+            "line-cap": "round", 
+            "line-join": "round" 
+          },
           paint: {
             "line-color": layer.color || "#0080ff",
             "line-width": 4,
@@ -72,13 +81,42 @@ export const useLayerManager = (map, customLayers) => {
         map.current.setLayoutProperty(lineId, "visibility", isVisible);
         map.current.setPaintProperty(lineId, "line-color", layer.color || "#0080ff");
       }
-      // (Add Fill logic here if needed...)
+
+      // Add Fill
+      if (!map.current.getLayer(fillId)) {
+        map.current.addLayer({
+          id: fillId,
+          type: "fill",
+          source: sourceId,
+          layout: { visibility: isVisible },
+          paint: {
+            "fill-color": layer.color || "#0080ff",
+            "fill-opacity": 0.3
+          },
+          filter: ["==", "$type", "Polygon"]
+        }, lineId);
+      } else {
+        map.current.setLayoutProperty(fillId, "visibility", isVisible);
+      }
+      
+      // Popup
+      if (!map.current._clickBound?.[layer.id]) {
+          const handlePopup = (e) => {
+             new maplibregl.Popup({ closeButton: false })
+                .setLngLat(e.lngLat)
+                .setHTML(`<div style="color:black; padding:4px; font-weight:bold;">${layer.name}</div>`)
+                .addTo(map.current);
+          };
+          if (!map.current._clickBound) map.current._clickBound = {};
+          map.current.on('click', lineId, handlePopup);
+          map.current._clickBound[layer.id] = true;
+      }
     });
 
   }, [customLayers]);
 
 
-  // --- 2. CONTROLLED ANIMATION LOOP ---
+  // --- 2. ANIMATION LOOP ---
   useEffect(() => {
     let isActive = true;
     const FRAMES_PER_POINT = 2; 
@@ -92,27 +130,23 @@ export const useLayerManager = (map, customLayers) => {
 
             if (!layerConfig || !layerConfig.visible) return;
 
-            // 1. CHECK FOR RESTART COMMAND
+            // Handle Restart
             if (layerConfig.restartTrigger > state.lastRestartTrigger) {
-                // Wipe coordinates to start over
                 state.displayData.features.forEach(f => {
                     if (f.geometry.type === "LineString") f.geometry.coordinates = [];
                     if (f.geometry.type === "MultiLineString") f.geometry.coordinates.forEach(a => a.length = 0);
                 });
                 state.isFinished = false;
-                state.lastRestartTrigger = layerConfig.restartTrigger; // Sync trigger
-                // Update map immediately to clear lines
+                state.lastRestartTrigger = layerConfig.restartTrigger;
                 const sourceId = `custom-source-${layerId}`;
                 if (map.current.getSource(sourceId)) {
                     map.current.getSource(sourceId).setData(state.displayData);
                 }
-                return; // Skip drawing this frame
+                return;
             }
 
-            // 2. CHECK PLAY/PAUSE
             if (!layerConfig.isPlaying || state.isFinished) return;
 
-            // 3. DRAW LOGIC
             state.speed++;
             if (state.speed < FRAMES_PER_POINT) return;
             state.speed = 0;
@@ -125,14 +159,16 @@ export const useLayerManager = (map, customLayers) => {
                 if (fullFeature.geometry.type === "LineString") {
                     const full = fullFeature.geometry.coordinates;
                     const current = displayFeature.geometry.coordinates;
+
                     if (current.length < full.length) {
                         current.push(full[current.length]);
-                        animationComplete = false;
+                        animationComplete = false; 
                     }
                 } 
                 else if (fullFeature.geometry.type === "MultiLineString") {
                     fullFeature.geometry.coordinates.forEach((fullLine, lineIdx) => {
                         const currentLine = displayFeature.geometry.coordinates[lineIdx];
+                        
                         if (currentLine.length < fullLine.length) {
                             currentLine.push(fullLine[currentLine.length]);
                             animationComplete = false;
@@ -141,14 +177,13 @@ export const useLayerManager = (map, customLayers) => {
                 }
             });
 
-            // Update Map
             const sourceId = `custom-source-${layerId}`;
             if (map.current.getSource(sourceId)) {
                 map.current.getSource(sourceId).setData(state.displayData);
             }
 
             if (animationComplete) {
-                state.isFinished = true; // Stop here. Wait for Repeat button.
+                state.isFinished = true;
             }
         });
 
