@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import { motion, AnimatePresence } from "framer-motion";
 
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
 
@@ -59,6 +60,7 @@ Each message:
 - No emojis
 - No punctuation
 - Use the user query and think in that context
+- No preamble like "Here are 5 lines".
 
 User query (for context only):
 "${query}"`
@@ -292,6 +294,7 @@ User query (for context only):
     setInput("");
     resetTranscript();
     setAutoFlyCount(0);
+    setSidebarOpen(false);
     if (window.innerWidth < 768) setMobileMenuOpen(false);
   };
 
@@ -419,12 +422,16 @@ fetchThinkingText(displayContent)
     }
   };
  
-  useEffect(() => {
+useEffect(() => {
   if (!loading || thinkingTexts.length === 0) return;
 
   const id = setInterval(() => {
-    setThinkingIndex(i => (i + 1) % thinkingTexts.length);
-  }, 1200);
+    setThinkingIndex(i => {
+      // Repeat loop: resets to 0 when all lines are displayed
+      if (i >= thinkingTexts.length - 1) return 0;
+      return i + 1;
+    });
+  }, 3000); 
 
   return () => clearInterval(id);
 }, [loading, thinkingTexts]);
@@ -680,21 +687,70 @@ fetchThinkingText(displayContent)
               ))}
 
               {loading && (
-                <div className="flex gap-3 w-full justify-start pl-4.5 mt-2">
-                  <div className="flex items-center gap-2 h-8">
-                    {/* Optional: Small Spinner Icon */}
-                    <svg className="animate-spin h-3 w-3 text-[#075e54]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    
-                    <span className="text-sm text-[#54656f] italic animate-pulse font-medium">
-  {thinkingTexts[thinkingIndex] || "Thinking…"}
-</span>
+  <div className="flex flex-col w-full pl-6 mt-4 overflow-hidden">
+    <AnimatePresence mode="popLayout">
+      {thinkingTexts.map((text, idx) => {
+        const isVisible = idx <= thinkingIndex;
+        if (!isVisible) return null;
 
-                  </div>
-                </div>
+        return (
+          <motion.div
+            key={`${text}-${idx}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="flex items-start gap-4 relative min-h-[40px]"
+          >
+            {/* Dot & Animated Line Container */}
+            <div className="flex flex-col items-center self-stretch w-3 shrink-0">
+              {/* The Pulsing Dot */}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className="w-2.5 h-2.5 rounded-full bg-black z-10 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(0,0,0,0.2)]"
+              />
+              
+              {/* The Growing Line Segment */}
+              {idx < thinkingIndex && (
+                <motion.div
+                  initial={{ height: 0 }}
+                  animate={{ height: "100%" }}
+                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                  className="w-[1.5px] bg-gradient-to-b from-black to-black/5 -mt-1"
+                />
               )}
+            </div>
+
+            {/* Smooth Text Reveal */}
+            <motion.div 
+              initial={{ opacity: 0, x: -12, filter: "blur(4px)" }}
+              animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+              transition={{ delay: 0.2, duration: 0.6 }}
+              className="pb-4"
+            >
+              <span className="text-sm text-[#54656f] italic font-medium tracking-tight">
+                {text}
+              </span>
+            </motion.div>
+          </motion.div>
+        );
+      })}
+    </AnimatePresence>
+
+    {/* Small active indicator for the "current" thought */}
+    <motion.div 
+      animate={{ opacity: [0.3, 0.7, 0.3] }}
+      transition={{ repeat: Infinity, duration: 2 }}
+      className="flex items-center gap-4 h-6 ml-0.5"
+    >
+       <div className="w-2.5 flex justify-center">
+          <div className="w-1.5 h-1.5 bg-[#075e54] rounded-full" />
+       </div>
+    </motion.div>
+  </div>
+)}
               <div ref={messagesEndRef} className="h-px" />
             </div>
           </div>

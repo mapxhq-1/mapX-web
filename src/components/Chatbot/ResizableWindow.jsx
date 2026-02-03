@@ -9,11 +9,11 @@ const HANDLE_CORNER = `${HANDLE_BASE} !w-6 !h-6 z-[1000001] hover:bg-cyan-400/30
 
 const ResizableWindow = ({
   children,
-  initialPos = { x: 70, y: 100 },
+  initialPos = { x: 330, y: 10 },
   initialSize = { width: 550, height: 600 },
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
   const [position, setPosition] = useState(initialPos);
   const [size, setSize] = useState(initialSize);
   const [isDragging, setIsDragging] = useState(false);

@@ -36,24 +36,23 @@ const HIGHLIGHTER_OPTIONS = [
   { color: "#FF00FF", src: hlPink },
 ];
 
-// --- Styled Components ---
-
 const ToolRow = ({ label, isActive, children, onClick }) => (
-  // CHANGED: justify-end -> justify-center to align Label and Icon in the middle
   <div 
-    className="flex items-center justify-center gap-4 w-full group cursor-pointer" 
+    className="flex items-center justify-between w-full group cursor-pointer py-1" 
     onClick={onClick}
   >
+    {/* Label is now flex-1 and text-left to push the icon to the end */}
     <span 
       className={`
-        text-sm font-medium transition-colors duration-200 select-none
+        text-sm font-medium transition-colors duration-200 select-none flex-1 text-left
         ${isActive ? "text-white" : "text-white/40 group-hover:text-white/90"}
       `}
     >
       {label}
     </span>
-    {/* Wrapper for the button */}
-    <div className="relative">
+    
+    {/* Icon container stays at a fixed position on the right */}
+    <div className="relative shrink-0 ml-4">
       {children}
     </div>
   </div>
