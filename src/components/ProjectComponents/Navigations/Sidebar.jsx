@@ -24,7 +24,7 @@ import logout from '../../../assets/icons/logout.png';
 // Custom drawing functions for confetti
 const drawLongStrip = (ctx) => {
     ctx.beginPath();
-    ctx.rect(-40, -2.5, 80, 5); 
+    ctx.rect(-40, -2.5, 80, 5);
     ctx.fill();
 };
 const drawChunkyRect = (ctx) => {
@@ -43,9 +43,31 @@ const Sidebar = () => {
     const email = useSelector((state) => state.project.ownerEmail);
     const [profileOpen, setProfileOpen] = useState(false);
     
-    // Mobile toggle state
+    // Mobile Sidebar Toggle
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     
+    // --- Mobile Landscape Detection ---
+    const [isCompact, setIsCompact] = useState(false);
+
+    useEffect(() => {
+        const checkMobileLandscape = () => {
+            const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent || navigator.vendor || window.opera;
+            // 1. Is it a mobile device?
+            const isMobileDevice = /android|iPad|iPhone|iPod/i.test(userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+            // 2. Is it Landscape?
+            const isLandscape = window.innerWidth > window.innerHeight;
+            // 3. Is height small? (Safety check)
+            const isShort = window.innerHeight < 500;
+
+            setIsCompact(isMobileDevice && isLandscape && isShort);
+        };
+
+        checkMobileLandscape();
+        window.addEventListener('resize', checkMobileLandscape);
+        return () => window.removeEventListener('resize', checkMobileLandscape);
+    }, []);
+    // ----------------------------------
+
     const [feedback, setFeedback] = useState("");
     const dispatch = useDispatch();
     const location = useLocation();
@@ -64,10 +86,19 @@ const Sidebar = () => {
     };
 
     const getNavItemClass = (isActive) => {
-        const base = "group relative flex items-center gap-3 px-5 py-3 mx-4 rounded-full select-none cursor-pointer mb-1 transition-all duration-200 ease-in-out";
+        const base = "group relative flex items-center gap-3 rounded-full select-none cursor-pointer mb-1 transition-all duration-200 ease-in-out";
+        // Mobile Landscape: tighter padding (px-3 py-1)
+        // Desktop/Portrait: standard padding (px-5 py-3)
+        const sizeClasses = isCompact 
+            ? "px-3 py-1 mx-2" 
+            : "px-5 py-3 mx-4";
+            
         const activeStyle = `bg-zinc-800 border-t-2 border-white/10 border-b-0 border-r border-white/5 shadow-[0_2px_10px_rgba(0,0,0,0.3)] text-white font-medium`;
         const inactiveStyle = `text-zinc-400 border border-transparent hover:bg-black/30 hover:text-zinc-200 hover:border-t-white/10 hover:shadow-lg`;
-        return isActive ? `${base} ${activeStyle}` : `${base} ${inactiveStyle}`;
+        
+        return isActive 
+            ? `${base} ${sizeClasses} ${activeStyle}` 
+            : `${base} ${sizeClasses} ${inactiveStyle}`;
     };
 
     async function createNewProj() {
@@ -80,7 +111,7 @@ const Sidebar = () => {
                 headers: { 'client_name': 'mapx', "Authorization": `Bearer ${token}` }
             })
             toast.success('New project created!!');
-            setIsMobileOpen(false); // Close sidebar on mobile after action
+            setIsMobileOpen(false); 
             navigate("/map/" + res.data.projectId);
         } catch (err) {
             toast.error(err.response?.data?.message || "Error creating project")
@@ -98,7 +129,7 @@ const Sidebar = () => {
 
     function handleClick(head) {
         dispatch(setHeading(head));
-        setIsMobileOpen(false); // Close sidebar on mobile when a link is clicked
+        setIsMobileOpen(false); 
     }
 
     const handleFeedbackSubmit = async () => {
@@ -148,9 +179,26 @@ const Sidebar = () => {
         else if (location.pathname.includes("/allProjects")) dispatch(setHeading("All Projects"));
     }, [location.pathname, dispatch, userId]);
 
+    // --- Dynamic Styles ---
+    // Reduced width to 200px for extra compactness
+    const sidebarWidth = isCompact ? "w-[200px]" : "w-[300px]";
+    const containerLayout = isCompact ? "flex-col overflow-y-auto" : "flex-col justify-between"; 
+    
+    const topSectionClasses = isCompact 
+        ? "pt-2 pb-1" 
+        : "flex-1 overflow-y-auto no-scrollbar pt-8 pb-4";
+
+    // FURTHER REDUCED SIZES
+    const iconSize = isCompact ? "w-2.5 h-2.5" : "w-4 h-4"; 
+    const textSize = isCompact ? "text-[10px]" : "text-sm";
+    
+    const headerSize = isCompact ? "text-base mb-1" : "text-2xl mb-8";
+    const headerPadding = isCompact ? "px-4" : "px-8";
+    const feedbackHeight = isCompact ? "h-10" : "h-25";
+
     return (
         <>
-            {/* --- MOBILE TRIGGER BUTTON --- */}
+            {/* --- MOBILE TRIGGER --- */}
             <button 
                 onClick={() => setIsMobileOpen(true)}
                 className="md:hidden fixed top-6 left-4 z-[60] p-2 bg-zinc-900 rounded-full border border-white/10 text-white"
@@ -174,13 +222,14 @@ const Sidebar = () => {
                 transition-transform duration-300 ease-in-out
                 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
             `}>
-                <div className='w-[300px] bg-[#18181b] h-full flex flex-col justify-between border-r border-black shadow-2xl rounded-r-4xl tracking-wide'>
+                <div className={`${sidebarWidth} bg-[#18181b] h-full flex ${containerLayout} border-r border-black shadow-2xl rounded-r-4xl tracking-wide transition-all duration-300`}>
                     
-                    <div className="flex-1 overflow-y-auto no-scrollbar pt-8 pb-4">
+                    {/* TOP SECTION */}
+                    <div className={topSectionClasses}>
                         
-                        {/* Header & Close button for mobile */}
-                        <div className="px-8 mb-8 flex justify-between items-center">
-                            <h1 className="text-2xl text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive' }}>
+                        {/* Header */}
+                        <div className={`${headerPadding} ${headerSize} flex justify-between items-center transition-all`}>
+                            <h1 className="text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive', fontSize: 'inherit' }}>
                                 Happy Dyno
                             </h1>
                             <button onClick={() => setIsMobileOpen(false)} className="md:hidden text-zinc-500">
@@ -205,51 +254,51 @@ const Sidebar = () => {
                                     style={{ background: `radial-gradient(120px circle at var(--mx) var(--my), rgba(178, 255, 137, 0.25), rgba(178, 255, 137, 0.12) 35%, rgba(0, 0, 0, 0) 70%)`, filter: "blur(10px)" }}
                                 />
                                 <div className="relative z-10 flex items-center gap-3">
-                                    <img className="w-4 h-4 opacity-60" src={plus} alt="Add" />
-                                    <span className="font-medium text-sm">New Project</span>
+                                    <img className={`${iconSize} opacity-60 transition-all`} src={plus} alt="Add" />
+                                    <span className={`font-medium ${textSize}`}>New Project</span>
                                 </div>
                             </div>
 
                             <NavLink onClick={() => handleClick("Recents")} to='/recents' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className='w-4 h-4 opacity-60' src={time} alt="Recents" />
-                                <span className="font-medium text-sm">Recents</span>
+                                <img className={`${iconSize} opacity-60 transition-all`} src={time} alt="Recents" />
+                                <span className={`font-medium ${textSize}`}>Recents</span>
                             </NavLink>
 
                             <NavLink onClick={() => handleClick("My Projects")} to='/myProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className='w-4 h-4 opacity-60' src={presentation} alt="My Projects" />
-                                <span className="font-medium text-sm">My Projects</span>
+                                <img className={`${iconSize} opacity-60 transition-all`} src={presentation} alt="My Projects" />
+                                <span className={`font-medium ${textSize}`}>My Projects</span>
                             </NavLink>
 
                             <NavLink onClick={() => handleClick("Shared Projects")} to='/sharedProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className='w-4 h-4 opacity-60' src={map} alt="Shared" />
-                                <span className="font-medium text-sm">Shared Projects</span>
+                                <img className={`${iconSize} opacity-60 transition-all`} src={map} alt="Shared" />
+                                <span className={`font-medium ${textSize}`}>Shared Projects</span>
                             </NavLink>
 
                             <NavLink onClick={() => handleClick("All Projects")} to='/allProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className='w-4 h-4 opacity-60' src={folder} alt="All" />
-                                <span className="font-medium text-sm">All Projects</span>
+                                <img className={`${iconSize} opacity-60 transition-all`} src={folder} alt="All" />
+                                <span className={`font-medium ${textSize}`}>All Projects</span>
                             </NavLink>
                         </div>
 
-                        <div className="my-4 border-t-2 border-black" />
+                        <div className={`border-t-2 border-black ${isCompact ? 'my-2' : 'my-4'}`} />
 
                         {/* Support */}
                         <div>
-                            <p className='px-9 mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600'>Support</p>
+                            <p className={`${headerPadding} mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600`}>Support</p>
                             <a href='https://cal.com/sankalp-sadekar-mapx' target='_blank' rel="noreferrer">
                                 <div className={getNavItemClass(false)}>
-                                    <img className='w-4 h-4 opacity-60' src={calander} alt="Schedule" />
-                                    <span className="font-medium text-sm">Schedule Call</span>
+                                    <img className={`${iconSize} opacity-60 transition-all`} src={calander} alt="Schedule" />
+                                    <span className={`font-medium ${textSize}`}>Schedule Call</span>
                                 </div>
                             </a>
                         </div>
 
                         {/* Feedback */}
-                        <div className="mt-4 px-9">
+                        <div className={`mt-4 ${headerPadding}`}>
                             <textarea 
                                 value={feedback}
                                 onChange={(e) => setFeedback(e.target.value)}
-                                className="w-full h-25 bg-black/20 text-zinc-300 text-[12px] rounded-lg p-2 outline-none resize-none border border-white/5 placeholder:text-zinc-600"
+                                className={`w-full ${feedbackHeight} bg-black/20 text-zinc-300 text-[12px] rounded-lg p-2 outline-none resize-none border border-white/5 placeholder:text-zinc-600 transition-all`}
                                 placeholder="Let’s make Dyno cool! 🦕"
                             />
                             <button onClick={handleFeedbackSubmit} className="mt-1 w-full py-2 rounded-lg text-[10px] font-semibold uppercase bg-black text-zinc-500 border border-zinc-800 hover:bg-zinc-200 hover:text-black">
@@ -258,13 +307,13 @@ const Sidebar = () => {
                         </div>
                     </div>
 
-                    {/* Bottom Profile Widget */}
-                    <div className="p-4">
-                        <div className="bg-black/30 rounded-[24px] p-4 border border-zinc-900">
-                            <div className="flex items-center gap-3 mb-4 pl-1">
-                                <img className='h-10 w-10 object-cover rounded-full ring-2 ring-zinc-800' src={profilePictureUrl} alt="Profile" />
+                    {/* BOTTOM SECTION (Profile) */}
+                    <div className={`${isCompact ? 'p-2' : 'p-4'}`}>
+                        <div className={`bg-black/30 rounded-[24px] ${isCompact ? 'p-2' : 'p-4'} border border-zinc-900`}>
+                            <div className={`flex items-center gap-3 ${isCompact ? 'mb-2' : 'mb-4'} pl-1`}>
+                                <img className={`${isCompact ? 'h-6 w-6' : 'h-10 w-10'} object-cover rounded-full ring-2 ring-zinc-800`} src={profilePictureUrl} alt="Profile" />
                                 <div className='flex flex-col overflow-hidden'>
-                                    <p className='font-semibold text-sm text-zinc-300 truncate'>{userData ? userData.first_name : "User"}</p>
+                                    <p className={`font-semibold ${textSize} text-zinc-300 truncate`}>{userData ? userData.first_name : "User"}</p>
                                     <p className='text-[10px] text-zinc-500 truncate'>{email}</p>
                                 </div>
                             </div>
@@ -272,7 +321,7 @@ const Sidebar = () => {
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={() => setProfileOpen(!profileOpen)}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-full text-xs font-medium transition-all ${profileOpen ? 'bg-zinc-700 text-white' : 'bg-black text-zinc-500'}`}
+                                    className={`flex-1 flex items-center justify-center gap-2 ${isCompact ? 'py-1' : 'py-2'} rounded-full text-xs font-medium transition-all ${profileOpen ? 'bg-zinc-700 text-white' : 'bg-black text-zinc-500'}`}
                                 >
                                     <img className={`w-3.5 h-3.5 ${profileOpen ? 'invert' : 'opacity-60'}`} src={account} alt="" />
                                     Settings
@@ -284,7 +333,11 @@ const Sidebar = () => {
                         </div>
 
                         {profileOpen && (
-                            <div className="absolute bottom-4 left-[310px] z-[90]">
+                            <div className={`absolute z-[90] ${
+                                isCompact 
+                                ? 'top-1/2 -translate-y-1/2 left-[210px]' 
+                                : 'bottom-4 left-[310px]'
+                            }`}>
                                 <Profile setProfileOpen={setProfileOpen} userId={userId} email={email} profilePictureUrl={profilePictureUrl} userData={userData} fetchProfile={fetchProfile} />
                             </div>
                         )}

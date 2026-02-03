@@ -22,6 +22,45 @@ const HyperlinkModel = () => {
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  
+  // --- ROBUST LAYOUT DETECTION ---
+  const [layoutMode, setLayoutMode] = useState('desktop');
+
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      
+      if (w < 768 && h > w) {
+        setLayoutMode('mobile-portrait'); 
+      } else if (h < 600) {
+        setLayoutMode('mobile-landscape'); 
+      } else {
+        setLayoutMode('desktop'); 
+      }
+    };
+
+    handleResize(); 
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // --- DYNAMIC STYLES ---
+  const isMobile = layoutMode !== 'desktop';
+  
+  // Modal Container: h-auto allows it to shrink to fit content
+  const modalClass = layoutMode === 'mobile-landscape'
+    ? "w-[400px] max-w-[95vw] max-h-[90vh] p-3" 
+    : isMobile 
+      ? "w-[90vw] max-h-[85vh] p-4" 
+      : "w-[500px] max-h-[80vh] p-5";
+
+  // Typography & Spacing
+  const titleSize = isMobile ? "text-base mb-2" : "text-xl mb-4";
+  const inputClass = isMobile ? "mb-2 px-2 py-1 text-xs" : "mb-3 px-3 py-2 text-base";
+  const btnClass = isMobile ? "px-3 py-1 text-xs" : "px-4 py-2 text-base";
+  // Reduced preview height slightly for landscape to save space
+  const previewHeight = layoutMode === 'mobile-landscape' ? "h-[180px]" : "h-[200px]";
 
   const isUpdate = currentHyperlink?.id && currentHyperlink.id !== "new";
 
@@ -35,20 +74,20 @@ const HyperlinkModel = () => {
     }
   }, [isOpen, currentHyperlink?.id, isUpdate]);
 
-useEffect(() => {
-  const handleClickOutside = (event) => {
-    if (modalRef.current && !modalRef.current.contains(event.target)) {
-      try { window.mapxHyperlinksRemoveDraftMarkers && window.mapxHyperlinksRemoveDraftMarkers(); } catch (_) {};
-      dispatch(closeHyperlink());
-    }
-  };
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        try { window.mapxHyperlinksRemoveDraftMarkers && window.mapxHyperlinksRemoveDraftMarkers(); } catch (_) {};
+        dispatch(closeHyperlink());
+      }
+    };
 
-  if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
 
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, [isOpen, dispatch]);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen, dispatch]);
 
 
   // Save or update hyperlink
@@ -166,14 +205,17 @@ useEffect(() => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-transparent bg-opacity-50">
       {/* Main Glass Card */}
-      <div ref={modalRef} className="relative w-[500px] min-h-[400px] rounded-2xl shadow-xl flex flex-col items-center p-5
+      <div ref={modalRef} className={`relative rounded-2xl shadow-xl flex flex-col items-center 
         bg-black/10 border border-white/30 backdrop-blur-md 
-        shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]">
+        shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)] overflow-y-auto custom-scrollbar
+        h-auto ${modalClass}`}>
 
         {/* Close button */}
         <button
           onClick={() => { try { window.mapxHyperlinksRemoveDraftMarkers && window.mapxHyperlinksRemoveDraftMarkers(); } catch (_) {}; dispatch(closeHyperlink()); }}
-          className="absolute top-3 right-3 z-10 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
+          className={`absolute z-10 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600
+            ${isMobile ? "top-2 right-2 w-6 h-6 text-xs" : "top-3 right-3 w-8 h-8 text-base"}
+          `}
         >
           ×
         </button>
@@ -181,27 +223,29 @@ useEffect(() => {
         {hyperlinkMode === 'view' ? (
           <>
             {/* PREVIEW MODE */}
-            <h2 className="text-xl font-semibold text-black mb-4">
+            <h2 className={`font-semibold text-black text-center shrink-0 ${titleSize}`}>
               {currentHyperlink?.title || "Hyperlink Preview"}
             </h2>
             
-            <div className="w-full max-w-[450px] mb-4">
+            <div className="w-full flex flex-col items-center">
               {currentHyperlink?.hyperlinkUrl && (
-                <div className="bg-white/10 rounded-lg p-4 min-h-[250px]">
+                // Removed min-h-[250px] to fix empty space
+                <div className={`bg-white/10 rounded-lg w-full ${isMobile ? "p-2" : "p-4"}`}>
+                  
                   {/* Small URL display at top */}
-                  <div className="mb-3">
+                  <div className="mb-2 text-center w-full">
                     <a 
                       href={currentHyperlink.hyperlinkUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-blue-400 underline text-sm break-all hover:text-blue-300 block"
+                      className={`text-blue-600 underline break-all hover:text-blue-500 block ${isMobile ? "text-xs" : "text-sm"}`}
                     >
                       {currentHyperlink.hyperlinkUrl}
                     </a>
                   </div>
                   
                   {/* Preview content */}
-                  <div className="w-full h-[200px] flex items-center justify-center">
+                  <div className={`w-full flex items-center justify-center ${previewHeight}`}>
                     {currentHyperlink.hyperlinkUrl.includes('youtube.com') || currentHyperlink.hyperlinkUrl.includes('youtu.be') ? (
                       // YouTube embed
                       <iframe
@@ -226,16 +270,17 @@ useEffect(() => {
               )}
             </div>
 
-            <div className="flex gap-3">
+            {/* Changed mt-auto to mt-4 to sit directly below content */}
+            <div className="flex gap-2 mt-4 shrink-0">
               <button
                 onClick={() => dispatch(setHyperlinkMode('edit'))}
-                className="px-4 py-2 rounded-lg bg-blue-500/80 hover:bg-blue-600 text-white shadow-md"
+                className={`rounded-lg bg-blue-500/80 hover:bg-blue-600 text-white shadow-md ${btnClass}`}
               >
                 Edit
               </button>
               <button
                 onClick={() => dispatch(closeHyperlink())}
-                className="px-4 py-2 rounded-lg bg-gray-500/80 hover:bg-gray-600 text-white shadow-md"
+                className={`rounded-lg bg-gray-500/80 hover:bg-gray-600 text-white shadow-md ${btnClass}`}
               >
                 Close
               </button>
@@ -244,36 +289,39 @@ useEffect(() => {
         ) : (
           <>
             {/* EDIT MODE */}
-            <h2 className="text-xl font-semibold text-black mb-4">
+            <h2 className={`font-semibold text-black text-center shrink-0 ${titleSize}`}>
               {isUpdate ? "Update Hyperlink" : "Add Hyperlink"}
             </h2>
 
-            {isUpdate ? (
-              <div className="w-[300px] mb-3 px-3 py-2 border border-white/30 rounded bg-white/20 text-gray-200">
-                {title || "Untitled"}
-              </div>
-            ) : (
-              <input
+            <div className="w-full flex flex-col items-center">
+                {isUpdate ? (
+                <div className={`w-full border border-white/30 rounded bg-white/20 text-gray-700 flex items-center ${inputClass}`}>
+                    {title || "Untitled"}
+                </div>
+                ) : (
+                <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Enter title"
+                    className={`w-full border border-white/40 bg-white/20 rounded text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 ${inputClass}`}
+                />
+                )}
+
+                <input
                 type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter title"
-                className="w-[300px] mb-3 px-3 py-2 border border-white/40 bg-white/20 rounded text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
-            )}
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="Enter hyperlink (https://...)"
+                className={`w-full border border-white/40 bg-white/20 rounded text-black placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 ${inputClass} mb-4`}
+                />
+            </div>
 
-            <input
-              type="text"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              placeholder="Enter hyperlink (https://...)"
-              className="w-[300px] mb-5 px-3 py-2 border border-white/40 bg-white/20 rounded text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-
-            <div className="flex gap-3">
+            {/* Changed mt-auto to mt-2 for compact layout */}
+            <div className="flex gap-2 mt-2 shrink-0">
               <button
                 onClick={handleSave}
-                className="px-4 py-2 rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md"
+                className={`rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md ${btnClass}`}
               >
                 {isUpdate ? "Update" : "Save"}
               </button>
@@ -281,7 +329,7 @@ useEffect(() => {
               {isUpdate && (
                 <button
                   onClick={() => setShowConfirm(true)}
-                  className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+                  className={`rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md ${btnClass}`}
                 >
                   Delete
                 </button>
@@ -290,7 +338,7 @@ useEffect(() => {
               {isUpdate && (
                 <button
                   onClick={() => dispatch(setHyperlinkMode('view'))}
-                  className="px-4 py-2 rounded-lg bg-white-500/80 hover:bg-gray-600 text-white shadow-md"
+                  className={`rounded-lg bg-gray-500/80 hover:bg-gray-600 text-white shadow-md ${btnClass}`}
                 >
                   Preview
                 </button>
@@ -298,23 +346,26 @@ useEffect(() => {
             </div>
           </>
         )}
+        
         {/* Delete Confirmation Modal (scoped to this card only) */}
         {showConfirm && (
-          <div className="absolute inset-0 flex items-center justify-center z-20 backdrop-blur-sm">
-            <div className="w-[320px] p-5 rounded-2xl bg-white border border-gray-200 bg-white/90 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300
-              text-center">
-              <h2 className="text-lg font-semibold text-black mb-3">Delete this hyperlink?</h2>
-              <p className="text-gray-700 mb-5">This action cannot be undone.</p>
+          <div className="absolute inset-0 flex items-center justify-center z-20 backdrop-blur-sm rounded-2xl">
+            <div className={`bg-white/90 border border-white/50 backdrop-blur-sm shadow-xl text-center rounded-2xl
+               ${isMobile ? "w-[85%] p-3" : "w-[320px] p-5"}
+            `}>
+              <h2 className={`font-semibold text-black ${isMobile ? "text-sm mb-2" : "text-lg mb-3"}`}>Delete this hyperlink?</h2>
+              <p className={`text-gray-700 ${isMobile ? "text-xs mb-3" : "text-base mb-5"}`}>This action cannot be undone.</p>
+              
               <div className="flex justify-around">
                 <button
                   onClick={() => setShowConfirm(false)}
-                  className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-green-300/50 text-white"
+                  className={`rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white ${btnClass}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+                  className={`rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md ${btnClass}`}
                 >
                   Delete
                 </button>

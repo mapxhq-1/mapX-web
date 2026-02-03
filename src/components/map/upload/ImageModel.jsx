@@ -8,7 +8,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { getEraForYear, getAbsoluteYear } from "../../../utils/era";
 import cancel_icon from '../../../assets/icons/cancel_icon.png';
 
-
 const ImageModel = () => {
   const dispatch = useDispatch();
   const [selectedFile, setSelectedFile] = useState(null);
@@ -27,13 +26,31 @@ const ImageModel = () => {
 
   const isUpdate = currentImage?.id && currentImage.id !== "new";
 
+  // --- COMPACT MODE DETECTION ---
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    const checkSize = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const isShort = window.innerHeight < 600;
+      setIsCompact(isLandscape && isShort);
+    };
+    checkSize();
+    window.addEventListener("resize", checkSize);
+    return () => window.removeEventListener("resize", checkSize);
+  }, []);
+
+  // --- DYNAMIC STYLES ---
+  const modalSize = isCompact ? "w-[300px] h-[320px] p-3" : "w-[400px] h-[500px] p-5";
+  const previewSize = isCompact ? "w-[220px] h-[130px] mb-2" : "w-[300px] h-[250px] mb-4";
+  const inputSize = isCompact ? "w-[220px] mb-2 py-1 px-2 text-xs" : "w-[300px] mb-3 px-3 py-2";
+  const buttonPadding = isCompact ? "px-3 py-1 text-xs" : "px-4 py-2";
+  const titleSize = isCompact ? "text-base mb-2" : "text-xl mb-4";
+
   useEffect(() => {
     if (isUpdate && currentImage) {
-      // For existing images, show the image URL in preview
       setPreview(currentImage.imageUrl || null);
       setCaption(currentImage.caption || "");
     } else {
-      // For new images, start with empty state
       setCaption("");
       setPreview(null);
     }
@@ -49,7 +66,7 @@ const ImageModel = () => {
   };
 
   const handleUploadOrUpdate = async () => {
-    if (!selectedFile) {
+    if (!selectedFile && !isUpdate) { // Allow update without new file (just caption)
       toast.error("Please select a new image file");
       return;
     }
@@ -129,19 +146,19 @@ const ImageModel = () => {
     }}>
       {/* Main Glass Modal */}
       <div
-        className="relative w-[400px] h-[500px] rounded-2xl shadow-xl flex flex-col items-center p-5
+        className={`relative ${modalSize} rounded-2xl shadow-xl flex flex-col items-center
         bg-black/10 border border-white/30 backdrop-blur-md 
-        shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]"
+        shadow-[inset_0_1px_0px_rgba(255,255,255,0.5),0_4px_20px_rgba(0,0,0,0.3)]`}
       >
         {/* Cancel Button */}
         <button
           onClick={() => { try { window.mapxImagesRemoveDraftMarkers && window.mapxImagesRemoveDraftMarkers(); } catch (_) {}; dispatch(closeImages()); }}
-          className="absolute top-3 right-3 bg-gray-500/80 hover:bg-gray-600 text-white rounded-full w-8 h-8 flex items-center justify-center"
+          className={`absolute top-3 right-3 bg-gray-500/80 hover:bg-gray-600 text-white rounded-full flex items-center justify-center ${isCompact ? "w-6 h-6" : "w-8 h-8"}`}
         >
-          <img src={cancel_icon} alt="Cancel" width={16} height={16} />
+          <img src={cancel_icon} alt="Cancel" width={isCompact ? 12 : 16} height={isCompact ? 12 : 16} />
         </button>
 
-        <h2 className="text-xl font-semibold text-black mb-4">
+        <h2 className={`font-semibold text-black ${titleSize}`}>
           {isUpdate ? "Update Image" : "Upload Image"}
         </h2>
 
@@ -149,10 +166,10 @@ const ImageModel = () => {
           <img
             src={preview}
             alt="Preview"
-            className="w-[300px] h-[250px] object-contain border border-white/40 mb-4 rounded-lg bg-black/20"
+            className={`${previewSize} object-contain border border-white/40 rounded-lg bg-black/20`}
           />
         ) : (
-          <div className="w-[300px] h-[250px] flex items-center justify-center border border-dashed border-white/40 text-black mb-4 rounded-lg">
+          <div className={`${previewSize} flex items-center justify-center border border-dashed border-white/40 text-black rounded-lg text-xs`}>
             No image selected
           </div>
         )}
@@ -162,7 +179,7 @@ const ImageModel = () => {
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           placeholder="Enter caption"
-          className="w-[300px] mb-3 px-3 py-2 border border-white/40 rounded bg-white/20 text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          className={`${inputSize} border border-white/40 rounded bg-white/20 text-black placeholder-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300`}
         />
 
         <input
@@ -172,17 +189,18 @@ const ImageModel = () => {
           onChange={handleFileChange}
           className="hidden"
         />
+        
         <button
           onClick={() => fileInputRef.current.click()}
-          className="px-4 py-2 mb-2 rounded-lg bg-blue-500/80 hover:bg-blue-600 text-white shadow-md"
+          className={`${buttonPadding} mb-2 rounded-lg bg-blue-500/80 hover:bg-blue-600 text-white shadow-md`}
         >
           Choose File
         </button>
 
-        <div className="flex gap-3 mt-2">
+        <div className="flex gap-3 mt-1">
           <button
             onClick={handleUploadOrUpdate}
-            className="px-4 py-2 rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md"
+            className={`${buttonPadding} rounded-lg bg-green-500/80 hover:bg-green-600 text-white shadow-md`}
           >
             {isUpdate ? "Update" : "Upload"}
           </button>
@@ -190,7 +208,7 @@ const ImageModel = () => {
           {isUpdate && (
             <button
               onClick={() => setShowConfirm(true)}
-              className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+              className={`${buttonPadding} rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md`}
             >
               Delete
             </button>
@@ -202,24 +220,24 @@ const ImageModel = () => {
       {showConfirm && (
         <div className="fixed inset-0 flex items-center justify-center bg-transparent bg-opacity-50 z-[10000]">
           <div
-            className="w-[320px] p-5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 
-            shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.4)] text-center"
+            className={`w-[320px] rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 
+            shadow-[inset_0_1px_0px_rgba(255,255,255,0.4),0_4px_20px_rgba(0,0,0,0.4)] text-center ${isCompact ? "p-3" : "p-5"}`}
           >
-            <h2 className="text-lg font-semibold text-black mb-3">
+            <h2 className={`font-semibold text-black ${isCompact ? "text-base mb-2" : "text-lg mb-3"}`}>
               Delete this image?
             </h2>
-            <p className="text-black mb-5">This action cannot be undone.</p>
+            <p className={`text-black ${isCompact ? "text-xs mb-3" : "mb-5"}`}>This action cannot be undone.</p>
 
             <div className="flex justify-around">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white"
+                className={`${buttonPadding} rounded-lg bg-gray-400/40 hover:bg-gray-300/50 text-white`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md"
+                className={`${buttonPadding} rounded-lg bg-red-500/80 hover:bg-red-600 text-white shadow-md`}
               >
                 Delete
               </button>

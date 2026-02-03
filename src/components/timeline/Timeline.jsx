@@ -4,6 +4,7 @@ import { setYear } from "../../store/mapSlice";
 import { Box } from "@mui/material";
 import { isMaRange, maBinToYear, yearToMaBin, MA_BINS, MA_MIN_YEAR } from "../../utils/era";
 import metalTexture from './metalSlider.png';
+
 const BCE_BOUNDARY_YEAR = -4500;
 const MAX_YEAR = 2025;
 const BCE_MAX_YEAR = 4500;
@@ -14,7 +15,7 @@ const TICK_SPACING_PX = 20;
 const clampYear = (value) => Math.max(MIN_YEAR, Math.min(MAX_YEAR, value));
 
 const getSpeedScale = (year) => {
-  return isMaRange(year) ? 0.2 : 1; // tune 0.08 → 0.05 if you want it even slower
+  return isMaRange(year) ? 0.2 : 1; 
 };
 
 const snapToMaBin = (value) => {
@@ -55,7 +56,6 @@ const getMaIndex = (year) => {
 
 const stepYear = (year, direction) => {
   const dir = direction > 0 ? 1 : -1;
-
   if (dir === 0) return clampYear(year);
 
   if (isMaRange(year)) {
@@ -63,34 +63,24 @@ const stepYear = (year, direction) => {
     if (index === null) return clampYear(year);
 
     if (dir > 0) {
-      if (index > 0) {
-        return maBinToYear(MA_BINS[index - 1]);
-      }
+      if (index > 0) return maBinToYear(MA_BINS[index - 1]);
       return BCE_BOUNDARY_YEAR;
     }
 
-    if (index < MA_BINS.length - 1) {
-      return maBinToYear(MA_BINS[index + 1]);
-    }
+    if (index < MA_BINS.length - 1) return maBinToYear(MA_BINS[index + 1]);
     return clampYear(year);
   }
 
-  if (year === BCE_BOUNDARY_YEAR && dir < 0) {
-    return FIRST_MA_YEAR;
-  }
+  if (year === BCE_BOUNDARY_YEAR && dir < 0) return FIRST_MA_YEAR;
 
   let next = year + dir;
-  if (next === 0) {
-    next += dir;
-  }
+  if (next === 0) next += dir;
 
   return clampYear(next);
 };
 
 const getNextValidYear = (year, delta) => {
-  if (!Number.isFinite(delta) || delta === 0) {
-    return clampYear(year);
-  }
+  if (!Number.isFinite(delta) || delta === 0) return clampYear(year);
 
   const dir = delta > 0 ? 1 : -1;
   let steps = Math.abs(Math.trunc(delta));
@@ -111,12 +101,8 @@ const formatYear = (year) => {
     const maBin = yearToMaBin(year);
     return maBin ? `${maBin} Ma` : `${MA_BINS[0]} Ma`;
   }
-  if (year > 0) {
-    return `${year} CE`;
-  }
-  if (year < 0) {
-    return `${Math.abs(year)} BCE`;
-  }
+  if (year > 0) return `${year} CE`;
+  if (year < 0) return `${Math.abs(year)} BCE`;
   return "1 CE";
 };
 
@@ -124,7 +110,6 @@ export default function Timeline() {
   const dispatch = useDispatch();
   const globalYear = useSelector((state) => state.map.year);
 
-  // Local year for smooth dragging
   const [localYear, setLocalYear] = useState(globalYear);
   const [inputValue, setInputValue] = useState(formatYear(globalYear));
   const [showGoButton, setShowGoButton] = useState(false);
@@ -140,13 +125,50 @@ export default function Timeline() {
   const maxDragAbsRef = useRef(0);
   const dragAccumulatorRef = useRef(0);
 
-  // Arrow hold/acceleration state
-  const holdDirRef = useRef(0); // -1 left, +1 right
+  const holdDirRef = useRef(0); 
   const holdStartTsRef = useRef(0);
   const holdRafRef = useRef(0);
   const stepAccumulatorRef = useRef(0);
 
-  // Resize observer
+  // --- COMPACT DETECTION ---
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    const checkSize = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const isShort = window.innerHeight < 600;
+      setIsCompact(isLandscape && isShort);
+    };
+    checkSize();
+    window.addEventListener("resize", checkSize);
+    return () => window.removeEventListener("resize", checkSize);
+  }, []);
+
+  // --- DYNAMIC STYLES ---
+  const styles = {
+    // Lifted up from the bottom
+    bottom: isCompact ? 12 : 24, 
+    
+    inputMargin: isCompact ? 0.5 : 2,
+    inputPadding: isCompact ? "4px 8px" : "8px 12px",
+    inputFontSize: isCompact ? "14px" : "24px",
+    
+    goBtnSize: isCompact ? "w-8 h-8 text-[10px]" : "w-15 h-15 text-lg",
+    
+    rulerHeight: isCompact ? 24 : 48,
+    labelTop: isCompact ? -16 : -22,
+    labelFontSize: isCompact ? 10 : 12,
+    
+    sliderContainerWidth: isCompact ? 80 : 109,
+    sliderContainerHeight: isCompact ? 32 : 44,
+    sliderButtonWidth: isCompact ? 46 : 62,
+    sliderButtonHeight: isCompact ? 20 : 27,
+    arrowFontSize: isCompact ? "18px" : "24px",
+    arrowOffset: isCompact ? "4px" : "7px",
+    
+    tickMajor: isCompact ? 16 : 30,
+    tickMinor: isCompact ? 8 : 15,
+  };
+
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver((entries) => {
@@ -160,27 +182,18 @@ export default function Timeline() {
     return () => ro.disconnect();
   }, []);
 
-  // Sync global year into local year when redux updates externally,
-  // but NOT while dragging or during inertia (prevents snap-back).
   useEffect(() => {
-    const animating =
-      isDragging ||
-      buttonOffsetRef.current !== 0 ||
-      Math.abs(velocityRef.current) > 0.1;
-
+    const animating = isDragging || buttonOffsetRef.current !== 0 || Math.abs(velocityRef.current) > 0.1;
     if (!animating && globalYear !== localYear) {
       setLocalYear(globalYear);
       setInputValue(formatYear(globalYear));
     }
   }, [globalYear, isDragging, localYear]);
 
-  // Update inputValue whenever localYear changes
   useEffect(() => {
     setInputValue(formatYear(localYear));
   }, [localYear]);
 
-
-  // Precompute years: Ma bins (oldest to newest), then BCE, then CE
   const years = useMemo(() => {
     const maYears = MA_BINS.slice().reverse().map((bin) => maBinToYear(bin));
     const bceYears = Array.from({ length: BCE_MAX_YEAR }, (_, i) => BCE_BOUNDARY_YEAR + i);
@@ -188,22 +201,14 @@ export default function Timeline() {
     return [...maYears, ...bceYears, ...ceYears];
   }, []);
 
-  // Virtualization setup
   const getYearIndex = (year) => {
     if (isMaRange(year)) {
       const index = getMaIndex(year);
       if (index === null) return 0;
       return MA_BINS.length - 1 - index;
     }
-
-    if (year < 0) {
-      return MA_BINS.length + (year - BCE_BOUNDARY_YEAR);
-    }
-
-    if (year > 0) {
-      return MA_BINS.length + BCE_MAX_YEAR + year - 1;
-    }
-
+    if (year < 0) return MA_BINS.length + (year - BCE_BOUNDARY_YEAR);
+    if (year > 0) return MA_BINS.length + BCE_MAX_YEAR + year - 1;
     return MA_BINS.length + BCE_MAX_YEAR;
   };
   
@@ -222,19 +227,12 @@ export default function Timeline() {
       .map((y, i) => ({ y, left: (startIndex + i) * TICK_SPACING_PX }));
   }, [years, index, containerWidth]);
 
-  // Unified drag handlers that work with both mouse and touch
   const getClientX = (e) => {
-    // Handle both mouse and touch events
-    if (e.touches && e.touches.length > 0) {
-      return e.touches[0].clientX;
-    }
-    if (e.changedTouches && e.changedTouches.length > 0) {
-      return e.changedTouches[0].clientX;
-    }
+    if (e.touches && e.touches.length > 0) return e.touches[0].clientX;
+    if (e.changedTouches && e.changedTouches.length > 0) return e.changedTouches[0].clientX;
     return e.clientX;
   };
 
-  // Drag start - unified for mouse and touch
   const handleDragStart = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -244,7 +242,6 @@ export default function Timeline() {
     dragAccumulatorRef.current = 0;
   };
 
-  // Drag move - unified for mouse and touch
   const handleDragMove = (e) => {
     if (!isDragging) return;
     e.preventDefault();
@@ -261,7 +258,6 @@ export default function Timeline() {
     maxDragAbsRef.current = Math.max(maxDragAbsRef.current, Math.abs(clampedOffset));
   };
 
-  // Drag end — final sync - unified for mouse and touch
   const handleDragEnd = (e) => {
     if (e) e.preventDefault();
     setIsDragging(false);
@@ -296,42 +292,22 @@ export default function Timeline() {
         }
       }
     }
-
     maxDragAbsRef.current = 0;
   };
 
-  // Legacy mouse handlers for backward compatibility
   const handleMouseDown = handleDragStart;
   const handleMouseMove = handleDragMove;
   const handleMouseUp = handleDragEnd;
 
-  // Touch handlers for slider (direct wrappers)
-  const handleTouchStart = (e) => {
-    handleDragStart(e);
-  };
+  const handleTouchStart = (e) => handleDragStart(e);
+  const handleTouchMove = (e) => handleDragMove(e);
+  const handleTouchEnd = (e) => handleDragEnd(e);
 
-  const handleTouchMove = (e) => {
-    handleDragMove(e);
-  };
-
-  const handleTouchEnd = (e) => {
-    handleDragEnd(e);
-  };
-
-  // Global event listeners for dragging
   useEffect(() => {
     const handleGlobalMouseMove = (e) => handleDragMove(e);
     const handleGlobalMouseUp = (e) => handleDragEnd(e);
-    const handleGlobalTouchMove = (e) => {
-      if (isDragging) {
-        handleDragMove(e);
-      }
-    };
-    const handleGlobalTouchEnd = (e) => {
-      if (isDragging) {
-        handleDragEnd(e);
-      }
-    };
+    const handleGlobalTouchMove = (e) => { if (isDragging) handleDragMove(e); };
+    const handleGlobalTouchEnd = (e) => { if (isDragging) handleDragEnd(e); };
 
     if (isDragging) {
       document.addEventListener("mousemove", handleGlobalMouseMove, { passive: false });
@@ -349,49 +325,33 @@ export default function Timeline() {
     };
   }, [isDragging]);
 
-  // Precompute easing curve
 const speedLookup = useMemo(() => {
-  // Speed expressed in years per frame to accumulate (60 FPS assumed)
-  const maxSpeed = 1.2; // upper bound when fully dragged
+  const maxSpeed = 1.2; 
   return Array.from({ length: 101 }, (_, i) => {
-    const t = i / 100; // 0 → 1
+    const t = i / 100; 
     let speed;
-    if (t < 0.2) {
-      // very slow start
-      speed = maxSpeed * Math.pow(t / 0.2, 3) * 0.05; // up to ~0.05*max
-    } else if (t < 0.5) {
-      // gradual ramp
-      const n = (t - 0.2) / 0.3; // 0 → 1
+    if (t < 0.2) speed = maxSpeed * Math.pow(t / 0.2, 3) * 0.05; 
+    else if (t < 0.5) {
+      const n = (t - 0.2) / 0.3; 
       speed = maxSpeed * (0.05 + 0.25 * Math.pow(n, 2));
     } else {
-      // accelerate to max
-      const n = (t - 0.5) / 0.5; // 0 → 1
+      const n = (t - 0.5) / 0.5; 
       speed = maxSpeed * (0.3 + 0.7 * n);
     }
     return speed;
   });
 }, []);
 
-
-  // Physics + inertia loop
   useEffect(() => {
     let frameId;
     const friction = 0.95;
-    // Debounced commit to Redux to avoid 60fps global churn
     let commitTimer = 0;
-    const scheduleCommit = (value) => {
-      if (commitTimer) clearTimeout(commitTimer);
-      commitTimer = setTimeout(() => {
-        if (value !== globalYear) dispatch(setYear(value));
-      }, 120);
-    };
 
     const animate = () => {
       const offset = buttonOffsetRef.current;
 
       if (isDragging && offset !== 0) {
         const t = Math.min(1, Math.abs(offset) / 40);
-        //const speed = speedLookup[Math.min(100, Math.floor(t * 100))];
         const baseSpeed = speedLookup[Math.min(100, Math.floor(t * 100))];
         const scale = getSpeedScale(localYear);
         const speed = baseSpeed * scale;
@@ -411,13 +371,10 @@ const speedLookup = useMemo(() => {
             setLocalYear(current);
             dispatch(setYear(current));
           }
-
           dragAccumulatorRef.current -= steps;
         }
-
         velocityRef.current = offset * 0.12;
       } else if (!isDragging && Math.abs(velocityRef.current) > 0.1) {
-        //const inertiaSpeed = velocityRef.current * 0.15;
         const scale = getSpeedScale(localYear);
         const inertiaSpeed = velocityRef.current * 0.15 * scale;
 
@@ -436,11 +393,9 @@ const speedLookup = useMemo(() => {
             dispatch(setYear(current));
           }
         }
-
         velocityRef.current *= friction;
         if (Math.abs(velocityRef.current) < 0.01) velocityRef.current = 0;
       }
-
       frameId = requestAnimationFrame(animate);
     };
 
@@ -451,7 +406,6 @@ const speedLookup = useMemo(() => {
     };
   }, [isDragging, localYear, globalYear, speedLookup, dispatch]);
 
-  // ----- Arrow hold with highway-like acceleration -----
   const stopHold = () => {
     holdDirRef.current = 0;
     stepAccumulatorRef.current = 0;
@@ -469,13 +423,10 @@ const speedLookup = useMemo(() => {
     const loop = (ts) => {
       if (holdDirRef.current === 0) return;
       const elapsed = Math.max(0, ts - holdStartTsRef.current);
-      const dt = Math.max(0.001, (ts - lastTs) / 1000); // seconds
+      const dt = Math.max(0.001, (ts - lastTs) / 1000); 
       lastTs = ts;
 
-      // Acceleration profile: starts slow, ramps to fast over ~1200ms
-      // Compute steps per second between 4 and 40
       const t = Math.min(1, elapsed / 1200);
-      //const stepsPerSec = 4 + Math.pow(t, 1.8) * (40 - 4);
       const baseStepsPerSec = 4 + Math.pow(t, 1.8) * (40 - 4);
       const scale = getSpeedScale(localYear);
       const stepsPerSec = baseStepsPerSec * scale;
@@ -497,7 +448,6 @@ const speedLookup = useMemo(() => {
           dispatch(setYear(current));
         }
       }
-
       holdRafRef.current = requestAnimationFrame(loop);
     };
     holdRafRef.current = requestAnimationFrame(loop);
@@ -511,30 +461,16 @@ const speedLookup = useMemo(() => {
     }
   };
 
-  // Unified arrow button handlers for touch and mouse
-  const handleArrowStart = (dir, e) => {
-    if (e) e.preventDefault();
-    startHold(dir);
-  };
-
-  const handleArrowEnd = (e) => {
-    if (e) e.preventDefault();
-    stopHold();
-  };
-
+  const handleArrowStart = (dir, e) => { if (e) e.preventDefault(); startHold(dir); };
+  const handleArrowEnd = (e) => { if (e) e.preventDefault(); stopHold(); };
   const handleArrowClickOrTouch = (dir, e) => {
     if (e) e.preventDefault();
-    // Only trigger click action if hold hasn't started (very brief touch)
     const timeSinceStart = performance.now() - holdStartTsRef.current;
-    if (timeSinceStart < 150) {
-      handleArrowClick(dir);
-    }
+    if (timeSinceStart < 150) handleArrowClick(dir);
   };
 
-  // Parse input and set year
   const parseAndSetYear = (inputValue) => {
     const trimmedValue = inputValue.trim();
-
     const maMatch = trimmedValue.match(/^(\d{1,3})\s*Ma/i);
     if (maMatch) {
       const maValue = Number(maMatch[1]);
@@ -551,25 +487,17 @@ const speedLookup = useMemo(() => {
       }
     }
 
-    // Match patterns like "400 BCE", "2023 CE", "400", "-400", etc.
     const bceMatch = trimmedValue.match(/(\d+)\s*BCE/i);
     const ceMatch = trimmedValue.match(/(\d+)\s*CE/i);
     const numberMatch = trimmedValue.match(/-?\d+/);
 
     let parsedYear = null;
-
-    if (bceMatch) {
-      parsedYear = -parseInt(bceMatch[1], 10);
-    } else if (ceMatch) {
-      parsedYear = parseInt(ceMatch[1], 10);
-    } else if (numberMatch) {
-      parsedYear = parseInt(numberMatch[0], 10);
-    }
+    if (bceMatch) parsedYear = -parseInt(bceMatch[1], 10);
+    else if (ceMatch) parsedYear = parseInt(ceMatch[1], 10);
+    else if (numberMatch) parsedYear = parseInt(numberMatch[0], 10);
 
     if (parsedYear !== null && Number.isFinite(parsedYear)) {
-      if (parsedYear === 0) {
-        parsedYear = 1;
-      }
+      if (parsedYear === 0) parsedYear = 1;
       const clampedYear = clampYear(parsedYear);
       setLocalYear(clampedYear);
       if (clampedYear !== globalYear) dispatch(setYear(clampedYear));
@@ -581,86 +509,43 @@ const speedLookup = useMemo(() => {
     }
   };
 
-
   return (
-    <Box sx={{ position: "fixed", left: 0, right: 0, width: "100vw", zIndex: 15, color: "#fff", pointerEvents: "none", bottom: 8 }}>
-      {/* Year input */}
-      <Box sx={{ textAlign: "center", mb: 2, fontSize: "24px", fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "none" }}>
+    <Box sx={{ position: "fixed", left: 0, right: 0, width: "100vw", zIndex: 15, color: "#fff", pointerEvents: "none", bottom: styles.bottom }}>
+      
+      {/* Input */}
+      <Box sx={{ textAlign: "center", mb: styles.inputMargin, fontSize: styles.inputFontSize, fontWeight: "bold", color: "#000", position: "relative", pointerEvents: "none" }}>
         <Box sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 1, pointerEvents: "auto", width: "fit-content", margin: "0 auto" }}>
           <input
             type="text"
             value={inputValue}
             onChange={(e) => {
-              // Allow free text input
               const newValue = e.target.value;
               setInputValue(newValue);
-              
-              // Show Go button when user is typing (different from current formatted year)
-              const isTyping = newValue !== formatYear(localYear);
-              setShowGoButton(isTyping);
+              setShowGoButton(newValue !== formatYear(localYear));
             }}
-            onBlur={() => {
-              parseAndSetYear(inputValue);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                parseAndSetYear(inputValue);
-              }
-            }}
+            onBlur={() => parseAndSetYear(inputValue)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); parseAndSetYear(inputValue); }}}
             style={{
               backgroundColor: "#fff",
-              padding: "8px 12px",
+              padding: styles.inputPadding,
               borderRadius: "100px",
               borderTop: "3px solid rgba(0, 0, 0, 0.2)",
               fontWeight: "bold",
-              fontSize: "24px",
+              fontSize: styles.inputFontSize,
               textAlign: "center",
               color: "#000",
               outline: "none",
               width: `${Math.max(formatYear(localYear).length + 3, 8)}ch`,
               minWidth: "8ch",
               pointerEvents: "auto",
-              placeholder: "e.g. 100 Ma, 400 BCE, or 2023 CE",
               transition: "border-color 0.2s ease",
             }}
           />
           
-          {/* Go Button - appears when typing */}
-          {/* ✅ UPDATED: LARGER GREEN "GO" BUTTON */}
           {showGoButton && (
             <button
               onClick={() => parseAndSetYear(inputValue)}
-              className="
-                flex items-center justify-center
-                
-                /* 📏 INCREASED SIZE to match input height */
-                w-15 h-15 
-                
-                /* Round shape */
-                rounded-full
-                
-                /* 🟢 VIBRANT GREEN COLOR */
-                bg-green-600 
-                hover:bg-green-500
-                bg-gradient-to-b from-green-500 to-green-700
-                
-                /* 🔤 LARGER TEXT */
-                text-white text-lg font-bold
-                
-                /* Borders & Rings */
-                border-b-4 border-green-900/30
-                ring-1 ring-white/20
-                
-                /* 👆 TOUCH SENSITIVITY & ANIMATION */
-                transition-all duration-200 ease-in-out
-                active:scale-95         /* Slight press effect */
-                active:border-b-0       /* Button presses down visually */
-                active:translate-y-1
-                
-                hover:scale-105         /* Subtle grow on hover */
-                hover:shadow-[0_0_25px_rgba(74,222,128,0.5)] /* Green Glow */
-              "
+              className={`flex items-center justify-center rounded-full bg-green-600 hover:bg-green-500 bg-gradient-to-b from-green-500 to-green-700 text-white font-bold border-b-4 border-green-900/30 ring-1 ring-white/20 transition-all duration-200 ease-in-out active:scale-95 active:border-b-0 active:translate-y-1 hover:scale-105 hover:shadow-[0_0_25px_rgba(74,222,128,0.5)] ${styles.goBtnSize}`}
             >
               GO
             </button>
@@ -685,15 +570,15 @@ const speedLookup = useMemo(() => {
       </Box>
 
       {/* Ruler */}
-      <Box ref={containerRef} sx={{ position: "relative", height: 48, overflow: "hidden", mb: 0, pointerEvents: "none" }}>
+      <Box ref={containerRef} sx={{ position: "relative", height: styles.rulerHeight, overflow: "hidden", mb: 0, pointerEvents: "none" }}>
         <Box
           component="span"
           sx={{
             position: "absolute",
-            top: -22,
+            top: styles.labelTop,
             left: "50%",
             transform: "translateX(-50%)",
-            fontSize: 12,
+            fontSize: styles.labelFontSize,
             fontWeight: 700,
             color: "#000",
             background: "#fff",
@@ -721,7 +606,7 @@ const speedLookup = useMemo(() => {
             } else {
               isMajorTick = y % 5 === 0;
             }
-            const tickHeight = isMajorTick ? 30 : 15;
+            const tickHeight = isMajorTick ? styles.tickMajor : styles.tickMinor;
             return (
               <Box key={y} sx={{ position: "absolute", left, pointerEvents: "none" }}>
                 <Box sx={{ width: 2, height: tickHeight, background: "#fff" }} />
@@ -738,33 +623,26 @@ const speedLookup = useMemo(() => {
                 justifyContent: "center",
                 alignItems: "center",
                 position: "relative",
-                height: 44,
-                width: 109,
-                
+                height: styles.sliderContainerHeight,
+                width: styles.sliderContainerWidth,
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url(${metalTexture})`,
-                
                 backgroundSize: "cover",
                 backgroundPosition: "center",
-                // ---------------------------------
-
                 border: "2px solid rgba(255,255,255,0.2)",
                 borderRadius: "20px",
                 padding: "6px",
                 margin: "0 auto",
                 marginTop: "-10px",
-                
-                // Optional: Add an inset shadow to make it look like a deep groove
                 boxShadow: "inset 0 2px 4px rgba(0,0,0,0.8)",
-                
                 pointerEvents: "auto",
               }}
             >
         <Box
           sx={{
             position: "absolute",
-            left: "7px",
+            left: styles.arrowOffset,
             color: "rgba(255,255,255,0.6)",
-            fontSize: "24px",
+            fontSize: styles.arrowFontSize,
             fontWeight: "bold",
             top : "0",
             cursor: "pointer",
@@ -789,9 +667,9 @@ const speedLookup = useMemo(() => {
         <Box
           sx={{
             position: "absolute",
-            right: "7px",
+            right: styles.arrowOffset,
             color: "rgba(255,255,255,0.6)",
-            fontSize: "24px",
+            fontSize: styles.arrowFontSize,
             fontWeight: "bold",
             top : "0.4px",
             cursor: "pointer",
@@ -814,52 +692,37 @@ const speedLookup = useMemo(() => {
         </Box>
 
         <Box
-  ref={sliderRef}
-  // --- THESE HANDLERS MAKE IT MOVE ---
-  onMouseDown={handleMouseDown}
-  onTouchStart={handleTouchStart}
-  onTouchMove={handleTouchMove}
-  onTouchEnd={handleTouchEnd}
-  onTouchCancel={handleTouchEnd}
-  // -----------------------------------
-  sx={{
-    position: "absolute",
-    width: 62,
-    height: 27,
-    
-    // --- IMAGE STYLING ---
-    // 1. Use the imported variable here:
-    backgroundImage: `url(${metalTexture})`,
-    // 2. Or, if you want to test with a web image immediately, uncomment this line:
-    // backgroundImage: "url('https://img.freepik.com/free-photo/silver-metallic-textured-background_53876-1455.jpg')",
-    
-    backgroundColor: "#ccc", // Fallback color if image fails
-    backgroundSize: "cover", // Ensures image fills the button
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat",
-    
-    // Metallic borders/shadows to make it pop
-    border: "1px solid rgba(255,255,255,0.4)",
-    boxShadow: "0 4px 6px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.5)",
-    // ---------------------
-
-    borderRadius: "16px",
-    cursor: isDragging ? "grabbing" : "grab",
-    transition: isDragging ? "none" : "transform 100ms ease-out",
-    touchAction: "none",
-    userSelect: "none",
-    WebkitTapHighlightColor: "transparent",
-    
-    // Press effect
-    "&:active": {
-      filter: "brightness(0.85)", // Darkens image slightly on click
-      transform: "translateX(-50%) scale(0.98)", // Slight shrink effect
-    },
-    
-    left: "50%",
-    transform: "translateX(-50%)",
-  }}
-/>
+          ref={sliderRef}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          sx={{
+            position: "absolute",
+            width: styles.sliderButtonWidth,
+            height: styles.sliderButtonHeight,
+            backgroundImage: `url(${metalTexture})`,
+            backgroundColor: "#ccc", 
+            backgroundSize: "cover", 
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            border: "1px solid rgba(255,255,255,0.4)",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.5)",
+            borderRadius: "16px",
+            cursor: isDragging ? "grabbing" : "grab",
+            transition: isDragging ? "none" : "transform 100ms ease-out",
+            touchAction: "none",
+            userSelect: "none",
+            WebkitTapHighlightColor: "transparent",
+            "&:active": {
+              filter: "brightness(0.85)", 
+              transform: "translateX(-50%) scale(0.98)", 
+            },
+            left: "50%",
+            transform: "translateX(-50%)",
+          }}
+        />
       </Box>
     </Box>
   );

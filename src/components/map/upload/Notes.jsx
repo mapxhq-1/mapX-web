@@ -35,37 +35,63 @@ const Notes = ({ onClose = null, isOpen = false }) => {
   const settingsRef = useRef(null);
   const editorRef = useRef(null);
 
+  // --- COMPACT MODE DETECTION ---
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    const checkSize = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const isShort = window.innerHeight < 600;
+      setIsCompact(isLandscape && isShort);
+    };
+    checkSize();
+    window.addEventListener("resize", checkSize);
+    return () => window.removeEventListener("resize", checkSize);
+  }, []);
+
+  // Update default font size when mode changes
+  useEffect(() => {
+    if (isCompact) setFontSiz('12');
+    else setFontSiz('16');
+  }, [isCompact]);
+
   const colorGradients = {
-    "#FFE299": "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)", //yellow.png
-    "#A8DAFF": "linear-gradient(135deg, #A8DAFF 0%, #D4EDFF 100%)", //blue.png
-    "#ffffff": "linear-gradient(135deg, #FFFFFF 0%, #D9D9D9 100%)", //white.png
-    "#FFAFA3": "linear-gradient(135deg, #FFAFA3 0%, #FFD6CF 100%)", //red.png
-    "#B3EFBD": "linear-gradient(135deg, #B3EFBD 0%, #D9F8E0 100%)", //green.png
-    "#D3BDFF": "linear-gradient(135deg, #D3BDFF 0%, #E8DEFF 100%)", //purple.png
+    "#FFE299": "linear-gradient(135deg, #FFE571 0%, #FFCD2B 100%)", 
+    "#A8DAFF": "linear-gradient(135deg, #A8DAFF 0%, #D4EDFF 100%)", 
+    "#ffffff": "linear-gradient(135deg, #FFFFFF 0%, #D9D9D9 100%)", 
+    "#FFAFA3": "linear-gradient(135deg, #FFAFA3 0%, #FFD6CF 100%)", 
+    "#B3EFBD": "linear-gradient(135deg, #B3EFBD 0%, #D9F8E0 100%)", 
+    "#D3BDFF": "linear-gradient(135deg, #D3BDFF 0%, #E8DEFF 100%)", 
   };
 
-const editor = useEditor({
-  extensions: [
-    StarterKit,
-    TextStyle,
-    Color,
-    FontSize,
-    FontFamily,
+  // --- DYNAMIC STYLES ---
+  const editorWidth = isCompact ? "w-[250px]" : "w-[400px]";
+  const editorHeightClass = isCompact ? "h-[200px]" : "h-[365px]";
+  // Base font size used for BOTH editor content and title
+  const editorFontSize = isCompact ? "text-xs" : "text-base"; 
+  
+  const toolbarScale = isCompact ? "scale-75 origin-bottom-left" : ""; // Changed origin to bottom-left to keep left alignment stable
+  const toolbarBottomPos = isCompact ? "bottom-[105%]" : "bottom-[100%]";
 
-    Placeholder.configure({
-      placeholder: "Write your note...",
-      emptyEditorClass:
-        "before:content-[attr(data-placeholder)] before:text-black/40 before:float-left before:pointer-events-none",
-    }),
-  ],
-  content,
-  editorProps: {
-    attributes: {
-      class: "h-[400px] focus:outline-none p-1",
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TextStyle,
+      Color,
+      FontSize,
+      FontFamily,
+      Placeholder.configure({
+        placeholder: "Write your note...",
+        emptyEditorClass:
+          "before:content-[attr(data-placeholder)] before:text-black/40 before:float-left before:pointer-events-none",
+      }),
+    ],
+    content,
+    editorProps: {
+      attributes: {
+        class: `${editorHeightClass} focus:outline-none p-1 overflow-y-auto`,
+      },
     },
-  },
-});
-
+  });
 
   async function genHTML() {
     const htmlText = editor.getHTML();
@@ -94,7 +120,6 @@ const editor = useEditor({
           currentColor
         );
         toast.success("Note saved successfully!!");
-        // Close the modal and clean up any draft UI after creating a new note
         try { window.mapxNotesRemoveDraftMarkers && window.mapxNotesRemoveDraftMarkers(); } catch (_) {}
         onClose && onClose();
         queryClient.invalidateQueries(["notes"]);
@@ -111,7 +136,6 @@ const editor = useEditor({
     if (currentNote) {
       setNewNote(currentNote.id == 'new');
     }
-    console.log(currentNote);
     setNotesTitle(currentNote?.title || "");
     setContent(currentNote?.content || "");
     setCurrentColor(currentNote?.backgroundColor || "#FFE299");
@@ -141,19 +165,24 @@ const editor = useEditor({
 
   useEffect(() => {
     const refresh = () => {
-      const siz = parseInt(editor?.getAttributes('textStyle').fontSize) || 16;
+      const defaultSize = isCompact ? 12 : 16;
+      const siz = parseInt(editor?.getAttributes('textStyle').fontSize) || defaultSize;
       setFontSiz(siz);
       const fontFamF = editor?.getAttributes('textStyle').fontFamily || "Arial";
       setFontFam(fontFamF);
       setUpdate(u => !u);
     };
-    editor.on("transaction", refresh);
-    editor.on("selectionUpdate", refresh);
+    if (editor) {
+      editor.on("transaction", refresh);
+      editor.on("selectionUpdate", refresh);
+    }
     return (() => {
-      editor.off("transaction", refresh);
-      editor.off("selectionUpdate", refresh);
+      if (editor) {
+        editor.off("transaction", refresh);
+        editor.off("selectionUpdate", refresh);
+      }
     });
-  }, [editor]);
+  }, [editor, isCompact]);
 
   async function deleteNote() {
     try {
@@ -167,38 +196,39 @@ const editor = useEditor({
       queryClient.invalidateQueries(["notes"]);
     } catch (e) {
       toast.error(e.response?.statusText || "Error deleting note");
-      console.log(e);
     }
   }
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-50 " onClick={(e) => {
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-50" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
-      <div className="relative pointer-events-none">
+      
+      {/* Wrapper */}
+      <div className={`relative flex flex-col items-center pointer-events-auto ${editorWidth}`} ref={editorRef} onClick={() => setShowSettings(true)}>
 
         {/* === SETTINGS BAR === */}
-        <div className={`absolute ml-[220px] mt-[-150px] ${showSettings ? "pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
-          <div ref={colorRef} className={`${showColor ? '' : 'opacity-0 pointer-events-none'} w-[160px] h-[25px] rounded-md flex justify-around items-center bg-white/30 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2`}>
+        <div className={`absolute ${toolbarBottomPos} flex flex-col items-center mb-2 transition-all duration-300 z-[60] ${showSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"} ${toolbarScale}`}>
+          
+          {/* Colors: Added self-start and ml-1 to align to LEFT */}
+          <div ref={colorRef} className={`${showColor ? 'flex' : 'hidden'} w-[160px] h-[25px] rounded-md justify-around items-center bg-white/30 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2 self-start ml-1 pointer-events-auto`}>
             {Object.keys(colorGradients).map((c) => (
               <div key={c} className="rounded-full h-[18px] w-[18px] cursor-pointer"
                 style={{ backgroundColor: c }}
-                onClick={() => setCurrentColor(c)}></div>
+                onClick={(e) => { e.stopPropagation(); setCurrentColor(c); }}></div>
             ))}
           </div>
 
-          <div ref={settingsRef} className='text-black w-[600px] h-[35px] rounded-md flex divide-x-2 divide-white/60 justify-between [&>*]:px-3 bg-white/30 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 mb-2'>
+          <div ref={settingsRef} className='text-black w-[600px] h-[35px] rounded-md flex divide-x-2 divide-white/60 justify-between [&>*]:px-3 bg-white/30 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300 pointer-events-auto'>
 
-            {/* COLOR PICKER */}
-            <div className='flex items-center cursor-pointer' onClick={() => setShowColor(!showColor)}>
+            <div className='flex items-center cursor-pointer' onClick={(e) => { e.stopPropagation(); setShowColor(!showColor); }}>
               <div className='rounded-full h-[20px] w-[20px] mx-1' style={{ backgroundColor: currentColor }}></div>
               {!showColor && <svg xmlns="http://www.w3.org/2000/svg" width={10} height={10} viewBox="0 0 16 7"><path fill="#000" d="M8 6.5a.47.47 0 0 1-.35-.15l-4.5-4.5c-.2-.2-.2-.51 0-.71s.51-.2.71 0l4.15 4.15l4.14-4.14c.2-.2.51-.2.71 0s.2.51 0 .71l-4.5 4.5c-.1.1-.23.15-.35.15Z" strokeWidth={0.5} stroke="#000"></path></svg>}
               {showColor && <svg xmlns="http://www.w3.org/2000/svg" width={10} height={10} viewBox="0 0 24 24"><path fill="none" stroke="#000" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 15l6-6l6 6"></path></svg>}
             </div>
 
-            {/* FONT FAMILY */}
             <div className='flex items-center justify-center'>
               <select className='focus:outline-none bg-transparent text-sm' value={fontFam} onChange={(e) => {
                 setFontFam(e.target.value)
@@ -212,7 +242,6 @@ const editor = useEditor({
               </select>
             </div>
 
-            {/* FONT SIZE */}
             <div className='flex items-center'>
               <input
                 name='fontSize'
@@ -228,29 +257,24 @@ const editor = useEditor({
               />
             </div>
 
-            {/* BOLD */}
-            <div className={`flex items-center cursor-pointer transition-all duration-150 ${editor.isActive('bold') ? 'bg-white/30' : ''}`} onClick={() => { editor.chain().focus().toggleBold().run() }}>
+            <div className={`flex items-center cursor-pointer transition-all duration-150 ${editor?.isActive('bold') ? 'bg-white/30' : ''}`} onClick={() => { editor.chain().focus().toggleBold().run() }}>
               <p className='font-bold mx-1 text-sm'>B</p>
             </div>
 
-            {/* BULLETS */}
-            <div className={`flex items-center cursor-pointer ${editor.isActive('bulletList') ? 'bg-white/30' : ''}`} onClick={() => { editor.chain().focus().toggleBulletList().run(); editor.commands.focus(); }}>
-<svg xmlns="http://www.w3.org/2000/svg" width={12} height={14} viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+            <div className={`flex items-center cursor-pointer ${editor?.isActive('bulletList') ? 'bg-white/30' : ''}`} onClick={() => { editor.chain().focus().toggleBulletList().run(); editor.commands.focus(); }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width={12} height={14} viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
             </div>
 
-            {/* SAVE */}
             <div className='flex items-center cursor-pointer' onClick={genHTML}>
               <p className='mx-1 text-sm'>Save</p>
               <img src={save_icon} alt="save" width={12} height={12} />
             </div>
 
-            {/* DELETE */}
             <div onClick={() => setShowConfirm(true)} className='flex items-center cursor-pointer'>
               <p className='mx-1 text-red-500 text-sm'>Delete</p>
-              <img src={delete_icon} alt="" width="10" height="10" style={{ filter: 'invert(31%) sepia(94%) saturate(7495%) hue-rotate(358deg) brightness(95%) contrast(120%)' }} />
+              <img src={delete_icon} alt="" width={10} height={10} style={{ filter: 'invert(31%) sepia(94%) saturate(7495%) hue-rotate(358deg) brightness(95%) contrast(120%)' }} />
             </div>
 
-            {/* CLOSE */}
             {onClose && (
               <div onClick={() => { try { window.mapxNotesRemoveDraftMarkers && window.mapxNotesRemoveDraftMarkers(); } catch (_) {}; onClose(); }} className='flex items-center cursor-pointer'>
                 <p className='text-black text-sm'>Close</p>
@@ -260,51 +284,53 @@ const editor = useEditor({
           </div>
         </div>
 
-        {/* === CONFIRM DELETE MODAL === */}
-        {showConfirm && (
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-auto">
-            <div className=" rounded-2xl p-6 w-[320px] text-center bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] transition-all duration-300">
-              <h2 className="text-lg font-semibold mb-2 text-gray-800">Delete this note?</h2>
-              <p className="text-gray-500 mb-5 text-sm">This action cannot be undone.</p>
-              <div className="flex justify-center gap-4">
-                <button
-                  className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 transition"
-                  onClick={() => setShowConfirm(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 rounded-md bg-red-500 text-white hover:bg-red-600 transition"
-                  onClick={deleteNote}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* === NOTE CONTENT === */}
-        <div ref={editorRef} className='ml-[350px] mt-[-70px] w-[400px] pointer-events-auto' onClick={() => setShowSettings(true)}>
-          <div className='w-[400px] h-[35px] bg-[#D9D9D9] flex items-center'>
-            <div title={!newNote ? "Title cannot be edited for existing notes" : ""}>
-  <input
-    className={`w-full p-1 focus:outline-none ${!newNote ? ' cursor-not-allowed' : ''}`}
-    type='text'
-    value={notesTitle}
-    placeholder='Enter the title'
-    onChange={(e) => newNote && setNotesTitle(e.target.value)} 
-    disabled={!newNote}
-  />
-</div>
-
-          </div>
-          <div className='h-[365px] w-[400px]' style={{ background: colorGradients[currentColor] || currentColor }}>
-            <EditorContent editor={editor} />
+        {/* === NOTE HEADER === */}
+        <div className={`${editorWidth} h-[35px] bg-[#D9D9D9] flex items-center z-50`}>
+          <div className="w-full" title={!newNote ? "Title cannot be edited for existing notes" : ""}>
+            <input
+              // Applied editorFontSize to the title to match content size logic
+              className={`w-full p-1 focus:outline-none bg-transparent font-semibold ${editorFontSize} ${!newNote ? ' cursor-not-allowed' : ''}`}
+              type='text'
+              value={notesTitle}
+              placeholder='Enter the title'
+              onChange={(e) => newNote && setNotesTitle(e.target.value)} 
+              disabled={!newNote}
+            />
           </div>
         </div>
 
+        {/* === NOTE BODY === */}
+        {/* Applied editorFontSize here as well */}
+        <div className={`${editorHeightClass} ${editorWidth} ${editorFontSize}`} style={{ background: colorGradients[currentColor] || currentColor }}>
+          <EditorContent editor={editor} />
+        </div>
+
       </div>
+
+      {/* === CONFIRM DELETE MODAL === */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 pointer-events-auto">
+          <div className="bg-white rounded-2xl p-6 w-[300px] text-center shadow-2xl">
+            <h2 className="text-lg font-semibold mb-2 text-gray-800">Delete this note?</h2>
+            <p className="text-gray-500 mb-5 text-sm">This action cannot be undone.</p>
+            <div className="flex justify-center gap-3">
+              <button
+                className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300 text-sm font-medium transition"
+                onClick={() => setShowConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-md bg-red-500 text-white hover:bg-red-600 text-sm font-medium transition"
+                onClick={deleteNote}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

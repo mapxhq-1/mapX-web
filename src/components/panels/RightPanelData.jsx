@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import note_icon from '../../assets/icons/note_icon.png';
 import image_icon from '../../assets/icons/image_icon.png';
 import hyperlink_icon from '../../assets/icons/hyperlink_icon.png';
@@ -17,7 +17,30 @@ function RightPanelData() {
     const year = useSelector(state => state.map.year);
     const dispatch = useDispatch();
 
-    const { data: notes, error } = useQuery({
+    // --- COMPACT DETECTION ---
+    const [isCompact, setIsCompact] = useState(false);
+    useEffect(() => {
+        const checkSize = () => {
+            const isLandscape = window.innerWidth > window.innerHeight;
+            const isShort = window.innerHeight < 600;
+            setIsCompact(isLandscape && isShort);
+        };
+        checkSize();
+        window.addEventListener("resize", checkSize);
+        return () => window.removeEventListener("resize", checkSize);
+    }, []);
+
+    // --- DYNAMIC STYLES ---
+    const styles = {
+        row: `group flex rounded-xl items-center border border-white/5 bg-white/5 shadow-sm hover:bg-white/10 transition-all duration-200 cursor-pointer ${isCompact ? "gap-2 p-2 mb-1" : "gap-4 p-5 mb-2"}`,
+        icon: `object-contain shrink-0 opacity-80 group-hover:opacity-100 transition-opacity ${isCompact ? "w-5 h-5" : "w-8 h-8"}`,
+        title: `font-medium text-zinc-200 group-hover:text-white transition-colors line-clamp-1 ${isCompact ? "text-[10px] min-h-[1rem]" : "text-md min-h-[1.75rem]"}`,
+        meta: `text-zinc-500 mt-0.5 ${isCompact ? "text-[8px]" : "text-sm"}`,
+        link: `text-zinc-600 hover:text-blue-400 truncate ${isCompact ? "text-[8px] max-w-[100px]" : "text-xs max-w-[150px]"}`,
+        fallbackText: `text-zinc-600 italic font-normal`,
+    };
+
+    const { data: notes } = useQuery({
         queryKey: ["notesByProject", projectId],
         queryFn: () => fetchAllNotesByProject(projectId),
     });
@@ -115,42 +138,21 @@ function RightPanelData() {
         }));
     };
 
-    // --- Styles ---
-    const rowStyles = "group flex rounded-xl items-center gap-4 p-5 mb-2 border border-white/5 bg-white/5 shadow-sm hover:bg-white/10 transition-all duration-200 cursor-pointer";
-    const iconStyles = "w-8 h-8 object-contain shrink-0 opacity-80 group-hover:opacity-100 transition-opacity"; 
-    const titleStyles = "text-md font-medium text-zinc-200 group-hover:text-white transition-colors line-clamp-1 min-h-[1.75rem]";
-    
     const renderTitle = (text, fallback) => {
         if (!text || text.trim() === '') {
-            return <span className="text-zinc-600 italic font-normal">{fallback}</span>;
+            return <span className={styles.fallbackText}>{fallback}</span>;
         }
         return text;
     };
 
-    const metaStyles = "text-sm text-zinc-500 mt-0.5";
-
     return (
         <>
-            {/* Custom CSS for the White Scrollbar */}
             <style>{`
-                .cool-scrollbar::-webkit-scrollbar {
-                    width: 6px;
-                }
-                .cool-scrollbar::-webkit-scrollbar-track {
-                    background: transparent; 
-                }
-                .cool-scrollbar::-webkit-scrollbar-thumb {
-                    background-color: rgba(255, 255, 255, 0.3);
-                    border-radius: 20px;
-                }
-                .cool-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background-color: rgba(255, 255, 255, 0.8);
-                }
-                /* Firefox fallback */
-                .cool-scrollbar {
-                    scrollbar-width: thin;
-                    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-                }
+                .cool-scrollbar::-webkit-scrollbar { width: 6px; }
+                .cool-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .cool-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.3); border-radius: 20px; }
+                .cool-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.8); }
+                .cool-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.3) transparent; }
             `}</style>
 
             <div className="max-h-[68dvh] overflow-y-auto overflow-x-hidden pr-2 cool-scrollbar">
@@ -160,13 +162,13 @@ function RightPanelData() {
 
                     if (type === 'note') {
                         return (
-                            <div key={key} className={rowStyles} onClick={() => handleOpenNote(item)}>
-                                <img src={note_icon} className={iconStyles} alt="note" />
+                            <div key={key} className={styles.row} onClick={() => handleOpenNote(item)}>
+                                <img src={note_icon} className={styles.icon} alt="note" />
                                 <div className="flex-1 min-w-0">
-                                    <p className={titleStyles}>
+                                    <p className={styles.title}>
                                         {renderTitle(item.noteTitle, "Untitled Note")}
                                     </p>
-                                    <p className={metaStyles}>{yearLabel}</p>
+                                    <p className={styles.meta}>{yearLabel}</p>
                                 </div>
                             </div>
                         );
@@ -174,13 +176,13 @@ function RightPanelData() {
 
                     if (type === 'image') {
                         return (
-                            <div key={key} className={rowStyles} onClick={() => handleOpenImage(item)}>
-                                <img src={image_icon} className={iconStyles} alt="image" />
+                            <div key={key} className={styles.row} onClick={() => handleOpenImage(item)}>
+                                <img src={image_icon} className={styles.icon} alt="image" />
                                 <div className="flex-1 min-w-0">
-                                    <p className={titleStyles}>
+                                    <p className={styles.title}>
                                         {renderTitle(item.caption, "Untitled Image")}
                                     </p>
-                                    <p className={metaStyles}>{yearLabel}</p>
+                                    <p className={styles.meta}>{yearLabel}</p>
                                 </div>
                             </div>
                         );
@@ -188,23 +190,23 @@ function RightPanelData() {
 
                     if (type === 'hyperlink') {
                         return (
-                            <div key={key} className={rowStyles}
+                            <div key={key} className={styles.row}
                                 onMouseEnter={() => { try { prefetchEmbed(item.hyperlink); } catch (_) {} }}
                                 onFocus={() => { try { prefetchEmbed(item.hyperlink); } catch (_) {} }}
                                 onClick={() => handleOpenHyperlink(item)}>
-                                <img src={hyperlink_icon} className={iconStyles} alt="link" />
+                                <img src={hyperlink_icon} className={styles.icon} alt="link" />
                                 <div className="flex-1 min-w-0">
-                                    <p className={`${titleStyles} text-blue-300`}>
+                                    <p className={`${styles.title} text-blue-300`}>
                                         {item.hyperlinkTitle || item.hyperlink}
                                     </p>
-                                    <div className="flex justify-between items-center mt-1">
-                                        <p className={metaStyles}>{yearLabel}</p>
+                                    <div className="flex justify-between items-center mt-0.5">
+                                        <p className={styles.meta}>{yearLabel}</p>
                                         <a 
                                             href={item.hyperlink} 
                                             target="_blank" 
                                             rel="noopener noreferrer" 
                                             onClick={e => e.stopPropagation()} 
-                                            className="text-xs text-zinc-600 hover:text-blue-400 truncate max-w-[150px]"
+                                            className={styles.link}
                                         >
                                             {item.hyperlink}
                                         </a>
