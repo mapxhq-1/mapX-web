@@ -249,11 +249,13 @@ const ensureCursorEl = () => {
         anchorContainer.style.height = '1px';
         anchorContainer.style.background = 'transparent';
         anchorContainer.style.pointerEvents = 'none';
+
         const root = document.createElement("div");
         root.className = 'mx-note-root';
         root.spellcheck = true;
         root.style.position = 'absolute';
         root.style.pointerEvents = 'auto';
+
         const positionContent = () => {
             setTimeout(() => {
                 const rect = root.getBoundingClientRect();
@@ -262,7 +264,9 @@ const ensureCursorEl = () => {
                 root.style.bottom = '0px';
             }, 0);
         };
+
         anchorContainer.appendChild(root);
+
         const state = { 
             rootEl: root, 
             anchorEl: anchorContainer,
@@ -275,18 +279,26 @@ const ensureCursorEl = () => {
             backgroundColor,
             positionContent
         };
+
         const expanded = (map.current.getZoom() >= NOTE_EXPAND_ZOOM);
         renderNote(state, expanded);
         positionContent();
+
+        // --- FIX: Detect touch capabilities ---
+        const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
         const marker = new maplibregl.Marker({
             element: anchorContainer,
-            draggable: true,
+            // --- FIX: Only enable dragging if it is NOT a touch device ---
+            draggable: !isTouch, 
             anchor: 'center',
             offset: [0, 0]
         })
         .setLngLat(lngLat)
         .addTo(map.current);
+
         state.marker = marker;
+        
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 try { 
@@ -295,6 +307,7 @@ const ensureCursorEl = () => {
                 } catch (_) {}
             });
         });
+
         root.addEventListener('click', (e) => {
             e.stopPropagation();
             dispatch(openNotesAction({
@@ -305,11 +318,15 @@ const ensureCursorEl = () => {
                 backgroundColor
             }));
         });
+
         marker.on('dragstart', () => {
             root.style.opacity = '0.7';
         });
+
         marker.on('drag', () => {
+            // Optional: update UI during drag
         });
+
         marker.on('dragend', () => {
             root.style.opacity = '1';
             const newPos = marker.getLngLat();
@@ -318,6 +335,7 @@ const ensureCursorEl = () => {
                 lat: newPos.lat
             };
         });
+
         const entry = { marker, state };
         textMarkers.push(entry);
         return entry;

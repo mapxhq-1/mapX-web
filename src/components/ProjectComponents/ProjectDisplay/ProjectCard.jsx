@@ -137,14 +137,12 @@ const ProjectCard = ({ data }) => {
     };
   }, [data]);
 
-  // --- Animation Variants ---
   const menuVariants = {
     hidden: { opacity: 0, y: -10, scale: 0.95 },
     visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.2 } },
     exit: { opacity: 0, y: -10, scale: 0.95, transition: { duration: 0.15 } }
   };
 
- // ADD THIS LINE: Check if any interaction is active
   const isActive = menu || deleteBt || editBt || shareBt;
 
   return (
@@ -153,35 +151,42 @@ const ProjectCard = ({ data }) => {
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ y: -5 }}
       transition={{ duration: 0.3 }}
-      // MODIFIED LINE BELOW: Added dynamic z-index logic
-      // If isActive is true, we force z-50 to bring this card to the very front.
-      className={`w-[280px] relative flex flex-col rounded-3xl bg-[#18181b] shadow-xl border border-zinc-800 cursor-pointer overflow-visible group ${
-        isActive ? "z-50" : "z-0"
-      }`}
+      // SCALING LOGIC:
+      // Mobile (Default): w-[200px], rounded-2xl
+      // PC (md:): w-[280px], rounded-3xl (Restores original size)
+      className={`relative flex flex-col bg-[#18181b] shadow-xl border border-zinc-800 cursor-pointer overflow-visible group 
+        w-[200px] md:w-[280px] 
+        rounded-2xl md:rounded-3xl
+        ${isActive ? "z-50" : "z-0"}`}
       onClick={() => navigate("/map/" + data.id)}
     >
       {/* --- Top Preview Section --- */}
-      <div className="relative w-full h-[180px] p-2">
+      {/* Mobile: h-[120px] | PC: h-[180px] */}
+      <div className="relative w-full p-2 h-[120px] md:h-[180px]">
         
         <div className="absolute top-4 left-4 z-10">
-          <div className="px-3 py-1.5 rounded-full bg-black/35 backdrop-blur-md border border-white/10 shadow-lg flex items-center gap-2">
+          {/* Badge: Scaled down padding on mobile, original on PC */}
+          <div className="rounded-full bg-black/35 backdrop-blur-md border border-white/10 shadow-lg flex items-center gap-2
+            px-2 py-1 md:px-3 md:py-1.5">
 
             <div
-              className={`w-1.5 h-1.5 rounded-full ${
+              className={`rounded-full ${
                 isPrivate
                   ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"
                   : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
-              }`}
+              } w-1 h-1 md:w-1.5 md:h-1.5`} 
             ></div>
-            {/* Text */}
-            <span className="text-[10px] font-medium text-zinc-200 uppercase tracking-widest leading-none">
+            {/* Text: Scaled font, kept original wording */}
+            <span className="font-medium text-zinc-200 uppercase tracking-widest leading-none
+              text-[8px] md:text-[10px]">
               {isPrivate ? "Private" : "Public"}
             </span>
           </div>
         </div>
 
         {/* Thumbnail Image */}
-        <div className="w-full h-full rounded-2xl overflow-hidden relative shadow-inner">
+        <div className="w-full h-full overflow-hidden relative shadow-inner
+          rounded-xl md:rounded-2xl">
           <img
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
             src="https://media.sciencephoto.com/c0/27/58/65/c0275865-800px-wm.jpg"
@@ -192,25 +197,36 @@ const ProjectCard = ({ data }) => {
       </div>
 
       {/* --- Bottom Info Section --- */}
-      <div className="px-5 pb-4 pt-1 flex items-center justify-between">
+      <div className="flex items-center justify-between
+        px-3 pb-3 pt-1 md:px-5 md:pb-4 md:pt-1">
         
-        {/* Title & Date (Icon removed, smaller font) */}
+        {/* Title & Date */}
         <div className="flex flex-col min-w-0 pr-2">
-          <h1 className="font-semibold text-zinc-200 text-xs tracking-wide truncate">{projname || "Untitled"}</h1>
-          <p className="text-[10px] text-zinc-500 font-medium mt-0.5">{getDate(data?.updatedAt)}</p>
+          {/* Mobile: text-[10px] | PC: text-xs */}
+          <h1 className="font-semibold text-zinc-200 tracking-wide truncate
+             text-[10px] md:text-xs">
+             {projname || "Untitled"}
+          </h1>
+          <p className="text-zinc-500 font-medium mt-0.5
+            text-[9px] md:text-[10px]">
+            {getDate(data?.updatedAt)}
+          </p>
         </div>
 
-        {/* Menu Trigger Button + Dropdown Container */}
+        {/* Menu Trigger Button */}
         {isOwner && (
           <div className="relative" onClick={(e) => e.stopPropagation()}>
+            {/* Mobile: w-6 h-6 | PC: w-8 h-8 */}
             <button
               onClick={() => setMenu(!menu)}
-              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${menu ? 'bg-zinc-700 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}
+              className={`flex items-center justify-center rounded-full transition-all duration-200 
+                w-6 h-6 md:w-8 md:h-8
+                ${menu ? 'bg-zinc-700 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 md:w-5 md:h-5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
             </button>
 
-            {/* Dropdown Menu (Appears DOWN) */}
+            {/* Dropdown Menu */}
             <AnimatePresence>
               {menu && (
                 <motion.div
@@ -219,7 +235,8 @@ const ProjectCard = ({ data }) => {
                   initial="hidden"
                   animate="visible"
                   exit="exit"
-                  className="absolute right-0 top-full mt-2 w-44 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-[200] overflow-hidden flex flex-col py-1"
+                  className="absolute right-0 top-full mt-2 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-[200] overflow-hidden flex flex-col py-1
+                    w-36 md:w-44"
                 >
                   {/* Share Item */}
                   <div
@@ -228,7 +245,8 @@ const ProjectCard = ({ data }) => {
                       setShareBt(true);
                       setMenu(false);
                     }}
-                    className="px-4 py-2.5 flex items-center gap-3 text-xs text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors"
+                    className="flex items-center gap-3 text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors
+                      px-3 py-2 md:px-4 md:py-2.5 text-[10px] md:text-xs"
                   >
                     <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                     <span>Share Project</span>
@@ -241,7 +259,8 @@ const ProjectCard = ({ data }) => {
                       setEditBt(true);
                       setMenu(false);
                     }}
-                    className="px-4 py-2.5 flex items-center gap-3 text-xs text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors"
+                    className="flex items-center gap-3 text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors
+                      px-3 py-2 md:px-4 md:py-2.5 text-[10px] md:text-xs"
                   >
                     <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                     <span>Rename</span>
@@ -254,7 +273,8 @@ const ProjectCard = ({ data }) => {
                           handlePrivate(e);
                           setMenu(false);
                       }}
-                      className="px-4 py-2.5 flex items-center gap-3 text-xs text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors"
+                      className="flex items-center gap-3 text-zinc-300 hover:bg-zinc-700/50 hover:text-white cursor-pointer transition-colors
+                        px-3 py-2 md:px-4 md:py-2.5 text-[10px] md:text-xs"
                     >
                       <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                       <span>Make Private</span>
@@ -270,7 +290,8 @@ const ProjectCard = ({ data }) => {
                       setDeleteBt(true);
                       setMenu(false);
                     }}
-                    className="px-4 py-2.5 flex items-center gap-3 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 cursor-pointer transition-colors"
+                    className="flex items-center gap-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 cursor-pointer transition-colors
+                      px-3 py-2 md:px-4 md:py-2.5 text-[10px] md:text-xs"
                   >
                     <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                     <span>Delete</span>
@@ -282,22 +303,24 @@ const ProjectCard = ({ data }) => {
         )}
       </div>
 
-      {/* --- Action Popovers (Share/Rename/Delete) --- */}
-      {/* These appear over the card content */}
+      {/* --- Action Popovers --- */}
       <AnimatePresence>
         {/* Share Popover */}
         {shareBt && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute inset-x-2 bottom-16 bg-[#27272a] border border-zinc-700 p-4 rounded-xl shadow-2xl z-40 text-zinc-200 cursor-default"
+            className="absolute inset-x-2 bottom-16 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-40 text-zinc-200 cursor-default
+              p-3 md:p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Share Project</h3>
+              <h3 className="font-semibold text-white uppercase tracking-wider
+                text-[10px] md:text-xs">Share Project</h3>
               <button onClick={() => setShareBt(false)} className="text-zinc-400 hover:text-white">&times;</button>
             </div>
             
-            <div className="bg-black/30 rounded-lg p-2 max-h-32 overflow-y-auto mb-3 text-xs border border-white/5">
+            <div className="bg-black/30 rounded-lg p-2 max-h-32 overflow-y-auto mb-3 border border-white/5
+               text-[10px] md:text-xs">
                 {data.accessorList?.length > 0 ? (
                   <ul className="space-y-1">
                     {data.accessorList.map((email) => <li key={email} className="truncate text-zinc-400">{email}</li>)}
@@ -308,7 +331,8 @@ const ProjectCard = ({ data }) => {
             </div>
             <button
               onClick={handleCopyShareLink}
-              className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-colors"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors
+                 py-1.5 md:py-2 text-[10px] md:text-xs"
             >
               Copy Link
             </button>
@@ -319,22 +343,26 @@ const ProjectCard = ({ data }) => {
         {editBt && (
            <motion.div 
            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-           className="absolute inset-x-2 bottom-16 bg-[#27272a] border border-zinc-700 p-4 rounded-xl shadow-2xl z-40 text-zinc-200 cursor-default"
+           className="absolute inset-x-2 bottom-16 bg-[#27272a] border border-zinc-700 rounded-xl shadow-2xl z-40 text-zinc-200 cursor-default
+             p-3 md:p-4"
            onClick={(e) => e.stopPropagation()}
          >
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">Rename Project</h3>
+              <h3 className="font-semibold text-white uppercase tracking-wider
+                text-[10px] md:text-xs">Rename Project</h3>
               <button onClick={() => setEditBt(false)} className="text-zinc-400 hover:text-white">&times;</button>
             </div>
             <div className="flex gap-2">
               <input
                 type="text"
-                className="bg-black/30 border border-zinc-600 text-white text-xs rounded-lg p-2 w-full focus:outline-none focus:border-indigo-500 transition-colors"
+                className="bg-black/30 border border-zinc-600 text-white rounded-lg w-full focus:outline-none focus:border-indigo-500 transition-colors
+                   text-[10px] md:text-xs p-1.5 md:p-2"
                 value={projname}
                 onChange={(e) => setProjname(e.target.value)}
                 autoFocus
               />
-              <button onClick={handleRename} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-3 text-xs font-medium">Save</button>
+              <button onClick={handleRename} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium
+                 px-2 md:px-3 text-[10px] md:text-xs">Save</button>
             </div>
           </motion.div>
         )}
@@ -343,24 +371,30 @@ const ProjectCard = ({ data }) => {
         {deleteBt && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-red-950/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 text-center rounded-3xl cursor-default"
+            className="absolute inset-0 bg-red-950/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4 text-center cursor-default
+              rounded-2xl md:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center mb-3">
-              <svg className="w-5 h-5 text-red-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <div className="bg-red-500/20 rounded-full flex items-center justify-center mb-3
+              w-8 h-8 md:w-10 md:h-10">
+              <svg className="text-red-200 w-4 h-4 md:w-5 md:h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
             </div>
-            <h3 className="text-white font-bold text-sm mb-1">Delete Project?</h3>
-            <p className="text-red-200 text-[10px] mb-4">This action cannot be undone.</p>
+            <h3 className="text-white font-bold mb-1
+              text-xs md:text-sm">Delete Project?</h3>
+            <p className="text-red-200 mb-4
+              text-[9px] md:text-[10px]">This action cannot be undone.</p>
             <div className="flex gap-2 w-full">
               <button 
                 onClick={(e) => { e.stopPropagation(); setDeleteBt(false); }}
-                className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium transition-colors"
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors
+                  py-1.5 md:py-2 text-[10px] md:text-xs"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleDelete}
-                className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-medium transition-colors"
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors
+                  py-1.5 md:py-2 text-[10px] md:text-xs"
               >
                 Delete
               </button>

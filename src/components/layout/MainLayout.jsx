@@ -19,6 +19,7 @@ import MapLoader from "../loaders/MapLoader";
 import { setEmail, setUserToken } from "../../store/projectSlice";
 import ResizableWindow from "../Chatbot/ResizableWindow";
 import Chat from "../Chatbot/Chat";
+import GalaxyCanvas from "../common/GalaxyCanvas";
 
 export default function MainLayout() {
   const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
@@ -104,7 +105,6 @@ export default function MainLayout() {
   };
 
   // --- VIEW 1: PORTRAIT WARNING SCREEN ---
-  // If user is on mobile vertical, show this screen with the button
   if (isMobilePortrait) {
     return (
       <Box
@@ -115,56 +115,94 @@ export default function MainLayout() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#1a1a1a", // Dark background
+          backgroundColor: "#000000",
           color: "white",
           textAlign: "center",
           p: 3,
           position: "fixed",
-          top: 0, left: 0, zIndex: 9999
+          top: 0,
+          left: 0,
+          zIndex: 9999,
+          overflow: "hidden"
         }}
       >
-        <ScreenRotationIcon sx={{ fontSize: 60, mb: 2, animation: "spin 2s infinite" }} />
-        
-        <Typography variant="h5" gutterBottom>
-          Landscape Mode Required
-        </Typography>
-        
-        <Typography variant="body1" sx={{ opacity: 0.8, mb: 4 }}>
-          This map is best viewed in landscape mode.
-        </Typography>
+        {/* Background Layer */}
+        <Box sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: -1 }}>
+          <GalaxyCanvas />
+        </Box>
 
-        <Button 
-          variant="contained" 
-          size="large"
-          startIcon={<FullscreenIcon />}
-          onClick={handleEnterExperience}
+        {/* Dark Pill Container */}
+        <Box 
           sx={{ 
-            backgroundColor: "#4caf50", 
-            "&:hover": { backgroundColor: "#388e3c" },
-            borderRadius: "20px",
-            px: 4,
-            py: 1.5,
-            textTransform: "none",
-            fontSize: "1.1rem"
+            background: "rgba(20, 20, 20, 0.75)", 
+            backdropFilter: "blur(8px)",
+            p: 5, 
+            borderRadius: "50px", // Pill shape container
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            maxWidth: "90%",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.5)"
           }}
         >
-          Rotate & Enter Fullscreen
-        </Button>
+          <ScreenRotationIcon 
+            sx={{ 
+              fontSize: 70, 
+              mb: 2, 
+              color: "#ffffff", 
+              opacity: 0.9,
+              animation: "spin 3s ease-in-out infinite" 
+            }} 
+          />
+          
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: "#fff" }}>
+            Rotate Device
+          </Typography>
+          
+          <Typography variant="body1" sx={{ opacity: 0.7, mb: 1, color: "#fff" }}>
+            Landscape mode is required.
+          </Typography>
+
+          <Typography variant="body2" sx={{ color: "#888", mb: 4, fontStyle: 'italic' }}>
+            Tip: Use a laptop for better experience
+          </Typography>
+
+          {/* Button with Dark Green Background & 3D Top Border */}
+          <Button 
+            variant="contained" 
+            size="large"
+            startIcon={<FullscreenIcon />}
+            onClick={handleEnterExperience}
+            sx={{ 
+              backgroundColor: "#2e7d32", // Dark Green
+              color: "#ffffff", // White text
+              
+              // --- 3D Effect created here ---
+              borderTop: "2px solid rgba(255, 255, 255, 0.4)", // Bright top highlight
+              boxShadow: "0px 6px 15px rgba(0,0,0,0.4)", // Stronger bottom shadow for depth
+              // ---------------------------
+
+              borderRadius: "50px", // Pill Shape
+              px: 4,
+              py: 1.5,
+              fontWeight: "bold",
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Rotate & Enter
+          </Button>
+        </Box>
 
         <style>
           {`@keyframes spin { 
               0% { transform: rotate(0deg); } 
-              25% { transform: rotate(-90deg); } 
-              100% { transform: rotate(-90deg); } 
+              30% { transform: rotate(-90deg); } 
+              70% { transform: rotate(-90deg); }
+              100% { transform: rotate(0deg); } 
             }`}
         </style>
       </Box>
     );
   }
-
-  // --- VIEW 2: STANDARD LANDSCAPE APP ---
-  // This renders normally. When the user rotates the phone (or clicks the button above), 
-  // the browser treats it as a PC screen (Landscape).
   return (
     <Box
       sx={{

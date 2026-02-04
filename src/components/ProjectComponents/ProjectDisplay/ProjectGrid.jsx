@@ -127,13 +127,18 @@ const ProjectGrid = () => {
          </div>
       ) : (
         // CASE 2: GRID STATE
-        // overflow-y-auto ONLY here. Scrollbar only appears if content overflows.
-        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-8">
+        // UPDATED: 'p-2' on mobile to save space, 'md:p-8' on larger screens.
+        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-2 md:p-8">
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center"
+            // UPDATED CLASSNAME:
+            // 1. grid-cols-2 (Base is now 2 columns for mobile portrait)
+            // 2. gap-3 (Smaller gap for mobile)
+            // 3. md:gap-6 (Larger gap for PC)
+            // 4. lg:grid-cols-3 xl:grid-cols-4 (Desktop layouts)
+            className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6 justify-items-center"
           >
             <AnimatePresence mode="popLayout">
               {filteredData.length > 0 ? (
@@ -145,6 +150,8 @@ const ProjectGrid = () => {
                     initial="hidden"
                     animate="visible"
                     exit="exit"
+                    // Added w-full to ensure it respects the grid cell width
+                    className="w-full"
                   >
                     <ProjectCard data={data} />
                   </motion.div>
