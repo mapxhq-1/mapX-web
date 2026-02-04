@@ -2,14 +2,137 @@ import maplibregl from "maplibre-gl";
 import { isEsriProvider } from "../utils/mapStyles";
 
 // ============================================================================
+// 1. INJECT RESPONSIVE STYLES (Mobile Landscape Fix)
+// ============================================================================
+const injectResponsiveStyles = () => {
+    const styleId = "map-mobile-landscape-fix-final-v6"; // Updated ID
+    if (document.getElementById(styleId)) return;
+    
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.innerHTML = `
+        /* --- MOBILE LANDSCAPE OVERRIDES --- */
+        @media (max-height: 500px) and (orientation: landscape) {
+
+            /* 1. POSITIONING: ANCHOR TO BOTTOM-RIGHT */
+            .maplibregl-ctrl-bottom-right {
+                top: auto !important;
+                bottom: -20px !important;
+                right: 55px !important;
+                left: auto !important;
+                
+                margin: 0 !important;
+                padding: 0 4px 0 0 !important;
+                
+                transform: none !important;
+                
+                /* Stack grows upwards from bottom */
+                display: flex !important;
+                flex-direction: column-reverse !important; 
+                align-items: flex-end !important;
+            }
+
+            /* 👇 FORCE 'i' BUTTON TO BOTTOM 👇 */
+            /* In column-reverse, the lowest order number sits at the very bottom */
+            .compact-attribution-container {
+                margin-bottom: -80px !important;
+                margin-right: 0px !important; 
+            }
+
+            /* 2. BUTTON SIZING */
+            .maplibregl-ctrl-group button.maplibregl-ctrl-icon,
+            .photon-btn-mobile {
+                width: 28px !important;
+                height: 28px !important;
+                min-height: 28px !important;
+                max-height: 28px !important;
+                min-width: 28px !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            /* 3. ICON SIZING */
+            .maplibregl-ctrl-icon svg,
+            .photon-btn-mobile svg {
+                width: 16px !important;
+                height: 16px !important;
+            }
+
+            /* 4. ZOOM CONTROL */
+            .zoom-control-container {
+                height: auto !important;
+                width: 28px !important;
+                margin-bottom: 0 !important;
+                margin-top: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            .zoom-control-container button {
+                height: 24px !important;
+                min-height: 24px !important;
+                font-size: 14px !important;
+                line-height: 1 !important;
+            }
+            .zoom-control-container button:first-child {
+                border-bottom: 1px solid #ddd !important;
+            }
+
+            /* 5. NORTH CONTROL */
+            .reset-north-container {
+                width: 28px !important;
+                height: 28px !important;
+                min-height: 28px !important;
+                /* Add margin BOTTOM to separate it from the Zoom controls below it */
+                margin-bottom: 8px !important; 
+            }
+            .reset-north-container button {
+                width: 100% !important;
+                height: 100% !important;
+            }
+
+            /* 6. GENERAL SPACING */
+            .maplibregl-ctrl-group {
+                margin: 0 0 8px 0 !important;
+                border-radius: 4px !important;
+            }
+
+            /* 7. PHOTON SEARCH (Bottom Left) */
+            .maplibregl-ctrl-bottom-left {
+                bottom: 65px !important;
+                left: 55px !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .photon-search-container {
+                margin-left: 0 !important;
+            }
+
+            .photon-input-mobile {
+                width: 140px !important;
+                height: 20px !important; 
+                font-size: 11px !important;
+            }
+            .photon-results-mobile {
+                max-height: 110px !important;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+};
+// Inject styles immediately
+injectResponsiveStyles();
+
+// ============================================================================
 // Photon Search Control
 // ============================================================================
 export class PhotonSearchControl {
     onAdd(m) {
         this._map = m;
         this._container = document.createElement("div");
-        this._container.className = "maplibregl-ctrl";
+        this._container.className = "maplibregl-ctrl photon-search-container";
         
+        // PC Styles
         this._container.style.background = "white";
         this._container.style.borderRadius = "4px";
         this._container.style.boxShadow = "0 1px 2px rgba(0,0,0,0.15)";
@@ -24,7 +147,7 @@ export class PhotonSearchControl {
 
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "maplibregl-ctrl-icon";
+        btn.className = "maplibregl-ctrl-icon photon-btn-mobile";
         btn.setAttribute("aria-label", "Search");
         btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m21 21l-3.5-3.5M17 10a7 7 0 1 1-14 0a7 7 0 0 1 14 0Z"/></svg>`;
 
@@ -40,7 +163,9 @@ export class PhotonSearchControl {
 
         const input = document.createElement("input");
         input.type = "text";
+        input.className = "photon-input-mobile";
         input.placeholder = "Search places";
+        
         input.style.width = "220px";
         input.style.height = "16px";
         input.style.padding = "2px 6px";
@@ -51,6 +176,7 @@ export class PhotonSearchControl {
         input.style.display = "none";
 
         const list = document.createElement("div");
+        list.className = "photon-results-mobile";
         list.style.maxHeight = "180px";
         list.style.overflowY = "auto";
         list.style.border = "1px solid #e5e7eb";
@@ -105,6 +231,9 @@ export class PhotonSearchControl {
                         essential: false,
                     });
                     clearList();
+                    if (window.innerWidth < 600 || window.innerHeight < 500) {
+                         input.style.display = "none";
+                    }
                 });
                 list.appendChild(item);
             });
@@ -131,7 +260,6 @@ export class PhotonSearchControl {
                 const data = await r.json();
                 renderResults((data && data.features) || []);
             } catch (_) {
-                /* silently ignore aborts/errors */
             }
         };
 
@@ -200,8 +328,11 @@ export class ScreenshotControl {
     onAdd(m) {
         this._map = m;
         this._container = document.createElement("div");
-        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group";
+        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group screenshot-control-container";
+        
+        // PC Style
         this._container.style.marginBottom="-15px";
+
         const button = document.createElement("button");
         button.type = "button";
         button.className = "maplibregl-ctrl-icon";
@@ -246,7 +377,6 @@ export class ScreenshotControl {
         const downloadPng = () => {
             button.disabled = true;
             button.innerHTML = spinnerSVG;
-
             const captureNow = () => {
                 try {
                     const src = this._map.getCanvas();
@@ -313,7 +443,6 @@ export class ScreenshotControl {
                     if (!allWhite) {
                         finalize();
                     } else {
-                        // For Esri provider, skip MapTiler static API and use canvas capture
                         if (isEsriProvider()) {
                             finalize();
                             showToast("Screenshot saved");
@@ -593,10 +722,12 @@ export class ResetNorthControl {
     onAdd(m) {
         this._map = m;
         this._container = document.createElement("div");
-        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
-        // this._container.style.marginBottom = "20px";
+        this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up reset-north-container"; // Added "reset-north-container"
+        
+        // ORIGINAL: PC sizes preserved
         this._container.style.height = "30px";
         this._container.style.width = "30px";
+        
         const button = document.createElement("button");
         button.type = "button";
         button.className = "maplibregl-ctrl-icon";
@@ -605,12 +736,10 @@ export class ResetNorthControl {
         button.style.alignItems = "center";
         button.style.justifyContent = "center";
         button.style.padding = "0";
-        // Simple north arrow
         button.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 24 24"><g fill="none"><path fill="currentColor" d="m6.2 20.634l5.668-10.393a.15.15 0 0 1 .264 0L17.8 20.634a.15.15 0 0 1-.187.211l-4.536-1.814a.15.15 0 0 1-.092-.113l-.837-4.606c-.03-.164-.266-.164-.296 0l-.837 4.606a.15.15 0 0 1-.092.113l-4.536 1.814a.15.15 0 0 1-.187-.21"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 9V3.12a.05.05 0 0 1 .085-.035l5.83 5.83A.05.05 0 0 0 15 8.879V3"/></g></svg>`;
 
         button.addEventListener("click", () => {
-            // True "north up": only reset bearing; keep center, zoom and pitch
             this._map.rotateTo(0, { duration: 400, essential: false });
         });
 
@@ -624,14 +753,21 @@ export class ResetNorthControl {
         this._map = undefined;
     }
 }
+
+// ============================================================================
+// Zoom Control
+// ============================================================================
 export class ZoomControl {
   onAdd(m) {
     this._map = m;
     this._container = document.createElement("div");
-    this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up";
+    this._container.className = "maplibregl-ctrl maplibregl-ctrl-group my-shift-up zoom-control-container"; // Added class
+    
+    // ORIGINAL: PC sizes preserved
     this._container.style.height = "70px";
     this._container.style.width = "30px";
     this._container.style.marginBottom="-20px";
+
     const zoomIn = document.createElement("button");
     zoomIn.type = "button";
     zoomIn.className = "maplibregl-ctrl-icon";
@@ -663,7 +799,6 @@ export class ZoomControl {
       this._map.zoomOut({ duration: 250 });
     });
 
-    // stop map drag/scroll when clicking control
     this._container.addEventListener("mousedown", (e) => e.stopPropagation());
     this._container.addEventListener("dblclick", (e) => e.stopPropagation());
     this._container.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
@@ -693,13 +828,12 @@ export class CompactAttributionControl {
     this._map = map;
 
     const container = document.createElement("div");
-    container.className = "maplibregl-ctrl";
+    container.className = "maplibregl-ctrl compact-attribution-container";
     container.style.position = "relative";
     container.style.display = "flex";
     container.style.alignItems = "center";
     container.style.justifyContent = "center";
 
-    // White circle i button
     const button = document.createElement("button");
     button.type = "button";
     button.innerHTML = "i";
@@ -709,8 +843,8 @@ export class CompactAttributionControl {
     button.style.height = "20px";
     button.style.borderRadius = "9999px";
     button.style.border = "1px solid rgba(0,0,0,0.25)";
-    button.style.background = "#fff";   // white circle
-    button.style.color = "#111";        // visible i
+    button.style.background = "#fff";   
+    button.style.color = "#111";        
     button.style.display = "flex";
     button.style.alignItems = "center";
     button.style.justifyContent = "center";
@@ -719,10 +853,9 @@ export class CompactAttributionControl {
     button.style.cursor = "pointer";
     button.style.userSelect = "none";
 
-    // Horizontal white bar (opens left)
     const panel = document.createElement("div");
     panel.style.position = "absolute";
-    panel.style.right = "38px"; // to the LEFT of button
+    panel.style.right = "38px"; 
     panel.style.bottom = "0px";
     panel.style.display = "none";
 
@@ -735,11 +868,8 @@ export class CompactAttributionControl {
     panel.style.boxShadow = "0 8px 20px rgba(0,0,0,0.2)";
     panel.style.zIndex = "9999";
 
-    // force ONE LINE + show full text via horizontal scroll
     panel.style.whiteSpace = "nowrap";
     panel.style.overflowY = "hidden";
-
-    // smoother scroll on trackpad
     panel.style.webkitOverflowScrolling = "touch";
 
     const updateAttribution = () => {

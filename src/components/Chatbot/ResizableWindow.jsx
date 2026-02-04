@@ -42,7 +42,7 @@ const ResizableWindow = ({
       setIsMobile(mobileCheck);
 
       if (mobileCheck) {
-        setSize({ width: 300, height: 375 });
+        setSize({ width: 325, height: 375 });
         setPosition({ x: 55, y: 7 });
       }
     };
