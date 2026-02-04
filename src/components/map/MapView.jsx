@@ -1189,13 +1189,12 @@ const onEmpireClick = async (e) => {
         .map(([key, value]) => `${key}: ${value}`)
         .join(', ');
 
-      const queryText = `Tell me more about ${name}.////// Here is the context: ${contextString}`;
+      const queryText = `Tell me more about ${name}.//////${contextString}`;
       // console.log({queryText})
       // 4. Dispatch the Event
       const event = new CustomEvent('trigger-know-more', { 
         detail: { 
-          query: queryText, // <--- EVERYTHING is now in here
-          grade: 0 
+          query: queryText,
         } 
       });
       

@@ -389,10 +389,12 @@ fetchThinkingText(displayContent)
     setThinkingTexts(["Thinking…"]);
   });
 
-
-      // SEND THE FULL 'textToSend' (with context) TO BACKEND
-      const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang);
-      console.log(data);
+      let know_more = 0;
+      if (gradeToSend === -1){
+        know_more = 1;
+      }
+      const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang, know_more);
+      // console.log(data);
       if ((!activeSessionId) && data.sessionId) {
         setSessionId(data.sessionId);
         loadHistoryList();
@@ -452,11 +454,11 @@ useEffect(() => {
 
   useEffect(() => {
     const handleKnowMoreTrigger = (e) => {
-      const { query, grade } = e.detail || {};
+      const { query } = e.detail || {};
       
       if (query) {
         if (window.innerWidth < 768) setMobileMenuOpen(false);
-        sendMessage(query, grade || 0, false, true, false); 
+        sendMessage(query, -1 , false, true, false); 
       }
     };
 

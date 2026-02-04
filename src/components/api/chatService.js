@@ -19,15 +19,27 @@ const getHeaders = () => {
  * @param {string} message - The user's input text
  * @param {string} grade - e.g., "8th Grade"
  */
-export const sendMessage = async (userId, sessionId, message, grade, lang) => {
+export const sendMessage = async (userId, sessionId, message, grade, lang, know_more) => {
   let payload;
+  if (grade === -1){
     payload = {
       userId: userId,
       sessionId,
-      grade: grade,
+      know_more,
       message: message,
       lang
     };
+  }
+  else{
+    payload = {
+      userId: userId,
+      sessionId,
+      grade,
+      message: message,
+      lang
+    };
+  }
+    
 // console.log(payload);
   try {
     const response = await fetch(`${BASE_URL}/chat`, {
