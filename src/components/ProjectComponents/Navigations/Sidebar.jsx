@@ -59,6 +59,7 @@ const Sidebar = () => {
             // 3. Is height small? (Safety check)
             const isShort = window.innerHeight < 500;
 
+            // Logic: If it is mobile landscape OR if the screen width is small enough (<1024) but treated as landscape
             setIsCompact(isMobileDevice && isLandscape && isShort);
         };
 
@@ -199,9 +200,10 @@ const Sidebar = () => {
     return (
         <>
             {/* --- MOBILE TRIGGER --- */}
+            {/* UPDATED: Changed md:hidden to lg:hidden so it appears on landscape mobile/tablet */}
             <button 
                 onClick={() => setIsMobileOpen(true)}
-                className="md:hidden fixed top-6 left-4 z-[60] p-2 bg-zinc-900 rounded-full border border-white/10 text-white"
+                className="lg:hidden fixed top-6 left-4 z-[60] p-2 bg-zinc-900 rounded-full border border-white/10 text-white"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -209,18 +211,23 @@ const Sidebar = () => {
             </button>
 
             {/* --- MOBILE OVERLAY --- */}
+            {/* UPDATED: Changed md:hidden to lg:hidden */}
             {isMobileOpen && (
                 <div 
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] md:hidden"
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] lg:hidden"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
 
             {/* --- SIDEBAR CONTAINER --- */}
+            {/* UPDATED: 
+                1. 'md:relative' -> 'lg:relative' (Only become relative on Large screens/Desktop)
+                2. '-translate-x-full md:translate-x-0' -> '-translate-x-full lg:translate-x-0' (Hidden by default until Large screens)
+            */}
             <div className={`
-                fixed md:relative z-[80] h-full
+                fixed lg:relative z-[80] h-full
                 transition-transform duration-300 ease-in-out
-                ${isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+                ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
                 <div className={`${sidebarWidth} bg-[#18181b] h-full flex ${containerLayout} border-r border-black shadow-2xl rounded-r-4xl tracking-wide transition-all duration-300`}>
                     
@@ -232,7 +239,8 @@ const Sidebar = () => {
                             <h1 className="text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive', fontSize: 'inherit' }}>
                                 Happy Dyno
                             </h1>
-                            <button onClick={() => setIsMobileOpen(false)} className="md:hidden text-zinc-500">
+                            {/* UPDATED: md:hidden -> lg:hidden */}
+                            <button onClick={() => setIsMobileOpen(false)} className="lg:hidden text-zinc-500">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>

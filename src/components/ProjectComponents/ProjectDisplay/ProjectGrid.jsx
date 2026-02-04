@@ -127,18 +127,19 @@ const ProjectGrid = () => {
          </div>
       ) : (
         // CASE 2: GRID STATE
-        // UPDATED: 'p-2' on mobile to save space, 'md:p-8' on larger screens.
-        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-2 md:p-8">
+        // UPDATED PADDING: 
+        // changed 'md:p-8' to 'lg:p-8'. 
+        // Mobile landscape/fullscreen will now keep 'p-2' (tight spacing) until screen width hits 1024px.
+        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-2 lg:p-8">
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            // UPDATED CLASSNAME:
-            // 1. grid-cols-2 (Base is now 2 columns for mobile portrait)
-            // 2. gap-3 (Smaller gap for mobile)
-            // 3. md:gap-6 (Larger gap for PC)
-            // 4. lg:grid-cols-3 xl:grid-cols-4 (Desktop layouts)
-            className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6 justify-items-center"
+            // UPDATED GRID & GAP:
+            // 1. 'gap-3' applies to mobile AND landscape/tablet (<1024px)
+            // 2. 'lg:gap-6' applies only to Desktop (>1024px)
+            // 3. Grid stays 2 cols until Large screens.
+            className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-6 justify-items-center"
           >
             <AnimatePresence mode="popLayout">
               {filteredData.length > 0 ? (

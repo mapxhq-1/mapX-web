@@ -77,17 +77,42 @@ export default function MainLayout() {
 
   useEffect(() => { dispatch(fetchAllEmpirePolygons()); }, [dispatch]);
 
-  // --- FULLSCREEN HANDLERS ---
+  // --- FULLSCREEN HANDLERS (ROBUST FIX) ---
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isFull = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    // 1. Define the check function
+    const checkFullscreenStatus = () => {
+      // Check all vendor prefixes
+      const isFull = 
+        document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement || 
+        document.msFullscreenElement ||
+        document.webkitCurrentFullScreenElement; // Specific to some iOS versions
+
+      // Update state
       setIsFullscreen(!!isFull);
     };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange); 
+
+    // 2. Add Event Listeners (The standard way)
+    document.addEventListener("fullscreenchange", checkFullscreenStatus);
+    document.addEventListener("webkitfullscreenchange", checkFullscreenStatus);
+    document.addEventListener("mozfullscreenchange", checkFullscreenStatus);
+    document.addEventListener("MSFullscreenChange", checkFullscreenStatus);
+
+    // 3. ADD POLLING (The "Stuck State" Fix)
+    // Check every 500ms. If the browser exits fullscreen but forgets to tell us,
+    // this will catch it and show the blocker immediately.
+    const intervalId = setInterval(checkFullscreenStatus, 500);
+
+    // Initial check
+    checkFullscreenStatus();
+
     return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", checkFullscreenStatus);
+      document.removeEventListener("webkitfullscreenchange", checkFullscreenStatus);
+      document.removeEventListener("mozfullscreenchange", checkFullscreenStatus);
+      document.removeEventListener("MSFullscreenChange", checkFullscreenStatus);
+      clearInterval(intervalId); // Cleanup the timer
     };
   }, []);
 
@@ -104,8 +129,7 @@ export default function MainLayout() {
     } catch (error) { console.error(error); }
   };
 
-  // --- REUSABLE BLOCKER COMPONENT ---
-  const BlockingScreen = ({ icon, title, subtitle, buttonText, onButtonClick }) => (
+  const BlockingScreen = ({ icon, title, subtitle, buttonText, onButtonClick, onDismiss }) => (
     <Box sx={{
       height: "100vh", width: "100vw", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", backgroundColor: "#000000",
@@ -122,12 +146,15 @@ export default function MainLayout() {
         {icon}
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: "#fff" }}>{title}</Typography>
         <Typography variant="body1" sx={{ opacity: 0.7, mb: 3, color: "#fff" }}>{subtitle}</Typography>
-        <Button 
-          variant="contained" size="large" startIcon={<FullscreenIcon />} onClick={onButtonClick}
-          sx={{ backgroundColor: "#2e7d32", color: "#ffffff", borderRadius: "50px", px: 4, py: 1.5, fontWeight: "bold", textTransform: "none", borderTop: "2px solid rgba(255, 255, 255, 0.4)", }}
-        >
-          {buttonText}
-        </Button>
+        
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+            <Button 
+            variant="contained" size="large" startIcon={<FullscreenIcon />} onClick={onButtonClick}
+            sx={{ backgroundColor: "#2e7d32", color: "#ffffff", borderRadius: "50px", px: 4, py: 1.5, fontWeight: "bold", textTransform: "none", borderTop: "2px solid rgba(255, 255, 255, 0.4)", }}
+            >
+            {buttonText}
+            </Button>
+        </Box>
       </Box>
     </Box>
   );
@@ -154,19 +181,17 @@ export default function MainLayout() {
     );
   }
 
-  // 2. Landscape but NO Fullscreen (The "Unusable" State)
+  // 2. Landscape but NO Fullscreen
   if (isMobileLandscape && !isFullscreen) {
     return (
-      <>
-        {/* <DebugOverlay />  <-- Uncomment this line if you still have issues! */}
-        <BlockingScreen 
-          title="Fullscreen Required"
-          subtitle="This experience requires fullscreen mode."
-          buttonText="Enter Fullscreen"
-          onButtonClick={handleEnterFullscreen}
-          icon={<FullscreenIcon sx={{ fontSize: 80, mb: 2, color: "#ffffff", animation: "pulse 2s infinite" }} />}
-        />
-      </>
+      <BlockingScreen 
+        title="Fullscreen Required"
+        subtitle="This experience requires fullscreen mode."
+        buttonText="Enter Fullscreen"
+        onButtonClick={handleEnterFullscreen}
+        onDismiss={() => setIsFullscreen(true)} // <--- Allow user override
+        icon={<FullscreenIcon sx={{ fontSize: 80, mb: 2, color: "#ffffff", animation: "pulse 2s infinite" }} />}
+      />
     );
   }
 

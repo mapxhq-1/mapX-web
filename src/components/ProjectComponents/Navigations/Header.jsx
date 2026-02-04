@@ -71,10 +71,13 @@ const Header = () => {
   `;
 
   return (
-    <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-6 pl-14 md:pl-6 py-4 w-full z-10 relative ml-0.5 rounded-b-2xl gap-4 md:gap-0">
+    // UPDATED: 'md:flex-row' -> 'lg:flex-row', 'pl-14 md:pl-6' -> 'pl-14 lg:pl-6'
+    // This keeps the column layout and larger left padding (for the hamburger) on mobile landscape.
+    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between px-6 pl-14 lg:pl-6 py-4 w-full z-10 relative ml-0.5 rounded-b-2xl gap-4 lg:gap-0">
       
       {/* --- LEFT SIDE: New Project --- */}
-      <div className="w-full md:w-auto">
+      {/* UPDATED: 'md:w-auto' -> 'lg:w-auto' */}
+      <div className="w-full lg:w-auto">
         <button
           ref={btnRef}
           onMouseEnter={() => setIsHover(true)}
@@ -84,7 +87,7 @@ const Header = () => {
           onClick={createNewProj}
           className="
             relative group overflow-hidden rounded-full
-            px-4 md:px-6 py-2 md:py-2.5 
+            px-4 lg:px-6 py-2 lg:py-2.5 
             border border-white/10
             bg-gradient-to-b from-white/10 to-white/5
             text-white transition-all duration-300
@@ -96,7 +99,8 @@ const Header = () => {
         >
           <span className="relative z-10 flex items-center justify-center gap-2">
             <Plus size={16} className="opacity-90" />
-            <span className="text-[10px] md:text-sm font-semibold tracking-widest uppercase truncate">
+            {/* UPDATED: 'md:text-sm' -> 'lg:text-sm' */}
+            <span className="text-[10px] lg:text-sm font-semibold tracking-widest uppercase truncate">
               New Project
             </span>
           </span>
@@ -104,24 +108,28 @@ const Header = () => {
       </div>
 
       {/* --- RIGHT SIDE: Sort & Search (Side-by-Side) --- */}
-      <div className="flex flex-row items-center gap-2 w-full md:w-auto">
+      {/* UPDATED: 'md:w-auto' -> 'lg:w-auto' */}
+      <div className="flex flex-row items-center gap-2 w-full lg:w-auto">
         
         {/* Sort Dropdown */}
         <div 
           className={`relative transition-all duration-300 ease-in-out
             ${isSearchFocused 
-              ? 'w-[48px] flex-none sm:w-auto sm:flex-none' // Collapses to icon width on focus
-              : 'flex-1 sm:flex-none sm:w-[180px]' // Equal width (flex-1) initially
+              // UPDATED: 'sm:' breakpoints -> 'lg:'
+              ? 'w-[48px] flex-none lg:w-auto lg:flex-none' 
+              : 'flex-1 lg:flex-none lg:w-[180px]' 
             }`} 
           ref={dropDown}
         >
           <motion.button
             whileTap={{ scale: 0.98 }}
             onClick={() => setSort(!sort)}
-            className={`w-full flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-5 py-2.5 rounded-full ${stackedStyle} ${sort ? 'text-zinc-200 bg-zinc-800' : ''}`}
+            // UPDATED: 'sm:px-5', 'sm:justify-start' -> 'lg:px-5', 'lg:justify-start'
+            className={`w-full flex items-center justify-center lg:justify-start gap-2 px-3 lg:px-5 py-2.5 rounded-full ${stackedStyle} ${sort ? 'text-zinc-200 bg-zinc-800' : ''}`}
           >
             <ArrowUpDown size={16} className="opacity-80 shrink-0" />
-            <span className={`text-xs sm:text-sm font-normal whitespace-nowrap ${isSearchFocused ? 'hidden sm:inline' : 'inline'}`}>
+            {/* UPDATED: 'sm:text-sm', 'sm:inline' -> 'lg:text-sm', 'lg:inline' */}
+            <span className={`text-xs lg:text-sm font-normal whitespace-nowrap ${isSearchFocused ? 'hidden lg:inline' : 'inline'}`}>
               Sort: <span className="font-medium text-zinc-300">{option}</span>
             </span>
           </motion.button>
@@ -154,8 +162,9 @@ const Header = () => {
         <div 
           className={`relative group transition-all duration-300 ease-in-out
             ${isSearchFocused 
-              ? 'flex-[3] sm:flex-none sm:w-[240px]' // Takes up remaining space on focus
-              : 'flex-1 sm:flex-none sm:w-[180px]' // Equal width (flex-1) initially
+              // UPDATED: 'sm:' breakpoints -> 'lg:'
+              ? 'flex-[3] lg:flex-none lg:w-[240px]' 
+              : 'flex-1 lg:flex-none lg:w-[180px]' 
             }`}
         >
           <div className="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
@@ -169,7 +178,7 @@ const Header = () => {
             onBlur={() => setIsSearchFocused(false)}
             onChange={(e) => dispatch(setSearch(e.target.value))} 
             className={`
-              pl-10 pr-5 py-2.5 rounded-full text-xs sm:text-sm font-normal w-full
+              pl-10 pr-5 py-2.5 rounded-full text-xs lg:text-sm font-normal w-full
               ${stackedStyle}
               placeholder:text-zinc-600
               focus:outline-none focus:text-white focus:bg-zinc-800
