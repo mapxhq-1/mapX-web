@@ -129,6 +129,7 @@ export default function Timeline() {
   const holdStartTsRef = useRef(0);
   const holdRafRef = useRef(0);
   const stepAccumulatorRef = useRef(0);
+  const sliderBindingRef = useRef(null);
 
   // --- COMPACT DETECTION ---
   const [isCompact, setIsCompact] = useState(false);
@@ -194,6 +195,28 @@ export default function Timeline() {
     setInputValue(formatYear(localYear));
   }, [localYear]);
 
+  useEffect(() => {
+  const slider = sliderRef.current; // Use the same ref as the JSX
+  if (!slider) return;
+
+  const onTouchStart = (e) => handleDragStart(e);
+  const onTouchMove = (e) => handleDragMove(e);
+  const onTouchEnd = (e) => handleDragEnd(e);
+
+  // Bind with passive: false to allow preventDefault()
+  slider.addEventListener("touchstart", onTouchStart, { passive: false });
+  slider.addEventListener("touchmove", onTouchMove, { passive: false });
+  slider.addEventListener("touchend", onTouchEnd);
+  slider.addEventListener("touchcancel", onTouchEnd);
+
+  return () => {
+    slider.removeEventListener("touchstart", onTouchStart);
+    slider.removeEventListener("touchmove", onTouchMove);
+    slider.removeEventListener("touchend", onTouchEnd);
+    slider.removeEventListener("touchcancel", onTouchEnd);
+  };
+}, [isDragging]);
+
   const years = useMemo(() => {
     const maYears = MA_BINS.slice().reverse().map((bin) => maBinToYear(bin));
     const bceYears = Array.from({ length: BCE_MAX_YEAR }, (_, i) => BCE_BOUNDARY_YEAR + i);
@@ -234,7 +257,7 @@ export default function Timeline() {
   };
 
   const handleDragStart = (e) => {
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     setIsDragging(true);
     dragStartX.current = getClientX(e);
     velocityRef.current = 0;
@@ -244,7 +267,7 @@ export default function Timeline() {
 
   const handleDragMove = (e) => {
     if (!isDragging) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     const currentX = getClientX(e);
     const deltaX = currentX - dragStartX.current;
     const maxOffset = 40;
@@ -694,10 +717,6 @@ const speedLookup = useMemo(() => {
         <Box
           ref={sliderRef}
           onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
           sx={{
             position: "absolute",
             width: styles.sliderButtonWidth,

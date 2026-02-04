@@ -25,7 +25,7 @@ export const sendMessage = async (userId, sessionId, message, grade, lang, know_
     payload = {
       userId: userId,
       sessionId,
-      know_more,
+      knowMore : know_more,
       message: message,
       lang
     };

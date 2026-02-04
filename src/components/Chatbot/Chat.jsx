@@ -204,7 +204,7 @@ User query (for context only):
 
     let empireData = null;
     // Only set empireData (which shows the button) if identifier is NOT present
-    if (!hasIdentifier && historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
+    if (historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
       empireData = {
         name: historyItem.flyToPosition.location || "Location",
         lat: historyItem.flyToPosition.lat,
