@@ -55,7 +55,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
     panelWidth: isCompact ? 210 : 320,
     
     // Spacing
-    headerPadding: isCompact ? "px-3 py-1.5" : "px-6 py-6",
+    headerPadding: isCompact ? "px-4 py-1.5" : "px-6 py-6",
     searchPadding: isCompact ? "px-2 py-1.5" : "px-4 py-6",
     sectionPadding: isCompact ? "p-1.5" : "p-3",
     gap: isCompact ? "gap-1" : "gap-2",
@@ -115,7 +115,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
       exit={{ opacity: 0, x: -20 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
-      <div className="w-full h-full flex flex-col justify-between overflow-hidden rounded-4xl shadow-2xl bg-[#18181b]/95 backdrop-blur-2xl border-r border-white/5">
+      <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${isCompact?"rounded-2xl":"rounded-4xl"} shadow-2xl bg-[#18181b]/95 backdrop-blur-2xl border-r border-white/5`}>
         
         {/* --- 1. HEADER & SEARCH --- */}
         <div className="flex flex-col shrink-0">

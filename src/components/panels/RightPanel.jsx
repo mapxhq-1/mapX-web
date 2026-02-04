@@ -46,7 +46,7 @@ function Open({ setIsOpen, project }) {
   // --- DYNAMIC STYLES ---
   const styles = {
     panelWidth: isCompact ? 210 : 320,
-    padding: isCompact ? "px-3 py-2" : "px-6 py-6",
+    padding: isCompact ? "px-4 py-2" : "px-6 py-6",
     gap: isCompact ? "gap-2" : "gap-3",
     iconSize: isCompact ? "w-6 h-6" : "w-10 h-10",
     svgSize: isCompact ? 14 : 20, // Main close icon
@@ -173,7 +173,7 @@ function Open({ setIsOpen, project }) {
         )}
       </AnimatePresence>
 
-      <div className={`w-full h-full flex flex-col justify-between ${STYLES.glassPanel} rounded-4xl shadow-2xl overflow-hidden`}>
+      <div className={`w-full h-full flex flex-col justify-between ${STYLES.glassPanel} ${isCompact?"rounded-2xl":"rounded-4xl"} shadow-2xl overflow-hidden`}>
         <div className="flex-1 overflow-y-auto no-scrollbar">
           
           <div className={`${styles.padding} flex justify-between items-center ${STYLES.etchedLine}`}>
