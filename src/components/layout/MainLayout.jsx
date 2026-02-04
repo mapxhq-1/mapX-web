@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { Box, Typography, useMediaQuery } from "@mui/material";
+import { Box, Typography, Button, useMediaQuery } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import axios from "axios";
-import ScreenRotationIcon from '@mui/icons-material/ScreenRotation'; // Make sure to install/import this icon or use text
+import ScreenRotationIcon from '@mui/icons-material/ScreenRotation'; 
+import FullscreenIcon from '@mui/icons-material/Fullscreen'; // New icon for the button
 
 import MapView from "../map/MapView";
 import Timeline from "../timeline/Timeline";
 import LeftPanel from "../panels/LeftPanel";
 import RightPanel from "../panels/RightPanel";
 import Notes from "../map/upload/Notes";
-import ImageModel from "../map/upload/ImageModel"
+import ImageModel from "../map/upload/ImageModel";
 import { closeNotes, closeImages, closeHyperlink, fetchAllEmpirePolygons } from "../../store/mapSlice";
 import { toast } from "react-toastify";
 import HyperlinkModel from "../map/upload/HyperlinkModel";
@@ -76,8 +77,34 @@ export default function MainLayout() {
     dispatch(fetchAllEmpirePolygons());
   }, [dispatch]);
 
-  // --- VIEW 1: PLEASE ROTATE SCREEN ---
-  // If user is on mobile vertical, show this screen instead of the broken map
+  // --- HANDLER: FORCE FULLSCREEN & ROTATION ---
+  const handleEnterExperience = async () => {
+    try {
+      const element = document.documentElement;
+
+      // 1. Request Fullscreen (Removes browser address bar)
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) { // Safari/Chrome fallback
+        await element.webkitRequestFullscreen();
+      } else if (element.msRequestFullscreen) { // IE/Edge fallback
+        await element.msRequestFullscreen();
+      }
+
+      // 2. Lock Orientation to Landscape
+      // Note: This API is not supported on all browsers (specifically iOS Safari often blocks it)
+      if (window.screen.orientation && window.screen.orientation.lock) {
+        await window.screen.orientation.lock("landscape").catch((err) => {
+          console.warn("Orientation lock failed (device might not support it): ", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error attempting to go fullscreen/rotate:", error);
+    }
+  };
+
+  // --- VIEW 1: PORTRAIT WARNING SCREEN ---
+  // If user is on mobile vertical, show this screen with the button
   if (isMobilePortrait) {
     return (
       <Box
@@ -92,16 +119,38 @@ export default function MainLayout() {
           color: "white",
           textAlign: "center",
           p: 3,
+          position: "fixed",
+          top: 0, left: 0, zIndex: 9999
         }}
       >
         <ScreenRotationIcon sx={{ fontSize: 60, mb: 2, animation: "spin 2s infinite" }} />
+        
         <Typography variant="h5" gutterBottom>
-          Please Rotate Your Device
+          Landscape Mode Required
         </Typography>
-        <Typography variant="body1" sx={{ opacity: 0.8 }}>
-          This map is designed for landscape view. <br />
-          Rotate your phone to continue.
+        
+        <Typography variant="body1" sx={{ opacity: 0.8, mb: 4 }}>
+          This map is best viewed in landscape mode.
         </Typography>
+
+        <Button 
+          variant="contained" 
+          size="large"
+          startIcon={<FullscreenIcon />}
+          onClick={handleEnterExperience}
+          sx={{ 
+            backgroundColor: "#4caf50", 
+            "&:hover": { backgroundColor: "#388e3c" },
+            borderRadius: "20px",
+            px: 4,
+            py: 1.5,
+            textTransform: "none",
+            fontSize: "1.1rem"
+          }}
+        >
+          Rotate & Enter Fullscreen
+        </Button>
+
         <style>
           {`@keyframes spin { 
               0% { transform: rotate(0deg); } 
@@ -114,8 +163,8 @@ export default function MainLayout() {
   }
 
   // --- VIEW 2: STANDARD LANDSCAPE APP ---
-  // This renders normally. When the user rotates the phone, the browser
-  // treats it as a PC screen (Landscape), so your PC layout works automatically.
+  // This renders normally. When the user rotates the phone (or clicks the button above), 
+  // the browser treats it as a PC screen (Landscape).
   return (
     <Box
       sx={{
