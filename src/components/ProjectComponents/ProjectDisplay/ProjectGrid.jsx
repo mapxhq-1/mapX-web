@@ -109,37 +109,27 @@ const ProjectGrid = () => {
   }
 
   return (
-    // ROOT: Relative w-full h-full to fit the parent outlet exactly.
     <div className="relative w-full h-full">
       
-      {/* Background: Absolute and pinned to corners. 
-          pointer-events-none ensures clicks pass through to cards. */}
+      {/* Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <GalaxyCanvas />
       </div>
 
       {sortedData.length === 0 ? (
-         // CASE 1: EMPTY STATE
-         // overflow-hidden prevents ANY scrollbar here.
-         // h-full ensures it centers vertically in the available space.
-         <div className="w-full h-full flex items-center justify-center overflow-hidden">
-            <NewProjectCard />
-         </div>
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
+             <NewProjectCard />
+          </div>
       ) : (
-        // CASE 2: GRID STATE
-        // UPDATED PADDING: 
-        // changed 'md:p-8' to 'lg:p-8'. 
-        // Mobile landscape/fullscreen will now keep 'p-2' (tight spacing) until screen width hits 1024px.
-        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-2 lg:p-8">
+        /* 1. Added flex & justify-center to the scroll container 
+           2. Set a max-width on the motion.div to prevent cards from spreading too far on giant screens
+        */
+        <div className="w-full h-full overflow-y-auto overflow-x-hidden p-6 lg:p-12 flex justify-center">
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            // UPDATED GRID & GAP:
-            // 1. 'gap-3' applies to mobile AND landscape/tablet (<1024px)
-            // 2. 'lg:gap-6' applies only to Desktop (>1024px)
-            // 3. Grid stays 2 cols until Large screens.
-            className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-6 justify-items-center"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 w-full max-w-7xl h-fit"
           >
             <AnimatePresence mode="popLayout">
               {filteredData.length > 0 ? (
@@ -151,8 +141,8 @@ const ProjectGrid = () => {
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    // Added w-full to ensure it respects the grid cell width
-                    className="w-full"
+                    /* Ensure the wrapper takes full track width */
+                    className="w-full flex justify-center"
                   >
                     <ProjectCard data={data} />
                   </motion.div>
@@ -163,7 +153,7 @@ const ProjectGrid = () => {
                   animate={{ opacity: 1 }} 
                   className="col-span-full flex flex-col items-center mt-20"
                 >
-                  <p className="text-zinc-500 text-lg font-light z-1">No matches found for "{search}"</p>
+                  <p className="text-zinc-500 text-lg font-light">No matches found for "{search}"</p>
                 </motion.div>
               )}
             </AnimatePresence>
