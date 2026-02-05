@@ -79,7 +79,7 @@ export async function updateMapShape(shapeId, email, updateData) {
     throw new Error("Shape ID, email, and update data are required.");
   }
   try {
-    console.log({updateData},{shapeId})
+    console.log({updateData},{shapeId},{email})
     const res = await axios.patch(
       `${BASE_URL}/update-mapShapes/${shapeId}`,
       updateData,

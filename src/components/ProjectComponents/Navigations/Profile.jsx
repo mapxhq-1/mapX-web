@@ -1,359 +1,275 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from 'react-redux';
-import axios from 'axios';
+import { useRef, useEffect, useState } from 'react';
+import ReactDOM from 'react-dom'; // Import ReactDOM
+import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import confetti from 'canvas-confetti';
+import { updateUserProfile, uploadProfilePhoto, deleteProfilePhoto } from '../../api/auth';
 
-import { setHeading, setEmail, setUserToken } from '../../../store/projectSlice';
-import { getUserProfile, getProfilePhoto } from '../../api/auth';
-import { saveFeedback } from '../../api/project';
+const Profile = ({ setProfileOpen, userId, email, profilePictureUrl, fetchProfile, userData }) => {
 
-import Profile from "./Profile";
-
-// Assets
-import plus from '../../../assets/icons/Plus.png';
-import time from '../../../assets/icons/time.png';
-import presentation from '../../../assets/icons/presentation.png';
-import map from '../../../assets/icons/map.png';
-import folder from '../../../assets/icons/folder.png';
-import calander from '../../../assets/icons/calander.png';
-import account from '../../../assets/icons/account.png';
-import logout from '../../../assets/icons/logout.png';
-
-// Custom drawing functions for confetti
-const drawLongStrip = (ctx) => {
-    ctx.beginPath();
-    ctx.rect(-40, -2.5, 80, 5);
-    ctx.fill();
-};
-const drawChunkyRect = (ctx) => {
-    ctx.beginPath();
-    ctx.rect(-9, -6, 18, 12);
-    ctx.fill();
-};
-
-const Sidebar = () => {
-    const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
-    const { ownerEmail } = useSelector((state) => state.project);
-    const navigate = useNavigate();
-    const [userData, setUserData] = useState(null);
-    const [profilePictureUrl, setProfilePictureUrl] = useState("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
-    const userId = useSelector((state) => state.project.userToken);
-    const email = useSelector((state) => state.project.ownerEmail);
-    const [profileOpen, setProfileOpen] = useState(false);
-    
-    // Mobile Sidebar Toggle
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
-    
-    // --- Mobile Landscape Detection ---
-    const [isCompact, setIsCompact] = useState(false);
+    const { register, handleSubmit, reset } = useForm();
+    const divRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
-        const checkMobileLandscape = () => {
-            const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent || navigator.vendor || window.opera;
-            // 1. Is it a mobile device?
-            const isMobileDevice = /android|iPad|iPhone|iPod/i.test(userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
-            // 2. Is it Landscape?
-            const isLandscape = window.innerWidth > window.innerHeight;
-            // 3. Is height small? (Safety check)
-            const isShort = window.innerHeight < 500;
+        setMounted(true);
+        if (userData) {
+            let phone = userData.phone || '';
+            let country_code = '+91';
 
-            // Logic: If it is mobile landscape OR if the screen width is small enough (<1024) but treated as landscape
-            setIsCompact(isMobileDevice && isLandscape && isShort);
-        };
-
-        checkMobileLandscape();
-        window.addEventListener('resize', checkMobileLandscape);
-        return () => window.removeEventListener('resize', checkMobileLandscape);
-    }, []);
-    // ----------------------------------
-
-    const [feedback, setFeedback] = useState("");
-    const dispatch = useDispatch();
-    const location = useLocation();
-
-    const btnRef = useRef(null);
-    const [spot, setSpot] = useState({ x: 0, y: 0 });
-    const [isHover, setIsHover] = useState(false);
-  
-    const handleMove = (e) => {
-      const el = btnRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      setSpot({ x, y });
-    };
-
-    const getNavItemClass = (isActive) => {
-        const base = "group relative flex items-center gap-3 rounded-full select-none cursor-pointer mb-1 transition-all duration-200 ease-in-out";
-        // Mobile Landscape: tighter padding (px-3 py-1)
-        // Desktop/Portrait: standard padding (px-5 py-3)
-        const sizeClasses = isCompact 
-            ? "px-3 py-1 mx-2" 
-            : "px-5 py-3 mx-4";
-            
-        const activeStyle = `bg-zinc-800 border-t-2 border-white/10 border-b-0 border-r border-white/5 shadow-[0_2px_10px_rgba(0,0,0,0.3)] text-white font-medium`;
-        const inactiveStyle = `text-zinc-400 border border-transparent hover:bg-black/30 hover:text-zinc-200 hover:border-t-white/10 hover:shadow-lg`;
-        
-        return isActive 
-            ? `${base} ${sizeClasses} ${activeStyle}` 
-            : `${base} ${sizeClasses} ${inactiveStyle}`;
-    };
-
-    async function createNewProj() {
-        try {
-            const token = localStorage.getItem('bearerToken');
-            const res = await axios.post(BASE_URL + '/create-new-project', {
-                ownerEmail: ownerEmail,
-                projectName: "New project"
-            }, {
-                headers: { 'client_name': 'mapx', "Authorization": `Bearer ${token}` }
-            })
-            toast.success('New project created!!');
-            setIsMobileOpen(false); 
-            navigate("/map/" + res.data.projectId);
-        } catch (err) {
-            toast.error(err.response?.data?.message || "Error creating project")
-        }
-    }
-
-    function handleLogout() {
-        localStorage.removeItem('ownerEmail');
-        localStorage.removeItem('userToken');
-        localStorage.removeItem('bearerToken');
-        dispatch(setEmail(''));
-        dispatch(setUserToken(''));
-        window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
-    }
-
-    function handleClick(head) {
-        dispatch(setHeading(head));
-        setIsMobileOpen(false); 
-    }
-
-    const handleFeedbackSubmit = async () => {
-        if (!feedback.trim()) return;
-        try {
-            const userId = localStorage.getItem("ownerEmail"); 
-            if (!userId) { toast.error("User not logged in"); return; }
-            await saveFeedback({ userId, feedback });
-            toast.success("Thanks for the feedback!");
-            setFeedback("");
-            const myConfetti = confetti.create(null, { resize: true, useWorker: false });
-            const origin = { x: 0.08, y: 0.7 };
-            const colors = ["#26ccff", "#a25afd", "#ff5e7e", "#88ff5a", "#fcff42"];
-            myConfetti({ particleCount: 30, spread: 50, startVelocity: 20, origin, scalar: 0.8, shapes: ["circle", "square", drawChunkyRect], colors, gravity: 1.5, drift: 0.5, ticks: 150 });
-            setTimeout(() => {
-                myConfetti({ particleCount: 8, spread: 70, startVelocity: 35, origin, scalar: 1.2, shapes: [drawLongStrip], colors, gravity: 2, drift: 1, flat: true, wobble: 15, ticks: 250 });
-            }, 100);
-        } catch (err) {
-            console.error(err);
-            toast.error(err.response?.data?.message || "Failed to submit feedback");
-        }
-    };
-
-    const fetchProfile = async () => {
-        if (!userId) return;
-        try {
-            const profile = await getUserProfile(userId);
-            setUserData(profile);
-            if (profile?.picture) {
-                setTimeout(async () => {
-                    try {
-                        const response = await getProfilePhoto(email, profile.picture);
-                        setProfilePictureUrl(URL.createObjectURL(response.data));
-                    } catch (e) {
-                        setProfilePictureUrl("https://wallpapers.com/images/high/placeholder-profile-icon-8qmjk1094ijhbem9.png");
-                    }
-                }, 100);
+            if (phone.startsWith('+')) {
+                country_code = phone.slice(0, 3);
+                phone = phone.slice(3);
             }
-        } catch (error) { console.log("Error loading profile", error); }
-    };
+
+            reset({
+                first_name: userData.first_name || '',
+                last_name: userData.last_name || '',
+                phone: phone,
+                country_code: country_code,
+                gender: userData.gender || '',
+                birthdate: userData.birthdate || '',
+                organization: userData.organization || '',
+                role: userData.role || '',
+            });
+        }
+        return () => setMounted(false);
+    }, [userData, reset]);
 
     useEffect(() => {
-        fetchProfile();
-        if (location.pathname.includes("/myprojects")) dispatch(setHeading("My projects"));
-        else if (location.pathname.includes("/recents")) dispatch(setHeading("Recents"));
-        else if (location.pathname.includes("/sharedProjects")) dispatch(setHeading("Shared Projects"));
-        else if (location.pathname.includes("/allProjects")) dispatch(setHeading("All Projects"));
-    }, [location.pathname, dispatch, userId]);
+        const handleOutsideClick = (event) => {
+            if (divRef.current && !divRef.current.contains(event.target)) {
+                setProfileOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleOutsideClick);
+        return () => document.removeEventListener("mousedown", handleOutsideClick);
+    }, []);
 
-    // --- Dynamic Styles ---
-    // Reduced width to 200px for extra compactness
-    const sidebarWidth = isCompact ? "w-[200px]" : "w-[300px]";
-    const containerLayout = isCompact ? "flex-col overflow-y-auto" : "flex-col justify-between"; 
+    const formSubmit = async (data) => {
+        try {
+            const fullPhone = `${data.country_code}${data.phone.replace(/\s+/g, '')}`;
+            const payload = { ...data, phone: fullPhone };
+            delete payload.country_code;
+
+            await updateUserProfile(userId, payload);
+            toast.success("Profile updated successfully!");
+            setProfileOpen(false);
+            await fetchProfile();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to update profile.");
+        }
+    };
+
+    const handlePhotoUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+            await uploadProfilePhoto(userId, email, file);
+            toast.success("Profile photo updated!");
+            fetchProfile();
+        } catch (error) {
+            toast.error("Failed to upload photo. " + error.response.statusText);
+        }
+    };
+
+    const handlePhotoDelete = async () => {
+        if (!window.confirm("Are you sure you want to delete your profile photo?")) return;
+        try {
+            await deleteProfilePhoto(userId, email);
+            toast.success("Profile photo deleted.");
+            fetchProfile();
+        } catch (error) {
+            toast.error("Failed to delete photo.");
+        }
+    };
+
+    // --- RENDER CONTENT ---
     
-    const topSectionClasses = isCompact 
-        ? "pt-2 pb-1" 
-        : "flex-1 overflow-y-auto no-scrollbar pt-8 pb-4";
+    // Check if mounted to avoid hydration errors
+    if (!mounted) return null;
 
-    // FURTHER REDUCED SIZES
-    const iconSize = isCompact ? "w-2.5 h-2.5" : "w-4 h-4"; 
-    const textSize = isCompact ? "text-[10px]" : "text-sm";
-    
-    const headerSize = isCompact ? "text-base mb-1" : "text-2xl mb-8";
-    const headerPadding = isCompact ? "px-4" : "px-8";
-    const feedbackHeight = isCompact ? "h-10" : "h-25";
+    const inputClass = "w-full bg-zinc-800 border border-zinc-700/50 text-white text-sm rounded-xl focus:ring-blue-500 focus:border-blue-500 block p-3 transition-colors placeholder-zinc-500 shadow-sm";
+    const labelClass = "block mb-1.5 text-sm font-medium text-zinc-400 ml-1";
 
-    return (
-        <>
-            {/* --- MOBILE TRIGGER --- */}
-            {/* UPDATED: Changed md:hidden to lg:hidden so it appears on landscape mobile/tablet */}
-            <button 
-                onClick={() => setIsMobileOpen(true)}
-                className="lg:hidden fixed top-6 left-4 z-[60] p-2 bg-zinc-900 rounded-full border border-white/10 text-white"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
+    const modalContent = (
+        <div className='fixed inset-0 flex items-center justify-center z-[9999] px-4 font-sans'>
+            
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
 
-            {/* --- MOBILE OVERLAY --- */}
-            {/* UPDATED: Changed md:hidden to lg:hidden */}
-            {isMobileOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] lg:hidden"
-                    onClick={() => setIsMobileOpen(false)}
-                />
-            )}
-
-            {/* --- SIDEBAR CONTAINER --- */}
-            {/* UPDATED: 
-                1. 'md:relative' -> 'lg:relative' (Only become relative on Large screens/Desktop)
-                2. '-translate-x-full md:translate-x-0' -> '-translate-x-full lg:translate-x-0' (Hidden by default until Large screens)
-            */}
-            <div className={`
-                fixed lg:relative z-[80] h-full
-                transition-transform duration-300 ease-in-out
-                ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-            `}>
-                <div className={`${sidebarWidth} bg-[#18181b] h-full flex ${containerLayout} border-r border-black shadow-2xl rounded-r-4xl tracking-wide transition-all duration-300`}>
-                    
-                    {/* TOP SECTION */}
-                    <div className={topSectionClasses}>
-                        
-                        {/* Header */}
-                        <div className={`${headerPadding} ${headerSize} flex justify-between items-center transition-all`}>
-                            <h1 className="text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive', fontSize: 'inherit' }}>
-                                Happy Dyno
-                            </h1>
-                            {/* UPDATED: md:hidden -> lg:hidden */}
-                            <button onClick={() => setIsMobileOpen(false)} className="lg:hidden text-zinc-500">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        {/* Navigation Items */}
-                        <div className="flex flex-col">
-                            <div
-                                ref={btnRef}
-                                onMouseEnter={() => setIsHover(true)}
-                                onMouseLeave={() => setIsHover(false)}
-                                onMouseMove={handleMove}
-                                style={{ "--mx": `${spot.x}px`, "--my": `${spot.y}px` }}
-                                onClick={createNewProj}
-                                className={`${getNavItemClass(false)} overflow-hidden`}
-                            >
-                                <span className={`pointer-events-none absolute inset-0 transition-opacity duration-200 ${isHover ? "opacity-100" : "opacity-0"}`}
-                                    style={{ background: `radial-gradient(120px circle at var(--mx) var(--my), rgba(178, 255, 137, 0.25), rgba(178, 255, 137, 0.12) 35%, rgba(0, 0, 0, 0) 70%)`, filter: "blur(10px)" }}
-                                />
-                                <div className="relative z-10 flex items-center gap-3">
-                                    <img className={`${iconSize} opacity-60 transition-all`} src={plus} alt="Add" />
-                                    <span className={`font-medium ${textSize}`}>New Project</span>
-                                </div>
-                            </div>
-
-                            <NavLink onClick={() => handleClick("Recents")} to='/recents' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className={`${iconSize} opacity-60 transition-all`} src={time} alt="Recents" />
-                                <span className={`font-medium ${textSize}`}>Recents</span>
-                            </NavLink>
-
-                            <NavLink onClick={() => handleClick("My Projects")} to='/myProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className={`${iconSize} opacity-60 transition-all`} src={presentation} alt="My Projects" />
-                                <span className={`font-medium ${textSize}`}>My Projects</span>
-                            </NavLink>
-
-                            <NavLink onClick={() => handleClick("Shared Projects")} to='/sharedProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className={`${iconSize} opacity-60 transition-all`} src={map} alt="Shared" />
-                                <span className={`font-medium ${textSize}`}>Shared Projects</span>
-                            </NavLink>
-
-                            <NavLink onClick={() => handleClick("All Projects")} to='/allProjects' className={({ isActive }) => getNavItemClass(isActive && !profileOpen)}>
-                                <img className={`${iconSize} opacity-60 transition-all`} src={folder} alt="All" />
-                                <span className={`font-medium ${textSize}`}>All Projects</span>
-                            </NavLink>
-                        </div>
-
-                        <div className={`border-t-2 border-black ${isCompact ? 'my-2' : 'my-4'}`} />
-
-                        {/* Support */}
-                        <div>
-                            <p className={`${headerPadding} mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600`}>Support</p>
-                            <a href='https://cal.com/sankalp-sadekar-mapx' target='_blank' rel="noreferrer">
-                                <div className={getNavItemClass(false)}>
-                                    <img className={`${iconSize} opacity-60 transition-all`} src={calander} alt="Schedule" />
-                                    <span className={`font-medium ${textSize}`}>Schedule Call</span>
-                                </div>
-                            </a>
-                        </div>
-
-                        {/* Feedback */}
-                        <div className={`mt-4 ${headerPadding}`}>
-                            <textarea 
-                                value={feedback}
-                                onChange={(e) => setFeedback(e.target.value)}
-                                className={`w-full ${feedbackHeight} bg-black/20 text-zinc-300 text-[12px] rounded-lg p-2 outline-none resize-none border border-white/5 placeholder:text-zinc-600 transition-all`}
-                                placeholder="Let’s make Dyno cool! 🦕"
-                            />
-                            <button onClick={handleFeedbackSubmit} className="mt-1 w-full py-2 rounded-lg text-[10px] font-semibold uppercase bg-black text-zinc-500 border border-zinc-800 hover:bg-zinc-200 hover:text-black">
-                                Submit
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* BOTTOM SECTION (Profile) */}
-                    <div className={`${isCompact ? 'p-2' : 'p-4'}`}>
-                        <div className={`bg-black/30 rounded-[24px] ${isCompact ? 'p-2' : 'p-4'} border border-zinc-900`}>
-                            <div className={`flex items-center gap-3 ${isCompact ? 'mb-2' : 'mb-4'} pl-1`}>
-                                <img className={`${isCompact ? 'h-6 w-6' : 'h-10 w-10'} object-cover rounded-full ring-2 ring-zinc-800`} src={profilePictureUrl} alt="Profile" />
-                                <div className='flex flex-col overflow-hidden'>
-                                    <p className={`font-semibold ${textSize} text-zinc-300 truncate`}>{userData ? userData.first_name : "User"}</p>
-                                    <p className='text-[10px] text-zinc-500 truncate'>{email}</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={() => setProfileOpen(!profileOpen)}
-                                    className={`flex-1 flex items-center justify-center gap-2 ${isCompact ? 'py-1' : 'py-2'} rounded-full text-xs font-medium transition-all ${profileOpen ? 'bg-zinc-700 text-white' : 'bg-black text-zinc-500'}`}
-                                >
-                                    <img className={`w-3.5 h-3.5 ${profileOpen ? 'invert' : 'opacity-60'}`} src={account} alt="" />
-                                    Settings
-                                </button>
-                                <button onClick={handleLogout} className="h-8 w-8 flex items-center justify-center rounded-full bg-black text-zinc-500 hover:text-red-400">
-                                    <img className='w-3.5 h-3.5 opacity-70' src={logout} alt="Logout" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {profileOpen && (
-                            <div className={`absolute z-[90] ${
-                                isCompact 
-                                ? 'top-1/2 -translate-y-1/2 left-[210px]' 
-                                : 'bottom-4 left-[310px]'
-                            }`}>
-                                <Profile setProfileOpen={setProfileOpen} userId={userId} email={email} profilePictureUrl={profilePictureUrl} userData={userData} fetchProfile={fetchProfile} />
-                            </div>
-                        )}
-                    </div>
+            {/* Modal Container */}
+            <div ref={divRef} className='relative bg-[#18181b]/90 backdrop-blur-md text-white w-full max-w-4xl rounded-3xl shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] flex flex-col'>
+                
+                {/* Header with Black Separator */}
+                <div className='flex justify-between items-center px-8 py-5 border-b border-black bg-[#18181b]/50'>
+                    <h2 className='text-xl font-bold text-gray-100 tracking-wide'>Edit Profile</h2>
+                    <button onClick={() => setProfileOpen(false)} className='text-zinc-400 hover:text-white hover:bg-black/30 rounded-xl transition-all p-2'>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
-            </div>
-        </>
-    )
-}
 
-export default Sidebar;
+                {/* Body Content */}
+                {!userData ? (
+                     <div className='flex items-center justify-center h-64'>
+                        <p className="text-white font-medium animate-pulse">Loading Profile...</p>
+                    </div>
+                ) : (
+                    <div className='overflow-y-auto p-6 md:p-8 custom-scrollbar'>
+                        <div className='flex flex-col md:flex-row gap-8'>
+                            
+                            {/* LEFT: Photo */}
+                            <div className='flex flex-col items-center md:items-start md:w-1/3 space-y-5'>
+                                <div className="relative group">
+                                    <img 
+                                        className='h-36 w-36 object-cover rounded-full border-4 border-zinc-800 shadow-2xl' 
+                                        src={profilePictureUrl} 
+                                        alt="Profile" 
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer backdrop-blur-[2px]" onClick={() => fileInputRef.current.click()}>
+                                        <span className="text-xs font-bold text-white uppercase tracking-wider">Change</span>
+                                    </div>
+                                </div>
+                                
+                                <div className='flex flex-col items-center md:items-start w-full'>
+                                    <input type="file" ref={fileInputRef} onChange={handlePhotoUpload} accept="image/png, image/jpeg" className='hidden' />
+                                    
+                                    <div className='flex gap-3 mt-2'>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => fileInputRef.current.click()} 
+                                            className='px-4 py-2 text-xs font-semibold text-blue-400 bg-blue-500/10 rounded-xl hover:bg-blue-500/20 transition-colors'
+                                        >
+                                            Upload New
+                                        </button>
+                                        {userData.picture && (
+                                            <button 
+                                                type="button" 
+                                                onClick={handlePhotoDelete} 
+                                                className='px-4 py-2 text-xs font-semibold text-red-400 bg-red-500/10 rounded-xl hover:bg-red-500/20 transition-colors'
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    <div className='mt-6 text-center md:text-left'>
+                                        <h3 className='text-xl font-bold text-white'>{`${userData.first_name || 'User'} ${userData.last_name || ''}`}</h3>
+                                        <p className='text-sm text-zinc-500 break-all font-medium'>{email}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* RIGHT: Form */}
+                            <div className='md:w-2/3'>
+                                <form onSubmit={handleSubmit(formSubmit)} className='space-y-6'>
+                                    
+                                    <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+                                        <div>
+                                            <label htmlFor="first_name" className={labelClass}>First Name</label>
+                                            <input {...register("first_name")} type="text" id='first_name' className={inputClass} placeholder="John" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="last_name" className={labelClass}>Last Name</label>
+                                            <input {...register("last_name")} type="text" id='last_name' className={inputClass} placeholder="Doe" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="phone" className={labelClass}>Phone Number</label>
+                                        <div className="flex">
+                                            <select
+                                                id="country_code"
+                                                {...register("country_code")}
+                                                className="bg-zinc-800 border border-zinc-700/50 text-white text-sm rounded-l-xl border-r-0 focus:ring-blue-500 focus:border-blue-500 block p-3 w-24 outline-none shadow-sm"
+                                            >
+                                                <option value="+44">+44</option>
+                                                <option value="+91">+91</option>
+                                                <option value="+61">+61</option>
+                                                <option value="+81">+81</option>
+                                                <option value="+49">+49</option>
+                                                <option value="+33">+33</option>
+                                            </select>
+                                            <input
+                                                {...register("phone")}
+                                                type="text"
+                                                id="phone"
+                                                placeholder="12345 67890"
+                                                className="bg-zinc-800 border border-zinc-700/50 text-white text-sm rounded-r-xl focus:ring-blue-500 focus:border-blue-500 block w-full p-3 outline-none shadow-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+                                        <div>
+                                            <label htmlFor="gender" className={labelClass}>Gender</label>
+                                            <select {...register("gender")} id="gender" className={inputClass}>
+                                                <option value="male">Male</option>
+                                                <option value="female">Female</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="birthdate" className={labelClass}>Date of Birth</label>
+                                            <input {...register("birthdate")} type="date" id='birthdate' className={inputClass} />
+                                        </div>
+                                    </div>
+
+                                    <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+                                        <div>
+                                            <label htmlFor="organization" className={labelClass}>Organization</label>
+                                            <input {...register("organization")} type="text" id='organization' className={inputClass} placeholder="School or Company Name" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="role" className={labelClass}>Role</label>
+                                            <select {...register("role")} id="role" className={inputClass}>
+                                                <option value="" disabled>Select a role...</option>
+                                                <option value="student">Student</option>
+                                                <option value="teacher">Teacher</option>
+                                                <option value="Parents/Guardian">Parents/Guardian</option>
+                                                <option value="Principal">Principal</option>
+                                                <option value="administrative management">Administrative Management</option>
+                                                <option value="IT support Staff">IT Support Staff</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className='pt-6 flex gap-3 justify-end border-t border-black mt-2'>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setProfileOpen(false)} 
+                                            className='px-6 py-3 text-sm font-medium text-zinc-400 bg-transparent border border-zinc-700 rounded-xl hover:bg-black/30 hover:text-white transition-all'
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button 
+    type="submit" 
+    className="relative px-6 py-3 rounded-xl bg-white text-black font-medium text-sm overflow-hidden group border border-zinc-200 transition-colors"
+>
+    {/* The Pastel Green Background Animation Layer */}
+    <span className="absolute bottom-0 left-0 w-full h-full bg-emerald-300 origin-bottom scale-y-0 transition-transform duration-300 ease-out group-hover:scale-y-100"></span>
+
+    {/* The Text (z-10 ensures it stays on top of the green layer) */}
+    <span className="relative z-10 transition-colors">
+        Save Changes
+    </span>
+</button>
+                                    </div>
+
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    return ReactDOM.createPortal(modalContent, document.body);
+};
+
+export default Profile;

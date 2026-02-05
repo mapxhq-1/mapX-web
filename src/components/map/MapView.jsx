@@ -125,11 +125,13 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
   const featureSeqRef = useRef(1);
   const maOverlayManagerRef = useRef(null);
   const selectedEmpireNameRef = useRef(null); // Track selected empire for glow effect
-
+  const ownerEmailRef = useRef(ownerEmail);
   // Keep refs updated
   useEffect(() => { polygonsRef.current = polygons; }, [polygons]);
   useEffect(() => { yearRef.current = year; }, [year]);
-
+useEffect(() => {
+  ownerEmailRef.current = ownerEmail;
+}, [ownerEmail]);
   // ========================================================================
   // POLYGON SIMPLIFICATION UTILITIES
   // ========================================================================
@@ -783,6 +785,7 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
     const textToolbar = createTextToolbar(map, {
       finalFeaturesRef,
       onSaveNew: async (lngLat, text, size, color) => {
+        const currentEmail = ownerEmailRef.current;
         const feature = createTextFeature([lngLat.lng, lngLat.lat], text, size, color);
         finalFeaturesRef.current.push(feature);
         map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
@@ -795,7 +798,7 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
             projectId,
             getAbsoluteYear(yearRef.current),
             getEraForYear(yearRef.current),
-            ownerEmail,
+            currentEmail,
             { type: 'FeatureCollection', features: [feature] }
           );
           if (res?.shapeId) {
@@ -854,7 +857,6 @@ onSaveEdit: async (id, text, size, color) => {
     try {
         if (id && !String(id).includes('_')) {
             console.log("Saving text edit to server...", id);
-            
             // Wrap in FeatureCollection for the API payload
             const updatePayload = {
                 geojson: {
@@ -862,8 +864,10 @@ onSaveEdit: async (id, text, size, color) => {
                     features: [updatedFeature]
                 }
             };
+            const currentEmail = ownerEmailRef.current;
+            console.log({id, currentEmail, updatePayload});
 
-            await updateMapShape(id, ownerEmail, updatePayload);
+            await updateMapShape(id, currentEmail, updatePayload);
             console.log("✅ Text successfully updated on server");
         }
     } catch (err) {
@@ -873,7 +877,8 @@ onSaveEdit: async (id, text, size, color) => {
       onDelete: async (id) => {
         if (!id) return;
         const isSaved = !String(id).includes('_');
-        if (isSaved) try { await deleteMapShape(id, ownerEmail); } catch (_) {}
+        const currentEmail = ownerEmailRef.current;
+        if (isSaved) try { await deleteMapShape(id, currentEmail); } catch (_) {}
         finalFeaturesRef.current = finalFeaturesRef.current.filter(
           f => f.properties?.id !== id
         );
@@ -891,13 +896,14 @@ onSaveEdit: async (id, text, size, color) => {
         const id = selectedFeatureIdRef.current;
         if (!id) return;
         const features = finalFeaturesRef.current.filter(f => f.properties?.id === id);
+        const currentEmail = ownerEmailRef.current;
         if (features.length) {
           try {
             const res = await createMapShape(
               projectId,
               getAbsoluteYear(yearRef.current),
               getEraForYear(yearRef.current),
-              ownerEmail,
+              currentEmail,
               { type: 'FeatureCollection', features }
             );
             if (res?.shapeId) {
@@ -918,7 +924,8 @@ onSaveEdit: async (id, text, size, color) => {
         const id = selectedFeatureIdRef.current;
         if (!id) return;
         const isSaved = !String(id).includes('_');
-        if (isSaved) try { await deleteMapShape(id, ownerEmail); } catch (_) {}
+        const currentEmail = ownerEmailRef.current;
+        if (isSaved) try { await deleteMapShape(id, currentEmail); } catch (_) {}
         finalFeaturesRef.current = finalFeaturesRef.current.filter(
           f => f.properties?.id !== id
         );
