@@ -98,6 +98,9 @@ const Header = () => {
           "
         >
           <span className="relative z-10 flex items-center justify-center gap-2">
+            <span className={`pointer-events-none absolute inset-0 transition-opacity duration-200 ${isHover ? "opacity-100" : "opacity-0"}`}
+                                    style={{ background: `radial-gradient(120px circle at var(--mx) var(--my), rgba(178, 255, 137, 0.40), rgba(178, 255, 137, 0.30) 35%, rgba(0, 0, 0, 0) 70%)`, filter: "blur(10px)" }}
+                                />
             <Plus size={16} className="opacity-90" />
             {/* UPDATED: 'md:text-sm' -> 'lg:text-sm' */}
             <span className="text-[10px] lg:text-sm font-semibold tracking-widest uppercase truncate">

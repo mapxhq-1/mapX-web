@@ -12,8 +12,8 @@ export function createTextToolbar(mapRef, options) {
         
         const host = mapRef.current.getContainer();
         toolbarEl = document.createElement("div");
-        toolbarEl.style.cssText = "position:absolute;transform:translate(-50%,-100%);display:none;z-index:26;pointer-events:auto";
-        toolbarEl.className = "rounded-lg bg-white/1 border border-white/30 backdrop-blur-sm shadow p-3 flex flex-col gap-3";
+        toolbarEl.style.cssText = "position:absolute;transform:translate(-50%,-100%);display:none;z-index:3000;pointer-events:auto"; 
+        toolbarEl.className = "rounded-lg bg-white/10 border border-white/30 backdrop-blur-md shadow-xl p-3 flex flex-col gap-3";
         toolbarEl.style.maxWidth = "400px";
 
         // Text input container
@@ -23,60 +23,88 @@ export function createTextToolbar(mapRef, options) {
         const txt = document.createElement("input");
         txt.type = "text";
         txt.placeholder = "Enter text...";
-        txt.style.cssText = "width:300px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.05)";
+        txt.style.cssText = "width:240px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:white;outline:none;";
         txt.addEventListener("keydown", (ev) => {
-            if (ev.key === "Enter") { ev.preventDefault(); handleSave(); }
-            if (ev.key === "Escape") { ev.preventDefault(); hide(); }
+            if (ev.key === "Enter") { 
+                ev.preventDefault(); 
+                ev.stopPropagation(); 
+                handleSave(ev); 
+            }
+            if (ev.key === "Escape") { 
+                ev.preventDefault(); 
+                ev.stopPropagation();
+                hide(); 
+            }
         });
 
         const cancelBtn = document.createElement("button");
         cancelBtn.innerHTML = "&#10005;";
-        cancelBtn.className = "rounded-full w-6 h-6 flex items-center justify-center bg-white/40 hover:bg-white/60";
-        cancelBtn.style.cssText = "position:absolute;right:8px;top:50%;transform:translateY(-50%)";
-        cancelBtn.addEventListener("click", hide);
+        cancelBtn.className = "rounded-full w-6 h-6 flex items-center justify-center bg-white/20 hover:bg-white/40 text-white cursor-pointer";
+        cancelBtn.style.cssText = "position:absolute;right:0px;top:50%;transform:translateY(-50%)";
+        cancelBtn.addEventListener("click", (e) => {
+             e.preventDefault();
+             e.stopPropagation(); 
+             hide();
+        });
 
         // Controls row
         const controlsRow = document.createElement("div");
-        controlsRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px";
+        controlsRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:4px";
 
         const color = document.createElement("input");
         color.type = "color";
         color.value = "#ffffff";
-        color.style.cssText = "width:32px;height:32px;border-radius:6px";
+        color.style.cssText = "width:32px;height:32px;border-radius:6px;border:none;cursor:pointer";
+        color.addEventListener("click", e => e.stopPropagation());
 
         const size = document.createElement("input");
         size.type = "number";
         size.min = "8";
         size.max = "72";
         size.value = "16";
-        size.style.cssText = "width:60px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.3)";
+        size.style.cssText = "width:60px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:white";
+        size.addEventListener("click", e => e.stopPropagation());
 
         const saveBtn = document.createElement("button");
         saveBtn.textContent = "Save";
-        saveBtn.className = "rounded-lg px-4 py-2 bg-[#007cba] text-white hover:bg-[#005a8b] transition-all";
+        saveBtn.className = "rounded-lg px-4 py-2 bg-[#007cba] text-white hover:bg-[#005a8b] transition-all font-medium cursor-pointer";
         saveBtn.addEventListener("click", handleSave);
 
         const delBtn = document.createElement("button");
         delBtn.textContent = "Delete";
-        delBtn.className = "rounded-lg px-4 py-2 bg-[#ef4444] text-white hover:bg-[#b91c1c] transition-all";
+        delBtn.className = "rounded-lg px-4 py-2 bg-[#ef4444] text-white hover:bg-[#b91c1c] transition-all font-medium cursor-pointer";
         delBtn.addEventListener("click", handleDelete);
 
-        async function handleSave() {
+        // --- HANDLERS ---
+        async function handleSave(e) {
+            if(e) { e.preventDefault(); e.stopPropagation(); }
+
             const vText = txt.value?.trim();
             if (!vText) return;
+            
             const vSize = Math.max(8, Math.min(72, Number(size.value) || 16));
             const mode = toolbarEl.getAttribute("data-mode") || "create";
             
-            if (mode === "edit" && featureIdRef) {
-                await onSaveEdit?.(featureIdRef, vText, vSize, color.value);
-            } else {
-                await onSaveNew?.(lngLatRef, vText, vSize, color.value);
+            try {
+                // Fix: Check for null/undefined specifically, allowing ID '0'
+                if (mode === "edit" && featureIdRef !== null && featureIdRef !== undefined) {
+                    await onSaveEdit?.(featureIdRef, vText, vSize, color.value);
+                } else {
+                    await onSaveNew?.(lngLatRef, vText, vSize, color.value);
+                }
+            } catch (err) {
+                console.error("Error saving text:", err);
             }
             hide();
         }
 
-        async function handleDelete() {
-            await onDelete?.(featureIdRef);
+        async function handleDelete(e) {
+            if(e) { e.preventDefault(); e.stopPropagation(); }
+            if (featureIdRef !== null && featureIdRef !== undefined) {
+                try {
+                    await onDelete?.(featureIdRef);
+                } catch (err) { console.error(err); }
+            }
             hide();
         }
 
@@ -84,8 +112,9 @@ export function createTextToolbar(mapRef, options) {
         controlsRow.append(color, size, saveBtn, delBtn);
         toolbarEl.append(textContainer, controlsRow);
 
-        ["mousedown", "dblclick", "wheel"].forEach((evt) => {
-            toolbarEl.addEventListener(evt, (e) => e.stopPropagation(), { passive: true });
+        // Stop propagation for all relevant events
+        ["mousedown", "mouseup", "click", "dblclick", "wheel", "touchstart", "touchend"].forEach((evt) => {
+            toolbarEl.addEventListener(evt, (e) => e.stopPropagation(), { passive: false });
         });
 
         host.appendChild(toolbarEl);
@@ -105,12 +134,11 @@ export function createTextToolbar(mapRef, options) {
         position(lngLat);
         toolbarEl.style.display = "flex";
         toolbarEl.setAttribute("data-mode", "create");
-        disableMapControls();
         
-        setTimeout(() => {
-            const txt = toolbarEl.querySelector('input[type="text"]');
-            txt?.focus();
-        }, 50);
+        const txt = toolbarEl.querySelector('input[type="text"]');
+        if(txt) { txt.value = ""; txt.focus(); }
+        
+        disableMapControls();
     };
 
     const showEdit = (feature, lngLat) => {
@@ -140,19 +168,17 @@ export function createTextToolbar(mapRef, options) {
 
     const disableMapControls = () => {
         try {
-            mapRef.current.boxZoom.disable();
-            mapRef.current.dragPan.disable();
-            mapRef.current.dragRotate.disable();
-            mapRef.current.keyboard.disable();
+            const m = mapRef.current;
+            m.boxZoom.disable(); m.dragPan.disable(); m.dragRotate.disable();
+            m.keyboard.disable(); m.doubleClickZoom.disable(); 
         } catch (_) {}
     };
 
     const enableMapControls = () => {
         try {
-            mapRef.current.boxZoom.enable();
-            mapRef.current.dragPan.enable();
-            mapRef.current.dragRotate.enable();
-            mapRef.current.keyboard.enable();
+            const m = mapRef.current;
+            m.boxZoom.enable(); m.dragPan.enable(); m.dragRotate.enable();
+            m.keyboard.enable(); m.doubleClickZoom.enable();
         } catch (_) {}
     };
 

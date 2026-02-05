@@ -38,7 +38,7 @@ import { createMaOverlayManager } from "./maOverlayManager";
 import { maybeHandleMaMapShapes, handleInitialMaContext, createMaSafeLoader } from "./maEraGuards";
 
 // API
-import { createMapShape, deleteMapShape, getAllMapShapes } from "../api/mapshapes";
+import { createMapShape, deleteMapShape, getAllMapShapes, updateMapShape } from "../api/mapshapes";
 import { getMetadataByEmpireId } from '../api/metaData'
 // Controls
 import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNorthControl, ZoomControl, CompactAttributionControl  } from "./controls/MapControls";
@@ -807,21 +807,69 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
           }
         } catch (_) {}
       },
-      onSaveEdit: (id, text, size, color) => {
-        const idx = finalFeaturesRef.current.findIndex(f => f.properties?.id === id);
-        if (idx >= 0) {
-          finalFeaturesRef.current[idx].properties = {
-            ...finalFeaturesRef.current[idx].properties,
-            text: sanitizeText(text),
-            fontSize: size,
-            color
-          };
-          map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
-            type: "FeatureCollection",
-            features: finalFeaturesRef.current
-          });
+// Inside setupDrawingTools -> createTextToolbar options:
+
+onSaveEdit: async (id, text, size, color) => {
+    // 1. Find the existing feature
+    const idx = finalFeaturesRef.current.findIndex(f => String(f.properties?.id) === String(id));
+
+    if (idx === -1) {
+        console.error("Could not find feature to edit:", id);
+        return;
+    }
+
+    const oldFeature = finalFeaturesRef.current[idx];
+
+    // 2. SANITIZE: Create a CLEAN GeoJSON object
+    // We strictly construct only the fields GeoJSON needs. 
+    // This strips out any internal MapLibre properties (layer, source, etc.) that might cause rendering issues.
+    const updatedFeature = {
+        type: "Feature",
+        id: oldFeature.id || id, // Preserve top-level ID if it exists
+        geometry: {
+            type: oldFeature.geometry.type,
+            coordinates: oldFeature.geometry.coordinates // Preserve coordinates exactly
+        },
+        properties: {
+            ...oldFeature.properties, // Keep existing props (like created_at, tool)
+            text: sanitizeText(text), // Update text
+            fontSize: Number(size),   // Ensure Number type
+            color: color,
+            id: id                    // Ensure Property ID matches
         }
-      },
+    };
+
+    // 3. Update Local State & Repaint
+    finalFeaturesRef.current[idx] = updatedFeature;
+    
+    // Using a new array reference [...] ensures React/MapLibre detects the change
+    const newFeatureCollection = {
+        type: "FeatureCollection",
+        features: [...finalFeaturesRef.current]
+    };
+    
+    map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData(newFeatureCollection);
+
+    // 4. API Call
+    try {
+        if (id && !String(id).includes('_')) {
+            console.log("Saving text edit to server...", id);
+            
+            // Wrap in FeatureCollection for the API payload
+            const updatePayload = {
+                geojson: {
+                    type: 'FeatureCollection',
+                    features: [updatedFeature]
+                }
+            };
+
+            await updateMapShape(id, ownerEmail, updatePayload);
+            console.log("✅ Text successfully updated on server");
+        }
+    } catch (err) {
+        console.error("❌ Failed to save text edit to server:", err);
+    }
+},
       onDelete: async (id) => {
         if (!id) return;
         const isSaved = !String(id).includes('_');
@@ -941,7 +989,13 @@ const onEmpireClick = async (e) => {
       const drawingFeatures = map.current.queryRenderedFeatures(e.point, {
         layers: ["draw-final-line", "draw-final-fill", "draw-final-text"]
       });
-      if (drawingFeatures?.length) return;
+      if (drawingFeatures?.length) {
+        // --- FIX START ---
+        // Instead of just returning, we must manually trigger the selection logic!
+        onSelectClick(e); 
+        // --- FIX END ---
+        return;
+    }
       
       // 2. Check for empire clicks
       const features = map.current.queryRenderedFeatures(e.point, {
