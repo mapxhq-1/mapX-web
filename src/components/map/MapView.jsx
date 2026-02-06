@@ -258,6 +258,7 @@ useEffect(() => {
     if (!projectId) return;
     if (maybeHandleMaMapShapes({ era, mapRef: map, finalFeaturesRef })) return;
     
+    console.log("🔄 Loading shapes for year:", year, "era:", era);
     try {
       const response = await getAllMapShapes(projectId, year, era);
       const shapesFromBackend = response?.mapShapes || response || [];
@@ -266,7 +267,12 @@ useEffect(() => {
         const feats = shape?.geojson?.features || [];
         return feats.map((feat) => ({
           ...feat,
-          properties: { ...feat.properties, id: sid || feat.properties?.id }
+          properties: { 
+            ...feat.properties, 
+            id: sid || feat.properties?.id,
+            year: shape?.yearInTimeline?.year,
+            era: shape?.yearInTimeline?.era
+          }
         }));
       });
       finalFeaturesRef.current = features;
@@ -274,7 +280,9 @@ useEffect(() => {
         type: "FeatureCollection", 
         features 
       });
+      console.log("🎨 Map source updated with features");
     } catch (err) {
+      console.error("❌ Error loading shapes:", err);
       finalFeaturesRef.current = [];
       map.current?.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({ 
         type: "FeatureCollection", 
@@ -716,6 +724,20 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
       type: "FeatureCollection",
       features: finalFeaturesRef.current
     });
+
+    // Show selection overlay for the new shape
+    selectedFeatureIdRef.current = id;
+    let anchor = null;
+    if (geometry.type === "LineString" && geometry.coordinates.length > 0) {
+      anchor = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)];
+    } else if (geometry.type === "Polygon" && geometry.coordinates[0]?.length > 0) {
+      anchor = geometry.coordinates[0][Math.floor(geometry.coordinates[0].length / 2)];
+    } else if (geometry.type === "Point") {
+      anchor = geometry.coordinates;
+    }
+    if (anchor) {
+      selectionOverlay.show({ lng: anchor[0], lat: anchor[1] });
+    }
 };
 
     const controllers = {
@@ -769,6 +791,13 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
             type: "FeatureCollection",
             features: finalFeaturesRef.current
           });
+
+          // Show selection overlay for the arrow
+          selectedFeatureIdRef.current = id;
+          const anchor = shaft[Math.floor(shaft.length / 2)];
+          if (anchor) {
+            selectionOverlay.show({ lng: anchor[0], lat: anchor[1] });
+          }
         }
       }),
     };
@@ -862,6 +891,10 @@ onSaveEdit: async (id, text, size, color) => {
                 geojson: {
                     type: 'FeatureCollection',
                     features: [updatedFeature]
+                },
+                yearInTimeline: {
+                    year: updatedFeature.properties.year,
+                    era: updatedFeature.properties.era
                 }
             };
             const currentEmail = ownerEmailRef.current;
@@ -1201,6 +1234,12 @@ const onEmpireClick = async (e) => {
 
     return { manager, hyperlinker, noteManager };
   }, [projectId, ownerEmail, year, dispatch]);
+
+  // Reload shapes when year changes
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    loadMapShapesByContext({ year: getAbsoluteYear(year), era: getEraForYear(year) });
+  }, [year, loadMapShapesByContext]);
 
   // ========================================================================
   // SETUP CONTROLS

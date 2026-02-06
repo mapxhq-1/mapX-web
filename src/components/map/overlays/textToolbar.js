@@ -188,3 +188,86 @@ export function createTextToolbar(mapRef, options) {
 
     return { show, showEdit, hide, updatePosition };
 }
+
+export function createShapePopup(mapRef, options) {
+    const { onSave, onDelete } = options;
+    
+    let popupEl = null;
+    let featureRef = null;
+
+    const build = () => {
+        if (popupEl) return;
+        
+        const host = mapRef.current.getContainer();
+        popupEl = document.createElement("div");
+        popupEl.style.cssText = "position:absolute;transform:translate(-50%,-100%);display:none;z-index:3000;pointer-events:auto"; 
+        popupEl.className = "rounded-lg bg-white/10 border border-white/30 backdrop-blur-md shadow-xl p-3 flex gap-2";
+        popupEl.style.maxWidth = "200px";
+
+        const saveBtn = document.createElement("button");
+        saveBtn.textContent = "Save";
+        saveBtn.className = "rounded-lg px-4 py-2 bg-[#007cba] text-white hover:bg-[#005a8b] transition-all font-medium cursor-pointer";
+        saveBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (featureRef) {
+                await onSave?.(featureRef);
+            }
+            hide();
+        });
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "Delete";
+        delBtn.className = "rounded-lg px-4 py-2 bg-[#ef4444] text-white hover:bg-[#b91c1c] transition-all font-medium cursor-pointer";
+        delBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await onDelete?.(featureRef);
+            hide();
+        });
+
+        function show(feature) {
+            if (!popupEl) build();
+            featureRef = feature;
+            
+            // Position at the center of the feature
+            let lngLat;
+            if (feature.geometry.type === "Point") {
+                lngLat = feature.geometry.coordinates;
+            } else if (feature.geometry.type === "LineString" && feature.geometry.coordinates.length > 0) {
+                const coords = feature.geometry.coordinates;
+                lngLat = coords[Math.floor(coords.length / 2)];
+            } else if (feature.geometry.type === "Polygon" && feature.geometry.coordinates[0]?.length > 0) {
+                const coords = feature.geometry.coordinates[0];
+                lngLat = coords[Math.floor(coords.length / 2)];
+            } else {
+                lngLat = [0, 0]; // Fallback
+            }
+            
+            const pixel = mapRef.current.project(lngLat);
+            popupEl.style.left = `${pixel.x}px`;
+            popupEl.style.top = `${pixel.y}px`;
+            popupEl.style.display = "block";
+        }
+
+        function hide() {
+            if (popupEl) popupEl.style.display = "none";
+            featureRef = null;
+        }
+
+        function updatePosition() {
+            if (!popupEl || popupEl.style.display === "none" || !featureRef) return;
+            // Recalculate position if needed
+            show(featureRef);
+        }
+
+        // Append elements
+        popupEl.appendChild(saveBtn);
+        popupEl.appendChild(delBtn);
+        host.appendChild(popupEl);
+
+        return { show, hide, updatePosition };
+    };
+
+    return build();
+}

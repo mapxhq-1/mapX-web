@@ -19,6 +19,8 @@ export async function getAllMapShapes(projectId, year, era) {
     throw new Error("Project ID, year, and era are required to fetch shapes.");
   }
   try {
+     console.log(year);
+    console.log(era);
     const res = await axios.get(`${BASE_URL}/get-all-map-shapes-by-project-id-and-year/${projectId}`, {
       params: { year, era },
       headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
