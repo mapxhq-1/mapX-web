@@ -47,7 +47,7 @@ export default function MainLayout() {
   
   // 1. Portrait: Standard mobile width check
   const isMobilePortrait = useMediaQuery('(max-width: 900px) and (orientation: portrait)');
-  
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   // 2. Landscape: INCREASED to 1200px.
   // iPhone 14 Pro Max landscape width is ~932px. The old 900px limit missed it.
   const isMobileLandscape = useMediaQuery('(max-width: 1200px) and (orientation: landscape)');
@@ -148,13 +148,30 @@ export default function MainLayout() {
         <Typography variant="body1" sx={{ opacity: 0.7, mb: 3, color: "#fff" }}>{subtitle}</Typography>
         
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-            <Button 
-            variant="contained" size="large" startIcon={<FullscreenIcon />} onClick={onButtonClick}
-            sx={{ backgroundColor: "#2e7d32", color: "#ffffff", borderRadius: "50px", px: 4, py: 1.5, fontWeight: "bold", textTransform: "none", borderTop: "2px solid rgba(255, 255, 255, 0.4)", }}
-            >
+    
+    {/* ADD THIS CHECK: Only render if buttonText exists */}
+    {buttonText && (
+        <Button 
+            variant="contained" 
+            size="large" 
+            startIcon={<FullscreenIcon />} 
+            onClick={onButtonClick}
+            sx={{ 
+                backgroundColor: "#2e7d32", 
+                color: "#ffffff", 
+                borderRadius: "50px", 
+                px: 4, 
+                py: 1.5, 
+                fontWeight: "bold", 
+                textTransform: "none", 
+                borderTop: "2px solid rgba(255, 255, 255, 0.4)", 
+            }}
+        >
             {buttonText}
-            </Button>
-        </Box>
+        </Button>
+    )}
+
+</Box>
       </Box>
     </Box>
   );
@@ -173,16 +190,16 @@ export default function MainLayout() {
     return (
       <BlockingScreen 
         title="Rotate Device"
-        subtitle="Please rotate your device to landscape mode."
-        buttonText="Rotate & Enter"
-        onButtonClick={handleEnterFullscreen}
+        subtitle={isIOS ? "Please physically rotate your device to landscape." : "Please rotate your device to landscape mode."}
+        buttonText={isIOS ? null : "Rotate & Enter"}
+        onButtonClick={isIOS ? () => {} : handleEnterFullscreen}
         icon={<ScreenRotationIcon sx={{ fontSize: 70, mb: 2, color: "#ffffff", animation: "spin 3s infinite" }} />}
       />
     );
   }
 
   // 2. Landscape but NO Fullscreen
-  if (isMobileLandscape && !isFullscreen) {
+  if (isMobileLandscape && !isFullscreen && !isIOS) {
     return (
       <BlockingScreen 
         title="Fullscreen Required"
