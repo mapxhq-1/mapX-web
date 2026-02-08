@@ -10,14 +10,13 @@ import { getUserProfile, getProfilePhoto } from '../../api/auth';
 import { saveFeedback } from '../../api/project';
 
 import Profile from "./Profile";
-
+import {MessageCircleQuestionMark} from 'lucide-react'
 // Assets
 import plus from '../../../assets/icons/Plus.png';
 import time from '../../../assets/icons/time.png';
 import presentation from '../../../assets/icons/presentation.png';
 import map from '../../../assets/icons/map.png';
 import folder from '../../../assets/icons/folder.png';
-import calander from '../../../assets/icons/calander.png';
 import account from '../../../assets/icons/account.png';
 import logout from '../../../assets/icons/logout.png';
 
@@ -293,10 +292,10 @@ const Sidebar = () => {
                         {/* Support */}
                         <div>
                             <p className={`${headerPadding} mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600`}>Support</p>
-                            <a href='https://cal.com/sankalp-sadekar-mapx' target='_blank' rel="noreferrer">
+                            <a href='https://help.happydyno.com' target='_blank' rel="noreferrer">
                                 <div className={getNavItemClass(false)}>
-                                    <img className={`${iconSize} opacity-60 transition-all`} src={calander} alt="Schedule" />
-                                    <span className={`font-medium ${textSize}`}>Schedule Call</span>
+                                    <MessageCircleQuestionMark size={18}/>
+                                    <span className={`font-medium ${textSize}`}>How to videos</span>
                                 </div>
                             </a>
                         </div>
