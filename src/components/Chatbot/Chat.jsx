@@ -1,6 +1,7 @@
 import "regenerator-runtime/runtime";
 import { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom"; // <-- Added useNavigate for the login button
 import { setYear, setFlyToPosition, setMarkers } from "../../store/mapSlice";
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify';
@@ -11,8 +12,10 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
 
-export default function Chat() {
+// Added isDemo to props
+export default function Chat({ isDemo }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate(); // <-- Initialize navigate
 
   // --- SPEECH RECOGNITION HOOK ---
   const {
@@ -83,7 +86,13 @@ User query (for context only):
 }
 
   // --- STATE ---
-  const [messages, setMessages] = useState([]);
+  // In demo mode, we can pre-populate a fake welcome message to make the blur look better
+  const [messages, setMessages] = useState(isDemo ? [
+    { role: "assistant", content: "Hello! I am your AI assistant. I can answer questions about history, geography, and specific empires." },
+    { role: "user", content: "Tell me about the Roman Empire." },
+    { role: "assistant", content: "The Roman Empire was one of the largest and most influential empires in world history..." }
+  ] : []);
+  
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeCitations, setActiveCitations] = useState(null);
@@ -129,14 +138,14 @@ User query (for context only):
   };
   //ANCHOR - Update
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
+    if(!isDemo) scrollToBottom(); // Don't auto-scroll the fake demo messages
+  }, [messages, loading, isDemo]);
 
   useEffect(() => {
-    if (email) {
+    if (email && !isDemo) { // Don't fetch history in demo mode
       loadHistoryList();
     }
-  }, [email]);
+  }, [email, isDemo]);
 
   // --- SYNC VOICE TRANSCRIPT TO INPUT ---
   useEffect(() => {
@@ -533,9 +542,29 @@ useEffect(() => {
       {/* MAIN CONTAINER */}
       <div className="flex h-full w-full relative rounded-[25px] overflow-hidden font-sans bg-[#f1ebe3] text-[#111b21]">
 
+        {/* --- DEMO MODE OVERLAY --- */}
+        {isDemo && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none">
+             {/* The Blur Layer */}
+             <div className="absolute inset-0 bg-[#f1ebe3]/60 backdrop-blur-[4px] pointer-events-auto"></div>
+             
+             {/* The Login Button */}
+             <button 
+               onClick={(e) => { e.stopPropagation(); navigate('/myProjects'); }}
+               className="pointer-events-auto relative z-10 flex items-center justify-center gap-2 bg-[#006D5B] text-white font-bold rounded-full shadow-[0_4px_15px_rgba(0,109,91,0.4)] hover:scale-105 hover:bg-[#004f42] active:scale-95 transition-all duration-300 px-5 py-3 text-sm"
+             >
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+               </svg>
+               <span>Login to Chat with Dyno</span>
+             </button>
+          </div>
+        )}
+
         {/* --- SIDEBAR (Desktop) --- */}
         <div
-          className={`hidden md:flex flex-col shrink-0 border-r border-[#004f42] transition-all duration-300 overflow-hidden bg-[#075e54] text-white`}
+          className={`hidden md:flex flex-col shrink-0 border-r border-[#004f42] transition-all duration-300 overflow-hidden bg-[#075e54] text-white ${isDemo ? 'opacity-70 pointer-events-none' : ''}`}
           style={{ width: sidebarOpen ? "250px" : "0px" }}
         >
           <div className="p-4">
@@ -581,7 +610,7 @@ useEffect(() => {
 
           {/* User Profile */}
           <div className={`bg-[#006D5B] rounded-full border-t-2 border-[#075e54]/70 ${isLandscapeMobile ? 'px-4 py-2' : 'px-6 py-3'}`}>
-            <div className={`text-[#e9edef] ${isLandscapeMobile ? 'text-[10px]' : 'text-xs'}`}>{email || "User"}</div>
+            <div className={`text-[#e9edef] ${isLandscapeMobile ? 'text-[10px]' : 'text-xs'}`}>{email || (isDemo ? "Guest User" : "User")}</div>
           </div>
         </div>
 
@@ -620,7 +649,7 @@ useEffect(() => {
         )}
 
         {/* --- MAIN CONTENT --- */}
-        <div className="flex-1 flex flex-col h-full relative bg-[#faf9f5]">
+        <div className={`flex-1 flex flex-col h-full relative bg-[#faf9f5] ${isDemo ? 'opacity-80 pointer-events-none' : ''}`}>
 
           {/* Top Bar */}
           <div className={`px-4 py-3 flex items-center justify-between ${isLandscapeMobile ? 'min-h-[40px]' : 'min-h-[60px]'}`}>

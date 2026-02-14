@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useSelector } from "react-redux";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom"; // <-- Added useNavigate
 import { toast } from "react-toastify";
 import RightPanelData from "./RightPanelData";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,18 +16,21 @@ const STYLES = {
   iconHover: "rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors cursor-pointer",
 };
 
-function Open({ setIsOpen, project }) {
+function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
   const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
   
   const [activeModal, setActiveModal] = useState(null); // 'save' | 'share' | null
   const modalRef = useRef(null);
 
-  const [projName, setProjName] = useState(project.projectName);
-  const [originalProjName, setOriginalProjName] = useState(project.projectName);
+  const [projName, setProjName] = useState(project.projectName || "Demo Project"); // Fallback for demo
+  const [originalProjName, setOriginalProjName] = useState(project.projectName || "Demo Project");
   
   const { ownerEmail } = useSelector((state) => state.project);
   const { id } = useParams();
-  const isOwner = project.ownerEmail == ownerEmail;
+  const navigate = useNavigate(); // <-- For demo login redirect
+  
+  // If in demo mode, they are never the owner.
+  const isOwner = !isDemo && project.ownerEmail == ownerEmail;
   const shareLink = `${window.location.origin}/clone/${id}`;
 
   // --- COMPACT DETECTION ---
@@ -108,7 +111,7 @@ function Open({ setIsOpen, project }) {
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
       <AnimatePresence>
-        {activeModal && (
+        {activeModal && !isDemo && ( // Prevent modals entirely in demo mode
           <motion.div
             key="modal"
             ref={modalRef}
@@ -176,7 +179,9 @@ function Open({ setIsOpen, project }) {
       <div className={`w-full h-full flex flex-col justify-between ${STYLES.glassPanel} ${isCompact?"rounded-2xl":"rounded-4xl"} shadow-2xl overflow-hidden`}>
         <div className="flex-1 overflow-y-auto no-scrollbar">
           
-          <div className={`${styles.padding} flex justify-between items-center ${STYLES.etchedLine}`}>
+          {/* TOP HEADER ROW */}
+          <div className={`${styles.padding} flex justify-between items-center border-b border-white/5`}>
+            {/* Close Button */}
             <div
               className={`${STYLES.iconHover} ${styles.iconSize}`}
               onClick={() => setIsOpen(false)}
@@ -188,7 +193,18 @@ function Open({ setIsOpen, project }) {
                 </g>
               </svg>
             </div>
-            {isOwner && (
+            
+            {/* ACTION BUTTONS (Conditional based on Auth/Demo status) */}
+            {isDemo ? (
+               // --- NEW DEMO LOGIN BUTTON ---
+               <button
+                 onClick={() => navigate('/myProjects')}
+                 className={`flex-1 ml-3 px-3 py-1.5 rounded-full flex items-center justify-center gap-2 text-black font-semibold bg-[#9EFAA5] border-t border-white/40 shadow-[0_2px_10px_rgba(158,250,165,0.2)] hover:brightness-110 transition-all active:scale-95 ${isCompact ? "text-[9px] h-7" : "text-xs h-10"}`}
+               >
+                 <span>Log in to unlock features</span>
+               </button>
+            ) : isOwner ? (
+               // --- EXISTING OWNER BUTTONS ---
               <div className={`flex ${styles.gap}`}>
                 <div 
                   onClick={(e) => { e.stopPropagation(); setActiveModal('save'); }} 
@@ -206,7 +222,7 @@ function Open({ setIsOpen, project }) {
                   <svg xmlns="http://www.w3.org/2000/svg" width={styles.innerSvgSize} height={styles.innerSvgSize} viewBox="0 0 24 24"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className={`${isCompact ? "pt-1 pb-2" : "pt-3 pb-6"}`}>
@@ -215,10 +231,10 @@ function Open({ setIsOpen, project }) {
                 <h2 className={`${styles.titleSize} font-medium mt-1 truncate ${STYLES.textHighContrast}`}>{originalProjName}</h2>
             </div>
 
-            <div className={`w-full ${isCompact ? "mb-2" : "mb-6"} ${STYLES.etchedLine}`}></div>
+            <div className={`w-full ${isCompact ? "mb-2" : "mb-6"} border-b border-white/5`}></div>
             
             <div className="px-4 overflow-hidden shadow-inner">
-              <RightPanelData />
+              <RightPanelData isDemo={isDemo} /> {/* Passed isDemo down in case RightPanelData needs it */}
             </div>
           </div>
         </div>
@@ -227,7 +243,7 @@ function Open({ setIsOpen, project }) {
   );
 }
 
-function Closed({ setIsOpen }) {
+function Closed({ setIsOpen, isDemo }) { // <-- Added isDemo here too just in case
   const [isCompact, setIsCompact] = useState(false);
   useEffect(() => {
     if (window.innerHeight < 600 && window.innerWidth > window.innerHeight) setIsCompact(true);
@@ -254,15 +270,15 @@ function Closed({ setIsOpen }) {
   );
 }
 
-const RightPanel = ({ project }) => {
+const RightPanel = ({ project, isDemo }) => { // <-- Accept isDemo at the root component
   const [isOpen, setIsOpen] = useState(false);
   return (
     <div className="fixed right-0 top-0 h-full z-50 flex items-center">
       <AnimatePresence mode="wait">
         {isOpen ? (
-          <Open key="open" setIsOpen={setIsOpen} project={project} />
+          <Open key="open" setIsOpen={setIsOpen} project={project} isDemo={isDemo} />
         ) : (
-          <Closed key="closed" setIsOpen={setIsOpen} />
+          <Closed key="closed" setIsOpen={setIsOpen} isDemo={isDemo} />
         )}
       </AnimatePresence>
     </div>

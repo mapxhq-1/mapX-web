@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom"; // <-- Added for the login button
 
 // --- NOTE IMAGES ---
 import noteYellow from '../../assets/Notes/yellow.png';
@@ -43,7 +44,6 @@ const ToolRow = ({ label, isActive, children, onClick, isCompact }) => (
     className={`flex items-center justify-between w-full group cursor-pointer ${isCompact ? 'py-0 h-5' : 'py-1'}`}
     onClick={onClick}
   >
-    {/* Explicit font size control based on isCompact state */}
     <span 
       className={`
         font-medium transition-colors duration-200 select-none flex-1 text-left
@@ -74,9 +74,6 @@ const ToolButton = ({ icon: Icon, label, isActive, onClick, isCompact }) => (
     title={label}
   >
     <div className={`flex items-center justify-center transition-opacity ${isActive ? "opacity-100" : "opacity-60 group-hover:opacity-100"}`}>
-      {/* Force icons to be tiny in compact mode using inline styles or strict classes 
-          isCompact ? 12px : 24px
-      */}
       <div className={`flex items-center justify-center ${isCompact ? "[&_img]:!w-3 [&_img]:!h-3 [&_svg]:!w-3 [&_svg]:!h-3" : "[&_img]:w-6 [&_img]:h-6 [&_svg]:w-6 [&_svg]:h-6"}`}>
          <Icon />
       </div>
@@ -124,31 +121,36 @@ const PopupContainer = ({ children, anchorRect, align = "top", onClose, isCompac
   );
 };
 
+// --- MAIN TOOLS COMPONENT ---
 const Tools = ({ 
   selectedMode, 
   handleToolClick, 
   handleShapeClick, 
-  Icons 
+  Icons,
+  isDemo // <-- ADDED isDemo prop here
 }) => {
+  const navigate = useNavigate(); // <-- Initialize navigation
   const [activePopup, setActivePopup] = useState(null);
   const [popupAnchor, setPopupAnchor] = useState(null);
   
-  // --- JS DETECTION STATE (Matches LeftPanel logic) ---
+  // --- JS DETECTION STATE ---
   const [isCompact, setIsCompact] = useState(false);
 
   useEffect(() => {
     const checkSize = () => {
       const isLandscape = window.innerWidth > window.innerHeight;
-      const isShort = window.innerHeight < 600; // Increased threshold to ensure it triggers
+      const isShort = window.innerHeight < 600;
       setIsCompact(isLandscape && isShort);
     };
     checkSize();
     window.addEventListener("resize", checkSize);
     return () => window.removeEventListener("resize", checkSize);
   }, []);
-  // ----------------------------------------------------
 
   const onMainToolClick = (tool, e) => {
+    // Completely disable clicking if in demo mode
+    if (isDemo) return; 
+
     const target = e ? e.currentTarget : null;
     if (['pencil', 'highlight', 'note', 'shapes'].includes(tool)) {
       if (activePopup === tool) {
@@ -169,7 +171,6 @@ const Tools = ({
 
   const closePopup = () => setActivePopup(null);
 
-  // Dynamic Styles
   const popupItemClass = `flex items-center justify-center rounded-lg hover:bg-white/10 cursor-pointer transition-colors ${isCompact ? "w-5 h-5" : "w-10 h-10"}`;
   
   const IconWrapper = ({ children }) => (
@@ -181,13 +182,34 @@ const Tools = ({
   return (
     <div className="relative flex flex-col items-center w-full">
       
-      <div className={`flex flex-col relative z-40 w-full ${isCompact ? "gap-0 px-0.5 pl-1.5" : "gap-4 px-2 pl-8"}`}>
+      {/* --- DEMO BLUR OVERLAY & BUTTON --- */}
+      {isDemo && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-b-xl overflow-hidden">
+           {/* Glass backdrop that blurs the tools beneath it */}
+           <div className="absolute inset-0 backdrop-blur-[3px] bg-zinc-900/40"></div>
+           
+           {/* Floating Login Button */}
+           <button 
+             onClick={() => navigate('/myProjects')}
+             className={`relative z-10 flex items-center justify-center gap-2 bg-[#9EFAA5] text-black font-bold rounded-full shadow-[0_4px_15px_rgba(158,250,165,0.25)] hover:scale-105 hover:brightness-110 active:scale-95 transition-all duration-300 ${isCompact ? "px-3 py-1.5 text-[9px]" : "px-4 py-2.5 text-xs"}`}
+           >
+             <svg xmlns="http://www.w3.org/2000/svg" width={isCompact ? "12" : "14"} height={isCompact ? "12" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+             </svg>
+             <span>Login to Unlock</span>
+           </button>
+        </div>
+      )}
+
+      {/* --- TOOLS LIST (Dimmed and unclickable if in demo mode) --- */}
+      <div className={`flex flex-col relative z-40 w-full ${isCompact ? "gap-0 px-0.5 pl-1.5" : "gap-4 px-2 pl-8"} ${isDemo ? "opacity-50 pointer-events-none select-none" : ""}`}>
         
         {/* 1. Pencil */}
         <ToolRow label="Pencil" isActive={selectedMode === 'pencil' || (selectedMode === 'eraser' && activePopup === 'pencil')} onClick={(e) => onMainToolClick('pencil', e)} isCompact={isCompact}>
           <ToolButton icon={Icons.PencilSvg} label="Pencil" isActive={selectedMode === 'pencil' || (selectedMode === 'eraser' && activePopup === 'pencil')} onClick={(e) => onMainToolClick('pencil', e)} isCompact={isCompact} />
           <AnimatePresence>
-            {activePopup === 'pencil' && (
+            {activePopup === 'pencil' && !isDemo && (
               <PopupContainer align="top" anchorRect={popupAnchor} onClose={closePopup} isCompact={isCompact}>
                 <div className={`${popupItemClass} ${selectedMode === 'pencil' ? 'bg-white/10' : ''}`} onClick={() => { handleToolClick('pencil'); closePopup(); }} title="Pencil">
                      <IconWrapper><Icons.PencilSvg /></IconWrapper>
@@ -207,7 +229,7 @@ const Tools = ({
             label="Highlight" isActive={selectedMode === 'highlight'} onClick={(e) => onMainToolClick('highlight', e)} isCompact={isCompact} 
           />
           <AnimatePresence>
-            {activePopup === 'highlight' && (
+            {activePopup === 'highlight' && !isDemo && (
               <PopupContainer align="top" anchorRect={popupAnchor} onClose={closePopup} isCompact={isCompact}>
                 <div className={`flex flex-col ${isCompact ? "gap-0.5" : "gap-3"}`}>
                     {HIGHLIGHTER_OPTIONS.map((opt) => (
@@ -234,7 +256,7 @@ const Tools = ({
         <ToolRow label="Notes" isActive={selectedMode === 'note'} onClick={(e) => onMainToolClick('note', e)} isCompact={isCompact}>
           <ToolButton icon={Icons.NoteSvg} label="Notes" isActive={selectedMode === 'note'} onClick={(e) => onMainToolClick('note', e)} isCompact={isCompact} />
           <AnimatePresence>
-            {activePopup === 'note' && (
+            {activePopup === 'note' && !isDemo && (
               <PopupContainer align="top" anchorRect={popupAnchor} onClose={closePopup} isCompact={isCompact}>
                   <div className={`flex flex-col ${isCompact ? "gap-0.5" : "gap-3"}`}>
                       {NOTE_OPTIONS.map((opt) => (
@@ -262,7 +284,7 @@ const Tools = ({
         <ToolRow label="Shapes" isActive={['line', 'arrow', 'circle', 'polygon'].includes(selectedMode)} onClick={(e) => onMainToolClick('shapes', e)} isCompact={isCompact}>
             <ToolButton icon={() => <img src={shapes} alt="Shapes" className={`object-contain ${isCompact ? "!w-3 !h-3" : "w-full h-full"}`} />} label="Shapes" isActive={['line', 'arrow', 'circle', 'polygon'].includes(selectedMode)} onClick={(e) => onMainToolClick('shapes', e)} isCompact={isCompact} />
             <AnimatePresence>
-                {activePopup === 'shapes' && (
+                {activePopup === 'shapes' && !isDemo && (
                 <PopupContainer align="bottom" anchorRect={popupAnchor} onClose={closePopup} isCompact={isCompact}>
                     <div className={`flex flex-col ${isCompact ? "gap-0.5" : "gap-3"}`}>
                         {['line', 'arrow', 'circle', 'polygon'].map((shape) => (

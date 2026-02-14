@@ -23,7 +23,7 @@ import imageIcon from "../../assets/icons/image_icon.png";
 
 // --- Main Components ---
 
-const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIcons }) => {
+const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIcons, isDemo }) => {
   const navigate = useNavigate();
   const [showMapMenu, setShowMapMenu] = useState(false);
   const [showTools, setShowTools] = useState(false);
@@ -35,44 +35,31 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
 
   useEffect(() => {
     const checkSize = () => {
-      // 1. Is it landscape? (Width > Height)
       const isLandscape = window.innerWidth > window.innerHeight;
-      // 2. Is height small? (Increased to 600px to catch all phones)
       const isShort = window.innerHeight < 600;
-      
       setIsCompact(isLandscape && isShort);
     };
 
-    checkSize(); // Check immediately on mount
+    checkSize();
     window.addEventListener("resize", checkSize);
     return () => window.removeEventListener("resize", checkSize);
   }, []);
 
   // --- DYNAMIC STYLES BASED ON STATE ---
-  // We strictly swap classes based on isCompact. No media queries.
   const styles = {
-    // Widths
     panelWidth: isCompact ? 210 : 320,
-    
-    // Spacing
     headerPadding: isCompact ? "px-4 py-1.5" : "px-6 py-6",
     searchPadding: isCompact ? "px-2 py-1.5" : "px-4 py-6",
     sectionPadding: isCompact ? "p-1.5" : "p-3",
     gap: isCompact ? "gap-1" : "gap-2",
     dividerMargin: isCompact ? "mb-1.5" : "mb-3",
-    
-    // Fonts
     titleSize: isCompact ? "text-[10px]" : "text-xl",
     textSize: isCompact ? "text-[9px]" : "text-sm",
-    
-    // Element Sizes
     iconBtnSize: isCompact ? "w-6 h-6" : "w-10 h-10",
     iconSize: isCompact ? "w-3 h-3" : "w-5 h-5",
     actionBtnHeight: isCompact ? "h-7" : "h-11",
     actionBtnWidth: isCompact ? "w-8" : "w-11",
     toolIconSize: isCompact ? "w-3.5 h-3.5" : "w-6 h-6",
-    
-    // Input
     inputClass: isCompact 
       ? "bg-white/5 border border-white/10 rounded-xl px-2 py-1 text-[9px] text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 transition-colors w-full pl-6" 
       : "bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 transition-colors w-full pl-10",
@@ -146,7 +133,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
         {/* --- 2. MIDDLE SECTION --- */}
         <div className={`flex-1 overflow-y-auto no-scrollbar ${styles.sectionPadding} min-h-0 relative`}>
              <div className={`h-full ${isCompact ? 'pt-1' : 'pt-3'}`}>
-               <Layers searchQuery={searchQuery} />
+               <Layers searchQuery={searchQuery} isDemo={isDemo} />
              </div>
         </div>
 
@@ -156,64 +143,74 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
            
            <div className={`flex ${styles.gap} ${styles.dividerMargin} relative`}>
              
-             {/* --- TOOLS BUTTON --- */}
+             {/* --- TOOLS SLIDEOUT CONTAINER --- */}
              <div className="relative flex-1 group">
-                 <AnimatePresence>
-                   {!showTools && (
-                       <motion.div 
-                           initial={{ opacity: 0, y: 5 }}
-                           animate={{ opacity: 1, y: 0 }}
-                           exit={{ opacity: 0, y: 5 }}
-                           className={`absolute -top-2 left-0 right-0 bg-zinc-800 border border-white/10 border-b-0 rounded-xl flex items-start justify-center pt-1.5 z-0 cursor-pointer group-hover:-top-3 transition-all duration-300 ${isCompact ? "h-8" : "h-13"}`}
-                       >
-                           <div className="w-8 h-1 bg-zinc-500 rounded-full opacity-50" />
-                       </motion.div>
-                   )}
-                 </AnimatePresence>
+               <AnimatePresence>
+                 {!showTools && (
+                     <motion.div 
+                         initial={{ opacity: 0, y: 5 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         exit={{ opacity: 0, y: 5 }}
+                         className={`absolute -top-2 left-0 right-0 bg-zinc-800 border border-white/10 border-b-0 rounded-xl flex items-start justify-center pt-1.5 z-0 cursor-pointer group-hover:-top-3 transition-all duration-300 ${isCompact ? "h-8" : "h-13"}`}
+                     >
+                         <div className="w-8 h-1 bg-zinc-500 rounded-full opacity-50" />
+                     </motion.div>
+                 )}
+               </AnimatePresence>
 
-                 <AnimatePresence>
-                   {showTools && (
-                       <motion.div
-                           initial={{ height: 0, opacity: 0 }}
-                           animate={{ height: "auto", opacity: 1 }}
-                           exit={{ height: 0, opacity: 0 }}
-                           transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                           className="absolute bottom-full left-0 w-full bg-zinc-800 border border-white/10 border-b-0 rounded-t-xl rounded-b-none shadow-2xl overflow-hidden z-10"
-                       >
-                           <div 
-                               className={`w-full flex items-start justify-center pt-1.5 cursor-pointer hover:bg-zinc-700 transition-colors ${isCompact ? "h-4" : "h-6"}`}
-                               onClick={() => setShowTools(false)}
-                           >
-                               <div className="w-8 h-1 bg-zinc-500 rounded-full opacity-50" />
-                           </div>
+               <AnimatePresence>
+                 {showTools && (
+                     <motion.div
+                         initial={{ height: 0, opacity: 0 }}
+                         animate={{ height: "auto", opacity: 1 }}
+                         exit={{ height: 0, opacity: 0 }}
+                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                         className="absolute bottom-full left-0 w-full bg-zinc-800 border border-white/10 border-b-0 rounded-t-xl rounded-b-none shadow-2xl overflow-hidden z-10"
+                     >
+                         <div 
+                             className={`w-full flex items-start justify-center pt-1.5 cursor-pointer hover:bg-zinc-700 transition-colors ${isCompact ? "h-4" : "h-6"}`}
+                             onClick={() => setShowTools(false)}
+                         >
+                             <div className="w-8 h-1 bg-zinc-500 rounded-full opacity-50" />
+                         </div>
 
-                           <div className={isCompact ? "p-1 pb-1" : "p-2 pb-2"}>
-                               <Tools 
-                                   selectedMode={selectedMode} 
-                                   handleToolClick={handleToolClick}
-                                   handleShapeClick={handleShapeClick}
-                                   Icons={ToolIcons}
-                               />
-                           </div>
-                       </motion.div>
-                   )}
-                 </AnimatePresence>
+                         <div className={isCompact ? "p-1 pb-1" : "p-2 pb-2"}>
+                             <Tools 
+                                 selectedMode={selectedMode} 
+                                 handleToolClick={handleToolClick}
+                                 handleShapeClick={handleShapeClick}
+                                 Icons={ToolIcons}
+                                 isDemo={isDemo} // <-- This triggers the blur inside Tools.jsx!
+                             />
+                         </div>
+                     </motion.div>
+                 )}
+               </AnimatePresence>
 
-                 <div 
-                   onClick={() => setShowTools(!showTools)}
-                   className={`
-                       w-full ${commonBtnClass} px-4 ${isCompact ? "px-2" : "px-4"} font-medium ${styles.textSize}
-                       bg-zinc-800 text-white border-white/10 shadow-lg
-                       ${showTools 
-                           ? 'rounded-t-none rounded-b-xl border-t-0'
-                           : 'rounded-xl border'
-                       }
-                   `}
-                 >
-                   Tools
-                 </div>
+               {/* MAIN TOOLS BUTTON (Always clickable now) */}
+               <div 
+                 onClick={() => setShowTools(!showTools)}
+                 className={`
+                     w-full ${commonBtnClass} px-4 ${isCompact ? "px-2" : "px-4"} font-medium ${styles.textSize} flex items-center justify-center gap-2
+                     bg-zinc-800 text-white border-white/10 shadow-lg
+                     ${showTools 
+                         ? 'rounded-t-none rounded-b-xl border-t-0'
+                         : 'rounded-xl border'
+                     }
+                 `}
+               >
+                 {isDemo && (
+                   // Subtle lock icon hinting at premium features
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-500">
+                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                   </svg>
+                 )}
+                 Tools
+               </div>
              </div>
 
+             {/* Select and Hand tools (kept active so user can navigate the demo map) */}
              <div 
                onClick={() => handleToolClick('hand')}
                className={`${styles.actionBtnWidth} ${commonBtnClass} ${selectedMode === 'hand' ? activeClass : inactiveClass}`}
@@ -269,27 +266,8 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
   );
 };
 
-const crystalGlassStyle = "bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased";
-
-const sidebarVariants = {
-  open: {
-    width: 300,
-    opacity: 1,
-    x: 0,
-    transition: { type: "spring", stiffness: 300, damping: 30 }
-  },
-  closed: {
-    width: 60,
-    opacity: 1,
-    x: 0,
-    transition: { type: "spring", stiffness: 300, damping: 30 }
-  },
-  exit: { opacity: 0, x: -20, transition: { duration: 0.2 } }
-};
-
 const Closed = ({ setIsOpen }) => {
     const glassStyle = "bg-white/2.5 border border-white/50 backdrop-blur-sm shadow-[inset_0_1px_0px_rgba(255,255,255,0.75),0_0_9px_rgba(0,0,0,0.2),0_3px_8px_rgba(0,0,0,0.15)] hover:bg-white/30 before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/60 before:via-transparent before:to-transparent before:opacity-70 before:pointer-events-none after:absolute after:inset-0 after:bg-gradient-to-tl after:from-white/30 after:via-transparent after:to-transparent after:opacity-50 after:pointer-events-none antialiased";
-  // Mobile landscape width check
   const [isCompact, setIsCompact] = useState(false);
   useEffect(() => {
     if (window.innerHeight < 600 && window.innerWidth > window.innerHeight) setIsCompact(true);
@@ -314,7 +292,7 @@ const Closed = ({ setIsOpen }) => {
   );
 };
 
-const LeftPanel = () => {
+const LeftPanel = ({ isDemo }) => { // <-- Accept isDemo at root
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState(null);
   const [eraserMode, setEraserMode] = useState(false);
@@ -339,9 +317,10 @@ const LeftPanel = () => {
             eraserMode={eraserMode} 
             setEraserMode={setEraserMode}
             styleIcons={styleIconsRef}
+            isDemo={isDemo} // <-- Pass down
           />
         ) : (
-          <Closed key="closed" setIsOpen={setIsOpen} />
+          <Closed key="closed" setIsOpen={setIsOpen} isDemo={isDemo} />
         )}
       </AnimatePresence>
     </div>
