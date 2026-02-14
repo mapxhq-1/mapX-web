@@ -195,7 +195,7 @@ export default function DemoLayout() {
               YOU ARE MISSING A LOT OF THINGS
             </Typography>
             <Typography sx={{ fontSize: '0.95rem', fontWeight: 500, color: '#f5f5f5', letterSpacing: '0.3px' }}>
-              Log in to unlock full features
+              Login to unlock full features
             </Typography>
           </Button>
         </Box>

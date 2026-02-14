@@ -201,7 +201,7 @@ function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
                  onClick={() => navigate('/myProjects')}
                  className={`flex-1 ml-3 px-3 py-1.5 rounded-full flex items-center justify-center gap-2 text-black font-semibold bg-[#9EFAA5] border-t border-white/40 shadow-[0_2px_10px_rgba(158,250,165,0.2)] hover:brightness-110 transition-all active:scale-95 ${isCompact ? "text-[9px] h-7" : "text-xs h-10"}`}
                >
-                 <span>Log in to unlock features</span>
+                 <span>Login to unlock features</span>
                </button>
             ) : isOwner ? (
                // --- EXISTING OWNER BUTTONS ---
