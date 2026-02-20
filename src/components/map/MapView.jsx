@@ -1048,7 +1048,7 @@ const onEmpireClick = async (e) => {
         const feature = features[0];
         const empireId = feature.properties?.id; 
         const empireName = feature.properties?.name || feature.properties?.Name;
-
+        console.log(empireName)
         // --- GLOW LOGIC RESTORED ---
         if (empireId) {
             selectedEmpireNameRef.current = empireId;
@@ -1058,6 +1058,17 @@ const onEmpireClick = async (e) => {
                 map.current.setFilter("polygon-empire-glow-outer", filterExpr);
                 map.current.setFilter("polygon-empire-glow-middle", filterExpr);
                 map.current.setFilter("polygon-empire-glow-inner", filterExpr);
+                
+                // 👈 SUBTLE GLOW UPDATES
+                map.current.setPaintProperty("empire-labels", "text-halo-color", [
+                    "case", ["==", ["get", "id"], empireId], "rgba(255, 215, 0, 0.5)", "#ffffff"
+                ]);
+                map.current.setPaintProperty("empire-labels", "text-halo-width", [
+                    "case", ["==", ["get", "id"], empireId], 3, 2
+                ]);
+                map.current.setPaintProperty("empire-labels", "text-halo-blur", [
+                    "case", ["==", ["get", "id"], empireId], 2, 1
+                ]);
             } catch (e) { console.error("Glow filter error:", e); }
         } else if (empireName) {
             selectedEmpireNameRef.current = empireName;
@@ -1067,6 +1078,17 @@ const onEmpireClick = async (e) => {
                 map.current.setFilter("polygon-empire-glow-outer", filterExpr);
                 map.current.setFilter("polygon-empire-glow-middle", filterExpr);
                 map.current.setFilter("polygon-empire-glow-inner", filterExpr);
+                
+                // 👈 SUBTLE GLOW UPDATES
+                map.current.setPaintProperty("empire-labels", "text-halo-color", [
+                    "case", ["==", ["get", "name"], empireName], "rgba(255, 215, 0, 0.5)", "#ffffff"
+                ]);
+                map.current.setPaintProperty("empire-labels", "text-halo-width", [
+                    "case", ["==", ["get", "name"], empireName], 3, 2
+                ]);
+                map.current.setPaintProperty("empire-labels", "text-halo-blur", [
+                    "case", ["==", ["get", "name"], empireName], 2, 1
+                ]);
             } catch (e) {}
         }
         // ---------------------------
@@ -1142,6 +1164,10 @@ const onEmpireClick = async (e) => {
              map.current.setFilter("polygon-empire-glow-outer", hideExpr);
              map.current.setFilter("polygon-empire-glow-middle", hideExpr);
              map.current.setFilter("polygon-empire-glow-inner", hideExpr);
+
+             map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
+             map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
+             map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
          } catch(e){} 
       }
     };

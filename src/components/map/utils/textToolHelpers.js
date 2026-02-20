@@ -37,8 +37,13 @@ export const buildEmpireLabelPoints = (features) => {
         for (const f of features) {
             const t = f?.geometry?.type;
             if (t !== "Polygon" && t !== "MultiPolygon") continue;
-            const name = getEmpireName(f?.properties || {});
-            if (!name) continue;
+            
+            const rawName = getEmpireName(f?.properties || {});
+            if (!rawName) continue;
+            
+            // Trim to prevent duplicates caused by trailing spaces in your data
+            const name = rawName.trim(); 
+            
             if (!groups.has(name)) groups.set(name, []);
             groups.get(name).push(f);
         }
@@ -46,6 +51,8 @@ export const buildEmpireLabelPoints = (features) => {
         const points = [];
         for (const [name, arr] of groups.entries()) {
             let best = null, bestArea = -1;
+            
+            // Find the largest polygon piece for this empire
             for (const f of arr) {
                 let a = 0;
                 try { a = turf.area(f); } catch (_) {}
@@ -54,14 +61,18 @@ export const buildEmpireLabelPoints = (features) => {
             if (!best) continue;
             
             let center = null;
-            try { center = turf.centerOfMass(best); } catch (_) {
-                try { center = turf.center(best); } catch (__) {}
+            try { 
+                // This guarantees the label stays safely inside the polygon boundaries
+                center = turf.pointOnFeature(best); 
+            } catch (_) {
+                try { center = turf.centerOfMass(best); } catch (__) {}
             }
             if (!center?.geometry?.coordinates) continue;
             
             points.push({
                 type: "Feature",
-                properties: { name },
+                // Passing ALL properties so MapLibre can match the ID for the glow effect
+                properties: { ...best.properties, name },
                 geometry: { type: "Point", coordinates: center.geometry.coordinates }
             });
         }

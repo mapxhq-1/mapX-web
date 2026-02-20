@@ -92,7 +92,6 @@ export default function DemoLayout() {
     } catch (error) { console.error(error); }
   };
 
-  // --- BLOCKING SCREEN COMPONENT ---
   const BlockingScreen = ({ icon, title, subtitle, buttonText, onButtonClick }) => (
     <Box sx={{
       height: "100vh", width: "100vw", display: "flex", flexDirection: "column",
@@ -167,39 +166,6 @@ export default function DemoLayout() {
 
       <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
         
-        {/* --- PREMIUM BLACK DEPTH BUTTON --- */}
-        <Box sx={{
-          position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 100,
-        }}>
-          <Button
-            onClick={() => navigate('/myProjects')}
-            sx={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              borderRadius: '74px', px: { xs: 4, md: 6 }, py: 1.5, textTransform: 'none',
-              background: 'linear-gradient(180deg, #242424 0%, #0a0a0a 100%)', color: '#ffffff',
-              borderBottom: '1px solid #0a0a0a',
-              boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.6)',
-              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-              '&:hover': {
-                background: 'linear-gradient(180deg, #323232 0%, #141414 100%)',
-                transform: 'translateY(-2px)',
-                boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 8px 24px rgba(0, 0, 0, 0.9)', 
-              },
-              '&:active': {
-                transform: 'scale(0.96) translateY(1px)', background: '#050505', 
-                boxShadow: 'inset 0 4px 8px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(255, 255, 255, 0.05)',
-              }
-            }}
-          >
-            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.6)', mb: 0.5 }}>
-              YOU ARE MISSING A LOT OF THINGS
-            </Typography>
-            <Typography sx={{ fontSize: '0.95rem', fontWeight: 500, color: '#f5f5f5', letterSpacing: '0.3px' }}>
-              Login to unlock full features
-            </Typography>
-          </Button>
-        </Box>
-
         <MapView leftOffset={leftWidth} rightOffset={rightWidth} isDemo={true} />
         
         <Box id="timeline-overlay" sx={{ position: "absolute", left: leftWidth + 8, right: rightWidth + 8, bottom: 8, zIndex: 15, pointerEvents: "none" }}>

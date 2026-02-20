@@ -1,26 +1,17 @@
-// Graph-based four-coloring for planar polygon datasets.
-// - Builds adjacency if polygons share border segments longer than a threshold
-// - Greedy coloring with backtracking on conflicts
-// - Returns a new features array with "colorIndex" property in [0..3]
-
 import * as turf from "@turf/turf";
 
+// --- YOUR ORIGINAL GEOMETRY HELPERS ---
 function sharesBorderEnough(a, b, minSharedMeters = 50) {
-  // Fast bbox reject
   const bbA = turf.bbox(a);
   const bbB = turf.bbox(b);
   if (
-    bbA[2] < bbB[0] || // a.maxX < b.minX
-    bbB[2] < bbA[0] || // b.maxX < a.minX
-    bbA[3] < bbB[1] || // a.maxY < b.minY
-    bbB[3] < bbA[1] // b.maxY < a.minY
+    bbA[2] < bbB[0] || bbB[2] < bbA[0] || 
+    bbA[3] < bbB[1] || bbB[3] < bbA[1]
   ) {
     return false;
   }
-  // Use line overlap length as criterion; treat MultiPolygon as unioned
   const la = turf.polygonToLine(a);
   const lb = turf.polygonToLine(b);
-  // Buffer tiny to capture near-coincident vertices
   const inter = turf.lineOverlap(la, lb, { tolerance: 1e-6 });
   if (!inter || (inter.features?.length || 0) === 0) return false;
   let total = 0;
@@ -30,57 +21,95 @@ function sharesBorderEnough(a, b, minSharedMeters = 50) {
   return total >= minSharedMeters;
 }
 
-// More permissive adjacency: treat polygons as adjacent if they intersect or touch
 function areAdjacent(a, b, options) {
-  const mode = options?.adjacencyMode || "touch"; // 'touch' | 'segment'
+  const mode = options?.adjacencyMode || "touch"; 
   if (mode === "segment") return sharesBorderEnough(a, b, options?.minSharedMeters || 50);
   try {
-    // booleanIntersects covers both interior overlap and boundary touch
     return turf.booleanIntersects(a, b);
   } catch (_) {
     return false;
   }
 }
 
+// Generates a random-looking but consistent number from a name
+function stringToHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash);
+}
+  
+// --- YOUR ORIGINAL DFS ALGORITHM (UPDATED FOR EMPIRES) ---
 export function colorPolygonsFourColor(features, options = {}) {
   if (!Array.isArray(features) || features.length === 0) return [];
   const minSharedMeters = options.minSharedMeters ?? 50;
   const maxColors = Math.max(2, Math.min(12, options.maxColors || 6));
 
-  // Normalize to polygons only
-  const polys = features
-    .map((f, i) => ({ f, i }))
-    .filter(({ f }) => {
-      const t = f?.geometry?.type;
-      return t === "Polygon" || t === "MultiPolygon";
-    });
+  // 1. Group Polygons into Empires by Name
+  const empires = []; 
+  const nameToId = new Map();
 
-  // Build adjacency list
-  const n = polys.length;
+  features.forEach((f, i) => {
+    const t = f?.geometry?.type;
+    if (t !== "Polygon" && t !== "MultiPolygon") return;
+
+    const rawName = f?.properties?.name;
+    // Clean name to ensure fragments match perfectly
+    const name = (rawName && typeof rawName === 'string' && rawName.trim() !== "") 
+        ? rawName.trim().toLowerCase() 
+        : `unnamed_${i}`; // Unnamed polygons get unique IDs
+
+    let empId = nameToId.get(name);
+    if (empId === undefined) {
+      empId = empires.length;
+      nameToId.set(name, empId);
+      empires.push({ id: empId, name: name, polys: [] });
+    }
+    empires[empId].polys.push(f);
+  });
+
+  const n = empires.length;
   const adj = Array.from({ length: n }, () => new Set());
 
-  // Spatial index via bboxes for pruning
-  const boxes = polys.map(({ f }) => turf.bbox(f));
+  // 2. Flatten for efficient neighbor checking
+  const flatPolys = [];
+  empires.forEach(emp => {
+    emp.polys.forEach(f => {
+      flatPolys.push({ empId: emp.id, f, bbox: turf.bbox(f) });
+    });
+  });
 
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const a = boxes[i];
-      const b = boxes[j];
-      if (a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1]) continue;
-      if (areAdjacent(polys[i].f, polys[j].f, { adjacencyMode: options.adjacencyMode || "touch", minSharedMeters })) {
-        adj[i].add(j);
-        adj[j].add(i);
+  // 3. Build Adjacency Graph (Who touches who?)
+  for (let i = 0; i < flatPolys.length; i++) {
+    for (let j = i + 1; j < flatPolys.length; j++) {
+      const p1 = flatPolys[i];
+      const p2 = flatPolys[j];
+
+      if (p1.empId === p2.empId) continue; // Same empire, no conflict
+      if (adj[p1.empId].has(p2.empId)) continue; // Already logged
+
+      // Fast BBox reject
+      if (
+        p1.bbox[2] < p2.bbox[0] || p2.bbox[2] < p1.bbox[0] ||
+        p1.bbox[3] < p2.bbox[1] || p2.bbox[3] < p1.bbox[1]
+      ) continue;
+
+      // Your original Turf geometry check!
+      if (areAdjacent(p1.f, p2.f, { adjacencyMode: options.adjacencyMode || "touch", minSharedMeters })) {
+        adj[p1.empId].add(p2.empId);
+        adj[p2.empId].add(p1.empId);
       }
     }
   }
 
-  // Order by descending degree for better greedy results
+  // 4. DFS Graph Coloring (Your original greedy logic)
   const order = Array.from({ length: n }, (_, i) => i).sort(
     (a, b) => adj[b].size - adj[a].size
   );
 
   const color = new Array(n).fill(-1);
-  const MAX_COLORS = maxColors;
+const MAX_COLORS = Math.max(2, Math.min(12, options.maxColors || 8)); // Ensure it uses all 8
 
   function canUse(idx, c) {
     for (const nb of adj[idx]) if (color[nb] === c) return false;
@@ -90,16 +119,26 @@ export function colorPolygonsFourColor(features, options = {}) {
   function dfs(pos) {
     if (pos === order.length) return true;
     const idx = order[pos];
-    for (let c = 0; c < MAX_COLORS; c++) {
-      if (!canUse(idx, c)) continue;
+    
+    // Pick a "Favorite" starting color based on the empire's name
+    const empName = empires[idx].name;
+    const favoriteColor = stringToHash(empName) % MAX_COLORS;
+
+    // Loop through all colors, but START at the favorite color
+    for (let i = 0; i < MAX_COLORS; i++) {
+      const c = (favoriteColor + i) % MAX_COLORS; 
+      
+      if (!canUse(idx, c)) continue; // Neighbor check
+      
       color[idx] = c;
       if (dfs(pos + 1)) return true;
-      color[idx] = -1;
+      color[idx] = -1; // Backtrack
     }
-    // Fallback: allow a 5th color if unavoidable (should be rare with planar inputs)
+    
+    // Fallback: allow an extra color if mathematically unavoidable
     if (options.allowFifthColor) {
-      const c5 = 4;
-      color[idx] = c5;
+      const cExtra = MAX_COLORS;
+      color[idx] = cExtra;
       if (dfs(pos + 1)) return true;
       color[idx] = -1;
     }
@@ -108,29 +147,51 @@ export function colorPolygonsFourColor(features, options = {}) {
 
   dfs(0);
 
-  // Apply colors back to features, cloning props minimally
-  const out = features.map((f) => ({ ...f }));
-  for (let k = 0; k < polys.length; k++) {
-    const origIdx = polys[k].i;
-    const c = Math.max(0, color[k] ?? 0);
-    out[origIdx] = {
-      ...out[origIdx],
-      properties: { ...(out[origIdx].properties || {}), colorIndex: c },
-    };
-  }
-  return out;
+  // 5. Apply colors back to features
+  return features.map((f, i) => {
+    const outF = { ...f, properties: { ...(f.properties || {}) } };
+    const t = f?.geometry?.type;
+    
+    if (t === "Polygon" || t === "MultiPolygon") {
+      const rawName = f?.properties?.name;
+      const name = (rawName && typeof rawName === 'string' && rawName.trim() !== "") 
+          ? rawName.trim().toLowerCase() 
+          : `unnamed_${i}`;
+      
+      const empId = nameToId.get(name);
+      if (empId !== undefined) {
+        outF.properties.colorIndex = Math.max(0, color[empId] ?? 0);
+      }
+    }
+    return outF;
+  });
 }
-
 export function colorIndexToHex(idx) {
-  // Modern, readable 6-color palette (Tailwind-inspired mids for visibility at 0.2 opacity)
-  const palette = ["#4F46E5", "#10B981", "#F59E0B", "#EF4444", "#06B6D4", "#A855F7"];
-  return palette[idx % palette.length];
+    // A mix of your modern Tailwind colors and distinct map colors
+    const palette = [
+        "#EF4444", // 0: Tailwind Red (from your original)
+        "#4F46E5", // 1: Tailwind Indigo / Deep Blue (from your original)
+        "#10B981", // 2: Tailwind Emerald / Green (from your original)
+        "#F97316", // 3: Tailwind Orange (Better contrast than Amber)
+        "#A855F7", // 4: Tailwind Purple (from your original)
+        "#06B6D4", // 5: Tailwind Cyan / Light Blue (from your original)
+        "#6D4C41", // 6: Solid Brown (Earthy, distinct from reds/oranges)
+        "#EAB308"  // 7: Tailwind Yellow/Gold (Highly visible at low opacity)
+    ];
+    return palette[idx % palette.length];
 }
 
 export function colorIndexToHexDark(idx) {
-  // Darker companions matching the fill palette above
-  const paletteDark = ["#3730A3", "#047857", "#B45309", "#991B1B", "#0E7490", "#7E22CE"];
-  return paletteDark[idx % paletteDark.length];
-}
-
-
+    // Darker companions matching the fill palette above
+    const paletteDark = [
+        "#991B1B", // 0: Dark Red (from your original)
+        "#3730A3", // 1: Dark Indigo (from your original)
+        "#047857", // 2: Dark Emerald (from your original)
+        "#C2410C", // 3: Dark Orange
+        "#7E22CE", // 4: Dark Purple (from your original)
+        "#0E7490", // 5: Dark Cyan (from your original)
+        "#3E2723", // 6: Dark Brown
+        "#A16207"  // 7: Dark Yellow/Gold
+    ];
+    return paletteDark[idx % paletteDark.length];
+} 
