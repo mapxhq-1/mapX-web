@@ -7,7 +7,6 @@ import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { motion, AnimatePresence } from "framer-motion";
 
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
@@ -17,31 +16,111 @@ export default function Chat({ isDemo }) {
   const dispatch = useDispatch();
   const navigate = useNavigate(); // <-- Initialize navigate
 
-  // --- SPEECH RECOGNITION HOOK ---
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition
-  } = useSpeechRecognition();
+  // Check if browser supports recording audio
+  const browserSupportsSpeechRecognition = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
+  // Start recording via MediaRecorder
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Force the MIME type to exactly 'audio/webm' to pass Sarvam's strict validation
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+        
+        // Clean up hardware tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setListening(true);
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      toast.error("Microphone access denied or error occurred.");
+    }
+  };
+
+  // Stop recording, which triggers the onstop event and calls Sarvam API
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && listening) {
+      mediaRecorderRef.current.stop();
+      setListening(false);
+    }
+  };
+
+  const handleMicClick = async () => {
+    if (listening) {
+      stopRecording();
+    } else {
+      await startRecording();
+    }
+  };
+
+  // Transcribe using Sarvam AI REST API
+  const transcribeAudio = async (audioBlob) => {
+    const loadingToast = toast.loading("Transcribing audio...");
+    try {
+      const formData = new FormData();
+      // 'file' must have a filename with extension so Sarvam recognizes it
+      formData.append("file", audioBlob, "audio.webm");
+      formData.append("model", "saaras:v3"); // Recommended Sarvam STT model
+      formData.append("mode", "transcribe"); 
+
+      const res = await fetch("https://api.sarvam.ai/speech-to-text", {
+        method: "POST",
+        headers: {
+          "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY
+        },
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const data = await res.json();
+      
+      if (data.transcript) {
+        // Append the new transcription to whatever is already in the input
+        setInput(prev => (prev + (prev ? " " : "") + data.transcript).trim());
+        toast.update(loadingToast, { render: "Transcription complete", type: "success", isLoading: false, autoClose: 2000 });
+      } else {
+        toast.update(loadingToast, { render: "No speech detected", type: "info", isLoading: false, autoClose: 2000 });
+      }
+    } catch (err) {
+      console.error("Transcription error:", err);
+      toast.update(loadingToast, { render: "Failed to transcribe audio", type: "error", isLoading: false, autoClose: 3000 });
+    }
+  };
+// --- SARVAM AI TEXT GENERATION ---
   async function fetchThinkingText(query) {
-  const res = await fetch(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        temperature: 0.7,
-        max_tokens: 60,
-        messages: [
-          {
-            role: "user",
-            content: `You are generating background “thinking” status text for an AI assistant.
+    const res = await fetch(
+      "https://api.sarvam.ai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY
+        },
+        body: JSON.stringify({
+          model: "sarvam-m", // <-- FIXED: Changed to sarvam-m
+          temperature: 0.7,
+          top_p: 1,          // <-- ADDED: Based on Sarvam docs
+          max_tokens: 80,
+          messages: [
+            {
+              role: "user",
+              content: `You are generating background “thinking” status text for an AI assistant.
 
 The assistant answers questions ONLY about:
 - History
@@ -67,24 +146,24 @@ Each message:
 
 User query (for context only):
 "${query}"`
-          }
-        ]
-      })
+            }
+          ]
+        })
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(await res.text());
     }
-  );
 
-  if (!res.ok) {
-    throw new Error(await res.text());
+    const data = await res.json();
+
+    return data.choices[0].message.content
+      .split("\n")
+      .map(t => t.replace(/^[-•\d.]+\s*/, "").trim())
+      .filter(Boolean);
   }
-
-  const data = await res.json();
-
-  return data.choices[0].message.content
-    .split("\n")
-    .map(t => t.replace(/^[-•]/, "").trim())
-    .filter(Boolean);
-}
-
+  
   // --- STATE ---
   // In demo mode, we can pre-populate a fake welcome message to make the blur look better
   const [messages, setMessages] = useState(isDemo ? [
@@ -109,6 +188,38 @@ User query (for context only):
   const [chatHistoryList, setChatHistoryList] = useState([]);
   const [thinkingTexts, setThinkingTexts] = useState([]);
   const [thinkingIndex, setThinkingIndex] = useState(0);
+  const [listening, setListening] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  // --- ANIMATED PLACEHOLDER STATE ---
+  const placeholders = [
+    "Press mic to start speaking",              // en-IN: English
+    "बोलना शुरू करने के लिए माइक दबाएं",         // hi-IN: Hindi
+    "কথা বলা শুরু করতে মাইক টিপুন",              // bn-IN: Bengali
+    "ಮಾತನಾಡಲು ಮೈಕ್ ಒತ್ತಿರಿ",                     // kn-IN: Kannada
+    "സംസാരിക്കാൻ മൈക്ക് അമർത്തുക",                 // ml-IN: Malayalam
+    "बोलणे सुरू करण्यासाठी माइक दाबा",           // mr-IN: Marathi
+    "କହିବା ଆରମ୍ଭ କରିବାକୁ ମାଇକ୍ ଦବାନ୍ତୁ",             // od-IN: Odia
+    "ਬੋਲਣਾ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਮਾਈਕ ਦਬਾਓ",               // pa-IN: Punjabi
+    "பேசத் தொடங்க மைக்கை அழுத்தவும்",             // ta-IN: Tamil
+    "మాట్లాడటం ప్రారంభించడానికి మైక్ నొక్కండి",     // te-IN: Telugu
+    "બોલવાનું શરૂ કરવા માટે માઇક દબાવો"           // gu-IN: Gujarati
+  ];
+
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+
+  // Cycle through placeholders every 3 seconds
+  useEffect(() => {
+    // Stop the animation if the user is typing or if the mic is actively listening
+    if (listening || input.length > 0) return;
+
+    const interval = setInterval(() => {
+      setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
+    }, 3000); // 3 seconds per language
+
+    return () => clearInterval(interval);
+  }, [listening, input]); // Removed input.length directly from array per previous fix
 
   // --- MOBILE LANDSCAPE DETECTION ---
   const [isLandscapeMobile, setIsLandscapeMobile] = useState(false);
@@ -128,6 +239,8 @@ User query (for context only):
   const email = useSelector((state) => state.project.ownerEmail);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  
+  // Ref tracking for keyboard shortcuts
   const isListeningRef = useRef(listening);
   useEffect(() => {
     isListeningRef.current = listening;
@@ -136,6 +249,7 @@ User query (for context only):
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
   //ANCHOR - Update
   useEffect(() => {
     if(!isDemo) scrollToBottom(); // Don't auto-scroll the fake demo messages
@@ -146,19 +260,6 @@ User query (for context only):
       loadHistoryList();
     }
   }, [email, isDemo]);
-
-  // --- SYNC VOICE TRANSCRIPT TO INPUT ---
-  useEffect(() => {
-    if (!transcript) return;
-    setInput(transcript);
-    requestAnimationFrame(() => {
-      const el = inputRef.current;
-      if (!el) return;
-      el.selectionStart = el.selectionEnd = transcript.length;
-      el.scrollLeft = el.scrollWidth;
-    });
-  }, [transcript]);
-
 
   const loadHistoryList = async () => {
     try {
@@ -315,25 +416,9 @@ User query (for context only):
     setSessionId(null);
     setMessages([]);
     setInput("");
-    resetTranscript();
     setAutoFlyCount(0);
     setSidebarOpen(false);
     if (window.innerWidth < 768) setMobileMenuOpen(false);
-  };
-
-  const handleMicClick = async () => {
-    if (listening) {
-      await SpeechRecognition.abortListening();
-    } else {
-      try {
-        SpeechRecognition.startListening({
-          continuous: true,
-          language: voiceLanguage
-        });
-      } catch (err) {
-        console.error("Error invoking startListening:", err);
-      }
-    }
   };
 
   const sendMessage = async (
@@ -351,7 +436,7 @@ User query (for context only):
 
     if (listening) {
       try {
-        await SpeechRecognition.abortListening();
+        stopRecording();
       } catch (e) {
         console.warn("Could not abort listening:", e);
       }
@@ -359,7 +444,6 @@ User query (for context only):
 
     if (!overrideInput) {
       setInput("");
-      resetTranscript();
     }
 
     setLoading(true);
@@ -387,23 +471,24 @@ User query (for context only):
     try {
       const lang = voiceLanguage === "kn-IN" ? "kn" : "";
       setThinkingTexts([]);
-setThinkingIndex(0);
+      setThinkingIndex(0);
 
-fetchThinkingText(displayContent)
-  .then(texts => {
-    setThinkingTexts(texts.length ? texts : ["Thinking…"]);
-  })
-  .catch((err) => {
-    console.log(err)
-    setThinkingTexts(["Thinking…"]);
-  });
+      fetchThinkingText(displayContent)
+        .then(texts => {
+          setThinkingTexts(texts.length ? texts : ["Thinking…"]);
+        })
+        .catch((err) => {
+          console.log(err)
+          setThinkingTexts(["Thinking…"]);
+        });
 
       let know_more = 0;
       if (gradeToSend === -1){
         know_more = 1;
       }
+      
       const data = await sendChatMessage(email, activeSessionId, textToSend, gradeToSend, lang, know_more);
-      // console.log(data);
+
       if ((!activeSessionId) && data.sessionId) {
         setSessionId(data.sessionId);
         loadHistoryList();
@@ -446,20 +531,20 @@ fetchThinkingText(displayContent)
       setLoading(false);
     }
   };
- 
-useEffect(() => {
-  if (!loading || thinkingTexts.length === 0) return;
 
-  const id = setInterval(() => {
-    setThinkingIndex(i => {
-      // Repeat loop: resets to 0 when all lines are displayed
-      if (i >= thinkingTexts.length - 1) return 0;
-      return i + 1;
-    });
-  }, 3000); 
+  useEffect(() => {
+    if (!loading || thinkingTexts.length === 0) return;
 
-  return () => clearInterval(id);
-}, [loading, thinkingTexts]);
+    const id = setInterval(() => {
+      setThinkingIndex(i => {
+        // Repeat loop: resets to 0 when all lines are displayed
+        if (i >= thinkingTexts.length - 1) return 0;
+        return i + 1;
+      });
+    }, 3000); 
+
+    return () => clearInterval(id);
+  }, [loading, thinkingTexts]);
 
   useEffect(() => {
     const handleKnowMoreTrigger = (e) => {
@@ -488,13 +573,9 @@ useEffect(() => {
       e.stopPropagation();
 
       if (isListeningRef.current) {
-        SpeechRecognition.abortListening();
+        stopRecording();
       } else {
-        resetTranscript();
-        SpeechRecognition.startListening({
-          continuous: true,
-          language: voiceLanguage,
-        });
+        startRecording();
       }
     };
 
@@ -503,7 +584,7 @@ useEffect(() => {
     return () => {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
     };
-  }, [voiceLanguage]);
+  }, []);
 
   return (
     <>
@@ -851,6 +932,24 @@ useEffect(() => {
                   <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[80%] h-[70px] blur-[10px] z-0 pointer-events-none animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_bottom,rgba(37,211,102,0.8)_0%,transparent_100%)]" />
                 )}
 
+                {/* Animated Placeholder Layer */}
+                {!input && !listening && (
+                  <div className={`absolute top-0 left-0 h-full flex items-center pointer-events-none z-0 ${isLandscapeMobile ? 'px-3' : 'px-4'}`}>
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={placeholderIndex}
+                        initial={{ y: 15, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -15, opacity: 0 }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
+                        className={`text-[#8696a0] truncate ${isLandscapeMobile ? 'text-sm' : 'text-base'}`}
+                      >
+                        {placeholders[placeholderIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                )}
+
                 {/* Input Field */}
                 <input
                   type="text"
@@ -863,7 +962,8 @@ useEffect(() => {
                       sendMessage();
                     }
                   }}
-                  placeholder={listening ? "Listening..." : "Tap ctrl + k to open mic..."}
+                  // Only show native placeholder when listening, otherwise let the animation show
+                  placeholder={listening ? "Listening..." : ""}
                   className={`w-full border-none outline-none bg-transparent text-[#111b21] relative z-10 placeholder-[#8696a0] ${isLandscapeMobile ? 'text-sm px-3 py-2 pr-[80px]' : 'text-base px-4 py-3.5 pr-[110px]'}`}
                 />
 
