@@ -18,7 +18,7 @@ async function fetchAndCacheMapping() {
   const url = `${BASE_URL}/get-all-empire-metadata-object-ids`;
   
   const res = await fetch(url, { 
-    headers: { client_name: "Mapx" } 
+    headers: { client_name: "mapdesk" } 
   });
 
   if (!res.ok) {
@@ -76,7 +76,7 @@ export async function getMetadataById(metadataId) {
   const res = await fetch(url, {
     method: "GET",
     headers: {
-      client_name: "mapx",
+      client_name: "mapdesk",
       "Authorization": `Bearer ${token}`
     },
   });
