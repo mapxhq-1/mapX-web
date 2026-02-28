@@ -24,7 +24,7 @@ export const myProjApiCall = createAsyncThunk(
       return rejectWithValue(
         err.response?.data?.message ||
           err.response?.statusText ||
-          "Server Error"
+          "Can't reach server. Please check your network!!"
       );
     }
   }
@@ -49,7 +49,7 @@ export const sharedProjApiCall = createAsyncThunk(
       return res.data.data;
     } catch (err) {
       return rejectWithValue(
-        err.response?.data?.message || err.response?.statusText || "Server Error"
+        err.response?.data?.message || err.response?.statusText || "Can't reach server. Please check your network!!"
       );
     }
   }
