@@ -1,4 +1,4 @@
-const BASE_URL =`${import.meta.env.VITE_URL_PROJECT}/project-management-service`;
+const BASE_URL = `${import.meta.env.VITE_URL_PROJECT}/project-management-service`;
 
 const API_CLIENT_NAME = "mapx";
 
@@ -13,34 +13,16 @@ const getHeaders = () => {
 
 /**
  * 1. SEND MESSAGE (Handles both New and Existing Sessions)
- * This replaces the old 'saveChatToBackend', 'createNewChat', and 'updateChatSession'.
- * The backend now handles AI generation and coordinate calculation.
- * * @param {string|null} sessionId - Pass existing sessionId or NULL for a new chat
- * @param {string} message - The user's input text
- * @param {string} grade - e.g., "8th Grade"
  */
 export const sendMessage = async (userId, sessionId, message, grade, lang, know_more) => {
-  let payload;
-  if (grade === -1){
-    payload = {
-      userId: userId,
-      sessionId,
-      knowMore : know_more,
-      message: message,
-      lang
-    };
-  }
-  else{
-    payload = {
-      userId: userId,
-      sessionId,
-      grade,
-      message: message,
-      lang
-    };
-  }
+  const payload = {
+    userId,
+    sessionId,
+    message,
+    lang,
+    ...(grade === -1 ? { knowMore: know_more } : { grade })
+  };
     
-// console.log(payload);
   try {
     const response = await fetch(`${BASE_URL}/chat`, {
       method: "POST",
@@ -49,11 +31,16 @@ export const sendMessage = async (userId, sessionId, message, grade, lang, know_
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Server Error ${response.status}: ${errorText}`);
+      let errorMessage = `Server Error ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        errorMessage = errorJson.message || errorJson.error || JSON.stringify(errorJson);
+      } catch (e) {
+        errorMessage = await response.text();
+      }
+      throw new Error(errorMessage);
     }
 
-    // Returns the full updated chat object (including new history entry & flyToPosition)
     return await response.json(); 
   } catch (error) {
     console.error("Error sending message:", error);
@@ -63,12 +50,8 @@ export const sendMessage = async (userId, sessionId, message, grade, lang, know_
 
 /**
  * 2. GET ALL CHATS
- * Updated to handle response structure: { status: "success", chatData: [...] }
  */
 export const fetchAllChats = async (userId) => {
-  // Encode userId to handle special characters if necessary
-  // Note: Your backend spec uses /get-all-chats/user_001
-  
   try {
     const response = await fetch(`${BASE_URL}/get-all-chats/${userId}`, {
       method: "GET",
@@ -79,7 +62,6 @@ export const fetchAllChats = async (userId) => {
     
     const data = await response.json();
     
-    // Handle specific backend structure
     if (data.chatData && Array.isArray(data.chatData)) {
         return data.chatData;
     }
@@ -92,10 +74,14 @@ export const fetchAllChats = async (userId) => {
 
 /**
  * 3. GET SINGLE CHAT FULL HISTORY
+ * ✅ CONDITIONAL: Routes to /get-chat-history for guests, and /get-chat for logged users.
  */
 export const getChatHistory = async (sessionId) => {
   try {
-    const response = await fetch(`${BASE_URL}/get-chat/${sessionId}`, {
+    const isGuest = !localStorage.getItem('bearerToken');
+    const endpoint = isGuest ? `/get-chat-history/${sessionId}` : `/get-chat/${sessionId}`;
+
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: "GET",
       headers: getHeaders(),
     });
@@ -111,11 +97,9 @@ export const getChatHistory = async (sessionId) => {
 
 /**
  * 4. GET CHAT HISTORY (PAGINATED/LIMITED)
- * New function for the 'GetChatsByLimit' endpoint
  */
 export const getChatHistoryRange = async (sessionId, limit = 10, start = null, end = null) => {
   try {
-    // Build Query Parameters
     const params = new URLSearchParams();
     if (limit) params.append("limit", limit);
     if (start) params.append("start", start);
@@ -137,7 +121,6 @@ export const getChatHistoryRange = async (sessionId, limit = 10, start = null, e
 
 /**
  * 5. DELETE CHAT
- * Assumed to remain similar, but pointing to the standard backend structure
  */
 export const deleteChatSession = async (sessionId) => {
   try {
@@ -147,7 +130,7 @@ export const deleteChatSession = async (sessionId) => {
     });
     
     if (!response.ok) throw new Error(`Server Error ${response.status}`);
-    return await response.json(); // Or simply return true if 204 No Content
+    return await response.json();
   } catch (error) {
     console.error("Error deleting chat:", error);
     throw error;
