@@ -42,7 +42,7 @@ export async function getAllLayers(){
       BASE_URL+`/get_all_geo_layers`,
       {
         headers: {
-          client_name: "mapx",
+          client_name: "mapdesk",
           "Authorization": `Bearer ${token}`
         },
       }
@@ -62,7 +62,7 @@ export async function searchGeoLayers(layerType = null){
       BASE_URL+`/search_geo_layers`,
       {
         headers: {
-          client_name: "mapx",
+          client_name: "mapdesk",
           "Authorization": `Bearer ${token}`
         },params: {layerType}
       }
