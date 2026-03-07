@@ -166,6 +166,12 @@ export default function Chat() {
       if (!res.ok) throw new Error(await res.text());
 
       const data = await res.json();
+      console.log(data);
+      
+      // Change the language based on what the AI detects
+      if (data.language_code) {
+        setVoiceLanguage(data.language_code);
+      }
       
       if (data.transcript) {
         setInput(prev => (prev + (prev ? " " : "") + data.transcript).trim());
@@ -492,7 +498,14 @@ User query (for context only):
     }
 
     try {
-      const lang = voiceLanguage === "kn-IN" ? "kn" : "";
+      // Keep English and Kannada exactly as they were, use raw code for others
+      let lang = voiceLanguage;
+      if (voiceLanguage === "kn-IN") {
+        lang = "kn";
+      } else if (voiceLanguage === "en-IN") {
+        lang = "";
+      }
+      
       setThinkingTexts([]);
       setThinkingIndex(0);
 
@@ -772,7 +785,16 @@ User query (for context only):
                 </select>
                 <select value={voiceLanguage} onChange={(e) => setVoiceLanguage(e.target.value)} className={`rounded-full border border-[#e9edef] bg-white text-[#111b21] outline-none cursor-pointer shadow-sm hover:bg-gray-50 transition-colors ${isLandscapeMobile ? 'py-1 px-2 text-xs min-h-[30px]' : 'py-2.5 px-3 text-sm min-h-[40px]'}`}>
                   <option value="en-IN">English (India)</option>
+                  <option value="hi-IN">Hindi</option>
+                  <option value="bn-IN">Bengali</option>
                   <option value="kn-IN">Kannada</option>
+                  <option value="ml-IN">Malayalam</option>
+                  <option value="mr-IN">Marathi</option>
+                  <option value="or-IN">Odia</option>
+                  <option value="pa-IN">Punjabi</option>
+                  <option value="ta-IN">Tamil</option>
+                  <option value="te-IN">Telugu</option>
+                  <option value="gu-IN">Gujarati</option>
                 </select>
               </div>
 
