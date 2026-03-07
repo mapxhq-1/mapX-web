@@ -23,7 +23,9 @@ export default function Chat() {
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animationFrameRef = useRef(null);
-  const [volumeLevels, setVolumeLevels] = useState(Array(9).fill(8));
+  // Start the baseline at 6 to match the 6px width (w-1.5), creating perfect dots
+  const [volumeLevels, setVolumeLevels] = useState(Array(9).fill(6));
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
   const startRecording = async () => {
     try {
@@ -36,14 +38,17 @@ export default function Chat() {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       const audioCtx = new AudioContext();
       audioContextRef.current = audioCtx;
+      
       const analyser = audioCtx.createAnalyser();
       analyserRef.current = analyser;
-      analyser.fftSize = 64; 
+      analyser.fftSize = 128; 
+      analyser.smoothingTimeConstant = 0.7; 
+      
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      isListeningRef.current = true; // Set sync flag before loop
+      isListeningRef.current = true; 
 
       const updateWaveform = () => {
         if (!isListeningRef.current) return;
@@ -51,9 +56,9 @@ export default function Chat() {
 
         const newLevels = [];
         for (let i = 0; i < 9; i++) {
-          // Take every 2nd bin for variance, map value (0-255) to height (8px - 24px)
-          const value = dataArray[i * 2] || 0;
-          const height = 8 + (value / 255) * 16;
+          const value = dataArray[i]; 
+          const boostedValue = Math.min(255, value * (1 + (i * 0.025))); 
+          const height = 6 + (boostedValue / 255) * 24; 
           newLevels.push(height);
         }
         
@@ -74,7 +79,9 @@ export default function Chat() {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         
         if (shouldTranscribeRef.current) {
+          setIsProcessingAudio(true);
           await transcribeAudio(audioBlob);
+          setIsProcessingAudio(false);
         }
         
         stream.getTracks().forEach(track => track.stop());
@@ -101,7 +108,7 @@ export default function Chat() {
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(console.error);
       }
-      setVolumeLevels(Array(9).fill(8)); // Reset heights
+      setVolumeLevels(Array(9).fill(6)); // Reset heights to dots
     }
   };
 
@@ -225,12 +232,12 @@ User query (for context only):
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   useEffect(() => {
-    if (listening || input.length > 0) return;
+    if (listening || isProcessingAudio || input.length > 0) return;
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 1250); 
+    }, 3000); 
     return () => clearInterval(interval);
-  }, [listening, input]); 
+  }, [listening, isProcessingAudio, input]); 
 
   const [isLandscapeMobile, setIsLandscapeMobile] = useState(false);
   useEffect(() => {
@@ -740,36 +747,58 @@ User query (for context only):
               </div>
 
               <div className={`relative w-full rounded-3xl overflow-hidden bg-white shadow-sm`}>
-                {listening && <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[80%] h-[70px] blur-[10px] z-0 pointer-events-none animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_bottom,rgba(37,211,102,0.8)_0%,transparent_100%)]" />}
+                {(listening || isProcessingAudio) && <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[80%] h-[70px] blur-[10px] z-0 pointer-events-none animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_bottom,rgba(37,211,102,0.8)_0%,transparent_100%)]" />}
                 
-                {/* REACTIVE WAVEFORM LISTENING OVERLAY */}
-                {listening && (
+                {/* LISTENING / PROCESSING OVERLAY */}
+                {(listening || isProcessingAudio) && (
                   <div className={`absolute inset-0 z-30 bg-white flex items-center justify-between ${isLandscapeMobile ? 'px-2' : 'px-3'}`}>
                     
-                    {/* Cancel Pill */}
-                    <button onClick={cancelRecording} title="Cancel" className={`rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10 ${isLandscapeMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-zinc-100 text-[#ff6b6b] hover:bg-[#f0f1e3] cursor-pointer`}>
-                      <svg width={isLandscapeMobile ? "16" : "20"} height={isLandscapeMobile ? "16" : "20"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                    
-                    {/* Reactive Waveform Pill */}
-                    <div className={`flex-1 mx-2 flex justify-center items-center gap-1.5 rounded-full border-b-2 border-black/10 bg-zinc-100 ${isLandscapeMobile ? 'h-8' : 'h-10'}`}>
-                      {volumeLevels.map((height, i) => (
-                        <div
-                          key={i}
-                          style={{ height: `${height}px`, transition: 'height 0.05s ease' }}
-                          className="w-1.5 bg-[#25d366] rounded-full"
-                        />
-                      ))}
-                    </div>
+                    {isProcessingAudio ? (
+                      <div className="flex-1 flex justify-center items-center gap-2">
+                        {[0, 1, 2].map((i) => (
+                          <motion.div
+                            key={i}
+                            animate={{ y: [0, -6, 0] }}
+                            transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.15, ease: "easeInOut" }}
+                            className="w-2.5 h-2.5 bg-[#25d366] rounded-full"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Cancel Pill */}
+                        <button onClick={cancelRecording} title="Cancel" className={`rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10 ${isLandscapeMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-zinc-100 text-[#ff6b6b] hover:bg-[#f0f1e3] cursor-pointer border-none`}>
+                          <svg width={isLandscapeMobile ? "16" : "20"} height={isLandscapeMobile ? "16" : "20"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                        
+                        {/* Expanding Waveform Pill */}
+                        <div className="flex-1 mx-2 flex justify-center items-center">
+                          <motion.div
+                            initial={{ width: "12px", height: "12px", borderRadius: "12px", opacity: 0 }}
+                            animate={{ width: "100%", height: isLandscapeMobile ? "32px" : "40px", borderRadius: "20px", opacity: 1 }}
+                            transition={{ duration: 0.35, ease: "easeOut" }}
+                            className="flex justify-center items-center gap-1.5 border-b-2 border-black/10 bg-zinc-100 overflow-hidden"
+                          >
+                            {volumeLevels.map((height, i) => (
+                              <div
+                                key={i}
+                                style={{ height: `${height}px`, transition: 'height 0.05s ease' }}
+                                className="w-1.5 bg-[#25d366] rounded-full shrink-0"
+                              />
+                            ))}
+                          </motion.div>
+                        </div>
 
-                    {/* Confirm Pill */}
-                    <button onClick={confirmRecording} title="Send & Transcribe" className={`rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10 ${isLandscapeMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-[#25d366] text-white hover:bg-[#128c7e] cursor-pointer`}>
-                      <svg width={isLandscapeMobile ? "18" : "22"} height={isLandscapeMobile ? "18" : "22"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </button>
+                        {/* Confirm Pill */}
+                        <button onClick={confirmRecording} title="Send & Transcribe" className={`rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10 ${isLandscapeMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-[#25d366] text-white hover:bg-[#128c7e] cursor-pointer border-none`}>
+                          <svg width={isLandscapeMobile ? "18" : "22"} height={isLandscapeMobile ? "18" : "22"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
 
-                {!input && !listening && (
+                {!input && !listening && !isProcessingAudio && (
                   <div className={`absolute top-0 left-0 h-full flex items-center pointer-events-none z-0 ${isLandscapeMobile ? 'px-3' : 'px-4'}`}>
                     <AnimatePresence mode="wait">
                       <motion.span key={placeholderIndex} initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -15, opacity: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className={`text-[#8696a0] truncate ${isLandscapeMobile ? 'text-sm' : 'text-base'}`}>
