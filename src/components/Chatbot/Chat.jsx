@@ -17,12 +17,52 @@ export default function Chat() {
 
   const browserSupportsSpeechRecognition = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
+  const shouldTranscribeRef = useRef(true);
+  
+  // --- Audio Reactivity Refs & State ---
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const [volumeLevels, setVolumeLevels] = useState(Array(9).fill(8));
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+
+      // --- Setup Web Audio API for Waveform ---
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioContext();
+      audioContextRef.current = audioCtx;
+      const analyser = audioCtx.createAnalyser();
+      analyserRef.current = analyser;
+      analyser.fftSize = 64; 
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      isListeningRef.current = true; // Set sync flag before loop
+
+      const updateWaveform = () => {
+        if (!isListeningRef.current) return;
+        analyser.getByteFrequencyData(dataArray);
+
+        const newLevels = [];
+        for (let i = 0; i < 9; i++) {
+          // Take every 2nd bin for variance, map value (0-255) to height (8px - 24px)
+          const value = dataArray[i * 2] || 0;
+          const height = 8 + (value / 255) * 16;
+          newLevels.push(height);
+        }
+        
+        setVolumeLevels(newLevels);
+        animationFrameRef.current = requestAnimationFrame(updateWaveform);
+      };
+
+      updateWaveform();
+      // ----------------------------------------
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -32,8 +72,13 @@ export default function Chat() {
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await transcribeAudio(audioBlob);
+        
+        if (shouldTranscribeRef.current) {
+          await transcribeAudio(audioBlob);
+        }
+        
         stream.getTracks().forEach(track => track.stop());
+        shouldTranscribeRef.current = true;
       };
 
       mediaRecorder.start();
@@ -44,20 +89,31 @@ export default function Chat() {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = (transcribe = true) => {
     if (mediaRecorderRef.current && listening) {
+      shouldTranscribeRef.current = transcribe;
       mediaRecorderRef.current.stop();
       setListening(false);
+      isListeningRef.current = false;
+
+      // Clean up AudioContext
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(console.error);
+      }
+      setVolumeLevels(Array(9).fill(8)); // Reset heights
     }
   };
 
+  const cancelRecording = () => stopRecording(false);
+  const confirmRecording = () => stopRecording(true);
+
   const handleMicClick = async () => {
-    if (listening) stopRecording();
+    if (listening) confirmRecording();
     else await startRecording();
   };
 
   const transcribeAudio = async (audioBlob) => {
-    const loadingToast = toast.loading("Transcribing audio...");
     try {
       const formData = new FormData();
       formData.append("file", audioBlob, "audio.webm");
@@ -76,13 +132,9 @@ export default function Chat() {
       
       if (data.transcript) {
         setInput(prev => (prev + (prev ? " " : "") + data.transcript).trim());
-        toast.update(loadingToast, { render: "Transcription complete", type: "success", isLoading: false, autoClose: 2000 });
-      } else {
-        toast.update(loadingToast, { render: "No speech detected", type: "info", isLoading: false, autoClose: 2000 });
       }
     } catch (err) {
       console.error("Transcription error:", err);
-      toast.update(loadingToast, { render: "Failed to transcribe audio", type: "error", isLoading: false, autoClose: 3000 });
     }
   };
 
@@ -160,14 +212,14 @@ User query (for context only):
     "Press mic to start speaking",              
     "बोलना शुरू करने के लिए माइक दबाएं",        
     "কথা বলা শুরু করতে মাইক টিপুন",              
-    "ಮಾತನಾಡಲು ಮೈಕ್ ಒತ್ತಿರಿ",                     
+    "ಮಾತನಾಡಲು ಮೈಕ್ ಒತ್ತಿರಿ",                    
     "സംസാരിക്കാൻ മൈക്ക് അമർത്തുക",                
-    "बोलणे सुरू करण्यासाठी माइक दाबा",           
-    "କହିବା ଆରମ୍ଭ କରିବାକୁ ମାଇକ୍ ଦବାନ୍ତୁ",             
+    "बोलणे सुरू करण्यासाठी माइक दाबा",          
+    "କହିବା ଆରମ୍ଭ କରିବାକୁ ମାଇକ୍ ଦବାନ୍ତୁ",            
     "ਬੋਲਣਾ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਮਾਈਕ ਦਬਾਓ",               
-    "பேசத் தொடங்க மைக்கை அழுத்தவும்",             
-    "మాట్లాడటం ప్రారంభించడానికి మైక్ నొక్కండి",     
-    "બોલવાનું શરૂ કરવા માટે માઇક દબાવો"           
+    "பேசத் தொடங்க மைக்கை அழுத்தவும்",            
+    "మాట్లాడటం ప్రారంభించడానికి మైక్ నొక్కండి",    
+    "બોલવાનું શરૂ કરવા માટે માઇક દબાવો"          
   ];
 
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -176,7 +228,7 @@ User query (for context only):
     if (listening || input.length > 0) return;
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 3000); 
+    }, 1250); 
     return () => clearInterval(interval);
   }, [listening, input]); 
 
@@ -217,7 +269,6 @@ User query (for context only):
   const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); };
   useEffect(() => { scrollToBottom(); }, [messages, loading]);
 
-  // ✅ INITIAL LOAD LOGIC: Only auto-load saved session for guests
   useEffect(() => {
     const initializeChat = async () => {
       await loadHistoryList();
@@ -384,7 +435,7 @@ User query (for context only):
     if (!textToSend.trim() || loading) return;
 
     if (listening) {
-      try { stopRecording(); } catch (e) { console.warn("Could not abort listening:", e); }
+      try { confirmRecording(); } catch (e) { console.warn("Could not abort listening:", e); }
     }
 
     if (!overrideInput) setInput("");
@@ -487,7 +538,7 @@ User query (for context only):
       if (!isCtrlK || e.repeat) return;
       e.preventDefault();
       e.stopPropagation();
-      if (isListeningRef.current) stopRecording();
+      if (isListeningRef.current) confirmRecording();
       else startRecording();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
@@ -690,6 +741,34 @@ User query (for context only):
 
               <div className={`relative w-full rounded-3xl overflow-hidden bg-white shadow-sm`}>
                 {listening && <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[80%] h-[70px] blur-[10px] z-0 pointer-events-none animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_bottom,rgba(37,211,102,0.8)_0%,transparent_100%)]" />}
+                
+                {/* REACTIVE WAVEFORM LISTENING OVERLAY */}
+                {listening && (
+                  <div className={`absolute inset-0 z-30 bg-white flex items-center justify-between ${isLandscapeMobile ? 'px-2' : 'px-3'}`}>
+                    
+                    {/* Cancel Pill */}
+                    <button onClick={cancelRecording} title="Cancel" className={`rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10 ${isLandscapeMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-zinc-100 text-[#ff6b6b] hover:bg-[#f0f1e3] cursor-pointer`}>
+                      <svg width={isLandscapeMobile ? "16" : "20"} height={isLandscapeMobile ? "16" : "20"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                    
+                    {/* Reactive Waveform Pill */}
+                    <div className={`flex-1 mx-2 flex justify-center items-center gap-1.5 rounded-full border-b-2 border-black/10 bg-zinc-100 ${isLandscapeMobile ? 'h-8' : 'h-10'}`}>
+                      {volumeLevels.map((height, i) => (
+                        <div
+                          key={i}
+                          style={{ height: `${height}px`, transition: 'height 0.05s ease' }}
+                          className="w-1.5 bg-[#25d366] rounded-full"
+                        />
+                      ))}
+                    </div>
+
+                    {/* Confirm Pill */}
+                    <button onClick={confirmRecording} title="Send & Transcribe" className={`rounded-full flex items-center justify-center transition-all duration-200 border-b-2 border-black/10 ${isLandscapeMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-[#25d366] text-white hover:bg-[#128c7e] cursor-pointer`}>
+                      <svg width={isLandscapeMobile ? "18" : "22"} height={isLandscapeMobile ? "18" : "22"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </button>
+                  </div>
+                )}
+
                 {!input && !listening && (
                   <div className={`absolute top-0 left-0 h-full flex items-center pointer-events-none z-0 ${isLandscapeMobile ? 'px-3' : 'px-4'}`}>
                     <AnimatePresence mode="wait">
@@ -699,7 +778,7 @@ User query (for context only):
                     </AnimatePresence>
                   </div>
                 )}
-                <input type="text" ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } }} placeholder={listening ? "Listening..." : ""} className={`w-full border-none outline-none bg-transparent text-[#111b21] relative z-10 placeholder-[#8696a0] ${isLandscapeMobile ? 'text-sm px-3 py-2 pr-[80px]' : 'text-base px-4 py-3.5 pr-[110px]'}`} />
+                <input type="text" ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendMessage(); } }} placeholder="" className={`w-full border-none outline-none bg-transparent text-[#111b21] relative z-10 placeholder-[#8696a0] ${isLandscapeMobile ? 'text-sm px-3 py-2 pr-[80px]' : 'text-base px-4 py-3.5 pr-[110px]'}`} />
 
                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 z-20 flex gap-1.5">
                   {browserSupportsSpeechRecognition && (
