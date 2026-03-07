@@ -265,7 +265,7 @@ User query (for context only):
     if (listening || isProcessingAudio || input.length > 0) return;
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 3000); 
+    }, 1250); 
     return () => clearInterval(interval);
   }, [listening, isProcessingAudio, input]); 
 
