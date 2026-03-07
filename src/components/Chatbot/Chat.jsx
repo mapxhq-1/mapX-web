@@ -23,7 +23,6 @@ export default function Chat() {
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animationFrameRef = useRef(null);
-  // Start the baseline at 6 to match the 6px width (w-1.5), creating perfect dots
   const [volumeLevels, setVolumeLevels] = useState(Array(9).fill(6));
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
@@ -41,8 +40,10 @@ export default function Chat() {
       
       const analyser = audioCtx.createAnalyser();
       analyserRef.current = analyser;
-      analyser.fftSize = 128; 
-      analyser.smoothingTimeConstant = 0.7; 
+      
+      // Increased resolution so we can accurately slice out the exact frequencies of a fan
+      analyser.fftSize = 512; 
+      analyser.smoothingTimeConstant = 0.8; // High smoothing for fluid visual bars
       
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -54,12 +55,41 @@ export default function Chat() {
         if (!isListeningRef.current) return;
         analyser.getByteFrequencyData(dataArray);
 
+        // With fftSize 512, each bin is ~86Hz.
+        // We skip bins 0, 1, 2, and 3 (0Hz to 344Hz) to completely bypass deep fan/AC rumble.
+        // We sample specific bins across the mid-high voice range (up to ~3kHz).
+        const voiceBins = [4, 6, 8, 11, 14, 18, 22, 27, 33];
+        
+        let maxEnergy = 0;
+        const currentValues = voiceBins.map(bin => {
+          const val = dataArray[bin] || 0;
+          if (val > maxEnergy) maxEnergy = val;
+          return val;
+        });
+
         const newLevels = [];
-        for (let i = 0; i < 9; i++) {
-          const value = dataArray[i]; 
-          const boostedValue = Math.min(255, value * (1 + (i * 0.025))); 
-          const height = 6 + (boostedValue / 255) * 24; 
-          newLevels.push(height);
+
+        // STRICT PEAK GATE: Laptops boost fan noise when you're quiet.
+        // A fan will hum at a constant ~50-80 raw value. Voice spikes rapidly to 150-250.
+        // If the absolute loudest frequency is below 90, lock to dots.
+        if (maxEnergy < 90) {
+           for (let i = 0; i < 9; i++) {
+             newLevels.push(6); 
+           }
+        } else {
+           // The gate is open! The user is speaking.
+           for (let i = 0; i < 9; i++) {
+             const value = currentValues[i];
+             
+             // Even when speaking, completely subtract the constant background hum (the first 60 points)
+             const cleanValue = Math.max(0, value - 60);
+             
+             // Cap the max value so normal talking easily hits the top of the bar
+             const percentage = Math.min(1, cleanValue / 140);
+             
+             // 0% = 6px (dot), 100% = 30px (full line)
+             newLevels.push(6 + (percentage * 24));
+           }
         }
         
         setVolumeLevels(newLevels);

@@ -1030,10 +1030,7 @@ const onEmpireClick = async (e) => {
         layers: ["draw-final-line", "draw-final-fill", "draw-final-text"]
       });
       if (drawingFeatures?.length) {
-        // --- FIX START ---
-        // Instead of just returning, we must manually trigger the selection logic!
         onSelectClick(e); 
-        // --- FIX END ---
         return;
     }
       
@@ -1049,7 +1046,6 @@ const onEmpireClick = async (e) => {
         const empireId = feature.properties?.id; 
         const empireName = feature.properties?.name || feature.properties?.Name;
         console.log(empireName)
-        // --- GLOW LOGIC RESTORED ---
         if (empireId) {
             selectedEmpireNameRef.current = empireId;
             const filterExpr = ["==", ["get", "id"], empireId];
@@ -1101,53 +1097,71 @@ const onEmpireClick = async (e) => {
                     // STORE DATA IN REF
                     currentMetadataRef.current = data;
 
-                    const htmlContent = `
-                        <style>
-                            .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
-                            .dyno-scroll::-webkit-scrollbar { width: 3px; }
-                            .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
-                            .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
-                        </style>
+                    // CHECK FOR IMAGES
+const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
-                        <div class="bg-[#f1ebe3] resize rounded-lg shadow-xl border border-[#d4c5b0] w-[340px] h-[200px] p-4 font-sans flex flex-col relative overflow-hidden">
-                            
-                            <div class="flex justify-between items-center mb-2 border-b border-black/10 pb-2">
-                                
-                                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2">
-                                    ${data.name || empireName || 'Empire Details'}
-                                </h3>
-                                
-                                <div class="flex flex-col items-center shrink-0">
-                                    <span class="text-[9px] text-[#8c7b6e] font-medium tracking-tight mb-1">
-                                        To know more
-                                    </span>
+const htmlContent = `
+    <style>
+        .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+        .dyno-scroll::-webkit-scrollbar { width: 3px; }
+        .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
+        .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
+    </style>
 
-                                    <button 
-                                        class="bg-[#075e54] text-white px-5 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap"
-                                        onclick="window.handleAskDyno()"
-                                    >
-                                        Ask Dyno
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="dyno-scroll flex-1 overflow-y-auto pr-1 space-y-1.5">
-                                ${Object.entries(data)
-                                    .filter(([key]) => !['name', 'id', 'empire_id'].includes(key.toLowerCase()))
-                                    .map(([key, value]) => `
-                                        <div class="flex justify-between items-start text-xs border-b border-black/5 pb-1 last:border-0">
-                                            <span class="font-semibold text-[#6b5b4e] capitalize shrink-0 mr-3">${key.replace(/_/g, ' ')}</span> 
-                                            <span class="font-medium text-gray-800 text-right leading-tight break-words flex-1">${value}</span>
-                                        </div>
-                                    `).join('')}
-                            </div>
+    <div class="relative flex max-w-[90vw]" style="${hasImages ? 'padding-right: 272px;' : ''}">
+        
+        <div class="bg-[#f1ebe3] resize rounded-lg shadow-xl border border-[#d4c5b0] w-[340px] h-[200px] min-w-[250px] min-h-[150px] p-4 font-sans flex flex-col relative overflow-hidden z-10">
+            
+            <div class="flex justify-between items-center mb-2 border-b border-black/10 pb-2">
+                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2">
+                    ${data.name || empireName || 'Empire Details'}
+                </h3>
+                
+                <div class="flex flex-col items-center shrink-0">
+                    <span class="text-[9px] text-[#8c7b6e] font-medium tracking-tight mb-1">
+                        To know more
+                    </span>
+                    <button class="bg-[#075e54] text-white px-5 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" onclick="window.handleAskDyno()">
+                        Ask Dyno
+                    </button>
+                </div>
+            </div>
+            
+            <div class="dyno-scroll flex-1 overflow-y-auto pr-1 space-y-1.5">
+                ${Object.entries(data)
+                    .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
+                    .map(([key, value]) => `
+                        <div class="flex justify-between items-start text-xs border-b border-black/5 pb-1 last:border-0">
+                            <span class="font-semibold text-[#6b5b4e] capitalize shrink-0 mr-3">${key.replace(/_/g, ' ')}</span> 
+                            <span class="font-medium text-gray-800 text-right leading-tight break-words flex-1">${value}</span>
                         </div>
-                    `;
+                    `).join('')}
+            </div>
+        </div>
 
-                    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
-                        .setLngLat(e.lngLat)
-                        .setHTML(htmlContent)
-                        .addTo(map.current);
+        ${hasImages ? `
+        <div class="absolute top-0 right-0 w-[260px] h-full bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 font-sans flex flex-col overflow-hidden">
+            <h3 class="text-[#2A1F14] font-bold text-sm leading-snug mb-2 border-b border-black/10 pb-2">
+                Gallery
+            </h3>
+            <div class="dyno-scroll flex-1 overflow-y-auto pr-1 space-y-3">
+                ${data.images.map(img => `
+                    <div class="flex flex-col gap-1">
+                        <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />
+                        ${img.caption ? `<span class="text-[10px] text-[#6b5b4e] italic text-center px-1">${img.caption}</span>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
+
+    </div>
+`;
+
+popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
+    .setLngLat(e.lngLat)
+    .setHTML(htmlContent)
+    .addTo(map.current);
                 }
             } catch (err) { console.error(err); }
         }
