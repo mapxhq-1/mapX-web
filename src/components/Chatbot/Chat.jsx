@@ -490,8 +490,8 @@ User query (for context only):
       }
       
       let backendQuery = displayContent;
-      
-      if (voiceLanguage !== 'en-IN' || voiceLanguage !== 'kn') {
+      console.log({voiceLanguage})
+      if (voiceLanguage !== 'en-IN' && voiceLanguage !== 'kn-IN') {
         backendQuery = await translateToEnglish(displayContent,voiceLanguage);
       }
 
