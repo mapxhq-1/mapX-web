@@ -136,3 +136,39 @@ export const deleteChatSession = async (sessionId) => {
     throw error;
   }
 };
+export const translateToEnglish = async (text, sourceLangCode = "ta-IN") => {
+  try {
+    // If your app passes 'auto', fallback to a default since the API requires a specific code 
+    // (like 'hi-IN' or 'ta-IN') to avoid a 400 Bad Request error.
+    const safeSourceCode = sourceLangCode === "auto" ? "ta-IN" : sourceLangCode;
+
+    const response = await fetch("https://api.sarvam.ai/translate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY
+      },
+      body: JSON.stringify({
+        input: text,
+        source_language_code: safeSourceCode,
+        target_language_code: "en-IN", // Translating to English
+        model: "sarvam-translate:v1",  // Using the model that supports all 22 languages
+        mode: "formal"   
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error(`Sarvam API Error (${response.status}):`, errorData);
+      return text; // Fallback to original text so the app doesn't crash
+    }
+
+    const data = await response.json();
+    
+    return data.translated_text || text;
+
+  } catch (error) {
+    console.error("Failed to execute translateToEnglish:", error);
+    return text;
+  }
+};

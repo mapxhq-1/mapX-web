@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from "framer-motion";
 
-import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession } from "../api/chatService";
+import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish } from "../api/chatService";
 
 export default function Chat() {
   const dispatch = useDispatch();
@@ -41,9 +41,8 @@ export default function Chat() {
       const analyser = audioCtx.createAnalyser();
       analyserRef.current = analyser;
       
-      // Increased resolution so we can accurately slice out the exact frequencies of a fan
       analyser.fftSize = 512; 
-      analyser.smoothingTimeConstant = 0.8; // High smoothing for fluid visual bars
+      analyser.smoothingTimeConstant = 0.8; 
       
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -55,9 +54,6 @@ export default function Chat() {
         if (!isListeningRef.current) return;
         analyser.getByteFrequencyData(dataArray);
 
-        // With fftSize 512, each bin is ~86Hz.
-        // We skip bins 0, 1, 2, and 3 (0Hz to 344Hz) to completely bypass deep fan/AC rumble.
-        // We sample specific bins across the mid-high voice range (up to ~3kHz).
         const voiceBins = [4, 6, 8, 11, 14, 18, 22, 27, 33];
         
         let maxEnergy = 0;
@@ -69,25 +65,15 @@ export default function Chat() {
 
         const newLevels = [];
 
-        // STRICT PEAK GATE: Laptops boost fan noise when you're quiet.
-        // A fan will hum at a constant ~50-80 raw value. Voice spikes rapidly to 150-250.
-        // If the absolute loudest frequency is below 90, lock to dots.
         if (maxEnergy < 90) {
            for (let i = 0; i < 9; i++) {
              newLevels.push(6); 
            }
         } else {
-           // The gate is open! The user is speaking.
            for (let i = 0; i < 9; i++) {
              const value = currentValues[i];
-             
-             // Even when speaking, completely subtract the constant background hum (the first 60 points)
              const cleanValue = Math.max(0, value - 60);
-             
-             // Cap the max value so normal talking easily hits the top of the bar
              const percentage = Math.min(1, cleanValue / 140);
-             
-             // 0% = 6px (dot), 100% = 30px (full line)
              newLevels.push(6 + (percentage * 24));
            }
         }
@@ -133,12 +119,11 @@ export default function Chat() {
       setListening(false);
       isListeningRef.current = false;
 
-      // Clean up AudioContext
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(console.error);
       }
-      setVolumeLevels(Array(9).fill(6)); // Reset heights to dots
+      setVolumeLevels(Array(9).fill(6)); 
     }
   };
 
@@ -168,7 +153,6 @@ export default function Chat() {
       const data = await res.json();
       console.log(data);
       
-      // Change the language based on what the AI detects
       if (data.language_code) {
         setVoiceLanguage(data.language_code);
       }
@@ -498,7 +482,6 @@ User query (for context only):
     }
 
     try {
-      // Keep English and Kannada exactly as they were, use raw code for others
       let lang = voiceLanguage;
       if (voiceLanguage === "kn-IN") {
         lang = "kn";
@@ -506,16 +489,25 @@ User query (for context only):
         lang = "";
       }
       
+      let backendQuery = displayContent;
+      
+      if (voiceLanguage !== 'en-IN' || voiceLanguage !== 'kn') {
+        backendQuery = await translateToEnglish(displayContent,voiceLanguage);
+      }
+
       setThinkingTexts([]);
       setThinkingIndex(0);
 
-      fetchThinkingText(displayContent)
+      // Pass the English backendQuery to fetchThinkingText
+      fetchThinkingText(backendQuery)
         .then(texts => setThinkingTexts(texts.length ? texts : ["Thinking…"]))
         .catch(() => setThinkingTexts(["Thinking…"]));
 
       const know_more = gradeToSend === -1 ? 1 : 0;
       
-      const data = await sendChatMessage(effectiveUserId, activeSessionId, textToSend, gradeToSend, lang, know_more);
+      // Send the translated backendQuery to the database/model layer
+      console.log({backendQuery});
+      const data = await sendChatMessage(effectiveUserId, activeSessionId, backendQuery, gradeToSend, lang, know_more);
 
       if ((!activeSessionId) && data.sessionId) {
         setSessionId(data.sessionId);
@@ -528,6 +520,9 @@ User query (for context only):
         const newUiMessages = [];
         sortedHistory.forEach(h => newUiMessages.push(...mapHistoryToUi(h)));
         
+        // Make sure you append your local user message (in native language) if the backend returns the english one
+        // Note: Check how your mapHistoryToUi handles "userInput" vs your local display. 
+        // You may need to tweak `mapHistoryToUi` if the backend saves the English version to history and overwrites the local language one.
         setMessages(newUiMessages);
 
         const lastHistoryItem = sortedHistory[sortedHistory.length - 1];
