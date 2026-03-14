@@ -208,9 +208,14 @@ User query (for context only):
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.choices[0].message.content
-      .split("\n")
-      .map(t => t.replace(/^[-•\d.]+\s*/, "").trim())
-      .filter(Boolean);
+    .split("\n")
+    .map(t => {
+      return t
+        .replace(/<think>|<\/think>/gi, "") // 1. Remove any <think> or </think> tags
+        .replace(/^\s*(\d+\.|[-•*])\s*/, "") // 2. Remove leading numbers (1.), dashes, or bullets
+        .trim();
+    })
+    .filter(t => t.length > 0 && !t.toLowerCase().includes("here are")); // 3. Filter empty lines or preambles
   }
   
   const [messages, setMessages] = useState([]);
