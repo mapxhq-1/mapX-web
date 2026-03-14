@@ -6,7 +6,7 @@ import { isMaRange, maBinToYear, yearToMaBin, MA_BINS, MA_MIN_YEAR } from "../..
 import metalTexture from './metalSlider.png';
 
 const BCE_BOUNDARY_YEAR = -4500;
-const MAX_YEAR = 2025;
+const MAX_YEAR = 2026;
 const BCE_MAX_YEAR = 4500;
 const MIN_YEAR = MA_MIN_YEAR;
 const FIRST_MA_YEAR = maBinToYear(MA_BINS[0]);
