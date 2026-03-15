@@ -10,7 +10,7 @@ import { getUserProfile, getProfilePhoto } from '../../api/auth';
 import { saveFeedback } from '../../api/project';
 
 import Profile from "./Profile";
-import {MessageCircleQuestionMark} from 'lucide-react'
+import {Play} from 'lucide-react'
 // Assets
 import plus from '../../../assets/icons/Plus.png';
 import time from '../../../assets/icons/time.png';
@@ -51,14 +51,9 @@ const Sidebar = () => {
     useEffect(() => {
         const checkMobileLandscape = () => {
             const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent || navigator.vendor || window.opera;
-            // 1. Is it a mobile device?
             const isMobileDevice = /android|iPad|iPhone|iPod/i.test(userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
-            // 2. Is it Landscape?
             const isLandscape = window.innerWidth > window.innerHeight;
-            // 3. Is height small? (Safety check)
             const isShort = window.innerHeight < 500;
-
-            // Logic: If it is mobile landscape OR if the screen width is small enough (<1024) but treated as landscape
             setIsCompact(isMobileDevice && isLandscape && isShort);
         };
 
@@ -66,7 +61,6 @@ const Sidebar = () => {
         window.addEventListener('resize', checkMobileLandscape);
         return () => window.removeEventListener('resize', checkMobileLandscape);
     }, []);
-    // ----------------------------------
 
     const [feedback, setFeedback] = useState("");
     const dispatch = useDispatch();
@@ -87,8 +81,6 @@ const Sidebar = () => {
 
     const getNavItemClass = (isActive) => {
         const base = "group relative flex items-center gap-3 rounded-full select-none cursor-pointer mb-1 transition-all duration-200 ease-in-out";
-        // Mobile Landscape: tighter padding (px-3 py-1)
-        // Desktop/Portrait: standard padding (px-5 py-3)
         const sizeClasses = isCompact 
             ? "px-3 py-1 mx-2" 
             : "px-5 py-3 mx-4";
@@ -180,7 +172,6 @@ const Sidebar = () => {
     }, [location.pathname, dispatch, userId]);
 
     // --- Dynamic Styles ---
-    // Reduced width to 200px for extra compactness
     const sidebarWidth = isCompact ? "w-[200px]" : "w-[300px]";
     const containerLayout = isCompact ? "flex-col overflow-y-auto" : "flex-col justify-between"; 
     
@@ -188,18 +179,16 @@ const Sidebar = () => {
         ? "pt-2 pb-1" 
         : "flex-1 overflow-y-auto no-scrollbar pt-8 pb-4";
 
-    // FURTHER REDUCED SIZES
     const iconSize = isCompact ? "w-2.5 h-2.5" : "w-4 h-4"; 
     const textSize = isCompact ? "text-[10px]" : "text-sm";
     
     const headerSize = isCompact ? "text-base mb-1" : "text-2xl mb-8";
     const headerPadding = isCompact ? "px-4" : "px-8";
-    const feedbackHeight = isCompact ? "h-10" : "h-25";
+    const feedbackHeight = isCompact ? "h-10" : "h-24";
 
     return (
         <>
             {/* --- MOBILE TRIGGER --- */}
-            {/* UPDATED: Changed md:hidden to lg:hidden so it appears on landscape mobile/tablet */}
             <button 
                 onClick={() => setIsMobileOpen(true)}
                 className="lg:hidden fixed top-6 left-4 z-[60] p-2 bg-zinc-900 rounded-full border border-white/10 text-white"
@@ -210,7 +199,6 @@ const Sidebar = () => {
             </button>
 
             {/* --- MOBILE OVERLAY --- */}
-            {/* UPDATED: Changed md:hidden to lg:hidden */}
             {isMobileOpen && (
                 <div 
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] lg:hidden"
@@ -219,10 +207,6 @@ const Sidebar = () => {
             )}
 
             {/* --- SIDEBAR CONTAINER --- */}
-            {/* UPDATED: 
-                1. 'md:relative' -> 'lg:relative' (Only become relative on Large screens/Desktop)
-                2. '-translate-x-full md:translate-x-0' -> '-translate-x-full lg:translate-x-0' (Hidden by default until Large screens)
-            */}
             <div className={`
                 fixed lg:relative z-[80] h-full
                 transition-transform duration-300 ease-in-out
@@ -238,7 +222,6 @@ const Sidebar = () => {
                             <h1 className="text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive', fontSize: 'inherit' }}>
                                 Happy Dyno
                             </h1>
-                            {/* UPDATED: md:hidden -> lg:hidden */}
                             <button onClick={() => setIsMobileOpen(false)} className="lg:hidden text-zinc-500">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -294,23 +277,34 @@ const Sidebar = () => {
                             <p className={`${headerPadding} mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600`}>Support</p>
                             <a href='https://help.happydyno.com' target='_blank' rel="noreferrer">
                                 <div className={getNavItemClass(false)}>
-                                    <MessageCircleQuestionMark size={18}/>
-                                    <span className={`font-medium ${textSize}`}>How to videos</span>
+                                    <Play size={18}/>
+                                    <span className={`font-medium ${textSize}`}>How to use - Videos</span>
                                 </div>
                             </a>
                         </div>
 
-                        {/* Feedback */}
-                        <div className={`mt-4 ${headerPadding}`}>
-                            <textarea 
-                                value={feedback}
-                                onChange={(e) => setFeedback(e.target.value)}
-                                className={`w-full ${feedbackHeight} bg-black/20 text-zinc-300 text-[12px] rounded-lg p-2 outline-none resize-none border border-white/5 placeholder:text-zinc-600 transition-all`}
-                                placeholder="Let’s make Dyno cool! 🦕"
-                            />
-                            <button onClick={handleFeedbackSubmit} className="mt-1 w-full py-2 rounded-lg text-[10px] font-semibold uppercase bg-black text-zinc-500 border border-zinc-800 hover:bg-zinc-200 hover:text-black">
-                                Submit
-                            </button>
+                        {/* Feedback — separate card with inset depth effect */}
+                        <div className={`mt-2 px-2`}>
+                            <div className="rounded-xl border border-white/[0.06] bg-gradient-to-b from-zinc-900 to-[#141416] shadow-[0_4px_24px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05),inset_0_-1px_0_rgba(0,0,0,0.4)]">
+                                <div className="px-3 pt-3 pb-1">
+                                    <div className="rounded-lg shadow-[inset_0_2px_8px_rgba(0,0,0,0.8),inset_0_1px_3px_rgba(0,0,0,0.6)] bg-black/50 border border-black/70">
+                                        <textarea 
+                                            value={feedback}
+                                            onChange={(e) => setFeedback(e.target.value)}
+                                            className={`w-full ${feedbackHeight} bg-transparent text-zinc-300 text-[12px] rounded-lg p-2.5 outline-none resize-none placeholder:text-zinc-400 transition-all`}
+                                            placeholder="Please write feedback, Lets make dyno cool 🦕"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="px-3 pb-3 pt-2">
+                                    <button
+                                        onClick={handleFeedbackSubmit}
+                                        className="w-full py-1.5 rounded-lg text-[10px] font-semibold uppercase bg-black/60 text-zinc-400 border border-zinc-800/80 hover:bg-zinc-200 hover:text-black transition-all duration-200 shadow-[0_1px_3px_rgba(0,0,0,0.4)]"
+                                    >
+                                        Submit
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

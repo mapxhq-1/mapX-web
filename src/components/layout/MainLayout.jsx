@@ -3,6 +3,8 @@ import { Box, Typography, Button, useMediaQuery } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import axios from "axios";
+import { motion } from "framer-motion"; // <-- Added for draggable window
+
 import ScreenRotationIcon from '@mui/icons-material/ScreenRotation'; 
 import FullscreenIcon from '@mui/icons-material/Fullscreen'; 
 
@@ -19,8 +21,20 @@ import { setEmail, setUserToken } from "../../store/projectSlice";
 import ResizableWindow from "../Chatbot/ResizableWindow";
 import Chat from "../Chatbot/Chat";
 import GalaxyCanvas from "../common/GalaxyCanvas";
+import Tools from '../panels/Tools.jsx'
 
-export default function MainLayout() {
+// --- Tool Icons Imports ---
+import pencilIcon from "../../assets/icons/pencil_icon.png";
+import highlighterIcon from "../../assets/icons/highlighter_icon.png";
+import eraserIcon from "../../assets/icons/eraser_icon.png";
+import noteIcon from "../../assets/icons/note_icon.png";
+import textIcon from "../../assets/icons/text_icon.png";
+import hyperlinkIcon from "../../assets/icons/hyperlink_icon.png";
+import imageIcon from "../../assets/icons/image_icon.png";
+import handIcon from "../../assets/icons/hand_icon.png";
+import selectIcon from "../../assets/icons/select_icon.png";
+
+export default function MainLayout({ isDemo }) { // <-- Accept isDemo if needed for Tools
   const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
   
   // --- LAYOUT STATE ---
@@ -30,6 +44,9 @@ export default function MainLayout() {
 
   const leftWidth = leftExpanded ? 250 : 50;
   const rightWidth = rightExpanded ? 300 : 50;
+
+  // --- TOOLS STATE ---
+  const [selectedMode, setSelectedMode] = useState(null);
 
   // --- DATA STATE ---
   const { id } = useParams();
@@ -43,13 +60,9 @@ export default function MainLayout() {
   const hyperlinkOpen = useSelector((state) => state.map.hyperlinkOpen);
   const loading = useSelector((state) => state.map.loading);
 
-  // --- CRITICAL FIX: MEDIA QUERIES ---
-  
-  // 1. Portrait: Standard mobile width check
+  // --- MEDIA QUERIES ---
   const isMobilePortrait = useMediaQuery('(max-width: 900px) and (orientation: portrait)');
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  // 2. Landscape: INCREASED to 1200px.
-  // iPhone 14 Pro Max landscape width is ~932px. The old 900px limit missed it.
   const isMobileLandscape = useMediaQuery('(max-width: 1200px) and (orientation: landscape)');
 
   // --- AUTH & DATA ---
@@ -77,34 +90,25 @@ export default function MainLayout() {
 
   useEffect(() => { dispatch(fetchAllEmpirePolygons()); }, [dispatch]);
 
-  // --- FULLSCREEN HANDLERS (ROBUST FIX) ---
+  // --- FULLSCREEN HANDLERS ---
   useEffect(() => {
-    // 1. Define the check function
     const checkFullscreenStatus = () => {
-      // Check all vendor prefixes
       const isFull = 
         document.fullscreenElement || 
         document.webkitFullscreenElement || 
         document.mozFullScreenElement || 
         document.msFullscreenElement ||
-        document.webkitCurrentFullScreenElement; // Specific to some iOS versions
+        document.webkitCurrentFullScreenElement; 
 
-      // Update state
       setIsFullscreen(!!isFull);
     };
 
-    // 2. Add Event Listeners (The standard way)
     document.addEventListener("fullscreenchange", checkFullscreenStatus);
     document.addEventListener("webkitfullscreenchange", checkFullscreenStatus);
     document.addEventListener("mozfullscreenchange", checkFullscreenStatus);
     document.addEventListener("MSFullscreenChange", checkFullscreenStatus);
 
-    // 3. ADD POLLING (The "Stuck State" Fix)
-    // Check every 500ms. If the browser exits fullscreen but forgets to tell us,
-    // this will catch it and show the blocker immediately.
     const intervalId = setInterval(checkFullscreenStatus, 500);
-
-    // Initial check
     checkFullscreenStatus();
 
     return () => {
@@ -112,7 +116,7 @@ export default function MainLayout() {
       document.removeEventListener("webkitfullscreenchange", checkFullscreenStatus);
       document.removeEventListener("mozfullscreenchange", checkFullscreenStatus);
       document.removeEventListener("MSFullscreenChange", checkFullscreenStatus);
-      clearInterval(intervalId); // Cleanup the timer
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -129,6 +133,29 @@ export default function MainLayout() {
     } catch (error) { console.error(error); }
   };
 
+  const ToolIcons = {
+    SelectSvg: () => <img src={selectIcon} alt="Select" className="w-full h-full object-contain" />,
+    HandSvg: () => <img src={handIcon} alt="Hand" className="w-full h-full object-contain" />,
+    PencilSvg: () => <img src={pencilIcon} alt="Pencil" className="w-full h-full object-contain" />,
+    HighlighterSvg: () => <img src={highlighterIcon} alt="Highlighter" className="w-full h-full object-contain" />,
+    EraserSvg: () => <img src={eraserIcon} alt="Eraser" className="w-full h-full object-contain" />,
+    NoteSvg: () => <img src={noteIcon} alt="Notes" className="w-full h-full object-contain" />,
+    TextSvg: () => <img src={textIcon} alt="Text" className="w-full h-full object-contain" />,
+    HyperlinkSvg: () => <img src={hyperlinkIcon} alt="Hyperlink" className="w-full h-full object-contain" />,
+    ImageSvg: () => <img src={imageIcon} alt="Image" className="w-full h-full object-contain" />,
+  };
+
+  const handleToolClick = (mode, color=null) => {
+    setSelectedMode(mode);
+    try { window.mapxDrawSetMode && window.mapxDrawSetMode(mode,color); } catch (e) { console.error("Error:", e) }
+  };
+
+  const handleShapeClick = (shapeType) => {
+    setSelectedMode(shapeType);
+    try { window.mapxDrawSetMode && window.mapxDrawSetMode(shapeType); } catch(e){console.error("Error:", e)}
+  };
+
+  // --- RENDER BLOCKING SCREENS ---
   const BlockingScreen = ({ icon, title, subtitle, buttonText, onButtonClick, onDismiss }) => (
     <Box sx={{
       height: "100vh", width: "100vw", display: "flex", flexDirection: "column",
@@ -146,46 +173,23 @@ export default function MainLayout() {
         {icon}
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, color: "#fff" }}>{title}</Typography>
         <Typography variant="body1" sx={{ opacity: 0.7, mb: 3, color: "#fff" }}>{subtitle}</Typography>
-        
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-    
-    {/* ADD THIS CHECK: Only render if buttonText exists */}
-    {buttonText && (
-        <Button 
-            variant="contained" 
-            size="large" 
-            startIcon={<FullscreenIcon />} 
-            onClick={onButtonClick}
-            sx={{ 
-                backgroundColor: "#2e7d32", 
-                color: "#ffffff", 
-                borderRadius: "50px", 
-                px: 4, 
-                py: 1.5, 
-                fontWeight: "bold", 
-                textTransform: "none", 
-                borderTop: "2px solid rgba(255, 255, 255, 0.4)", 
-            }}
-        >
-            {buttonText}
-        </Button>
-    )}
-
-</Box>
+          {buttonText && (
+            <Button 
+              variant="contained" size="large" startIcon={<FullscreenIcon />} onClick={onButtonClick}
+              sx={{ 
+                backgroundColor: "#2e7d32", color: "#ffffff", borderRadius: "50px", px: 4, py: 1.5, 
+                fontWeight: "bold", textTransform: "none", borderTop: "2px solid rgba(255, 255, 255, 0.4)", 
+              }}
+            >
+              {buttonText}
+            </Button>
+          )}
+        </Box>
       </Box>
     </Box>
   );
 
-  // --- DEBUG OVERLAY (REMOVE AFTER VERIFYING) ---
-  const DebugOverlay = () => (
-    <Box sx={{ position: 'fixed', top: 0, left: 0, zIndex: 99999, bgcolor: 'rgba(255,0,0,0.8)', color: 'white', p: 1, fontSize: 12 }}>
-      W: {window.innerWidth}px | Land: {isMobileLandscape ? "YES" : "NO"} | Full: {isFullscreen ? "YES" : "NO"}
-    </Box>
-  );
-
-  // --- RENDER LOGIC ---
-
-  // 1. Portrait Warning
   if (isMobilePortrait) {
     return (
       <BlockingScreen 
@@ -198,7 +202,6 @@ export default function MainLayout() {
     );
   }
 
-  // 2. Landscape but NO Fullscreen
   if (isMobileLandscape && !isFullscreen && !isIOS) {
     return (
       <BlockingScreen 
@@ -206,28 +209,61 @@ export default function MainLayout() {
         subtitle="This experience requires fullscreen mode."
         buttonText="Enter Fullscreen"
         onButtonClick={handleEnterFullscreen}
-        onDismiss={() => setIsFullscreen(true)} // <--- Allow user override
+        onDismiss={() => setIsFullscreen(true)}
         icon={<FullscreenIcon sx={{ fontSize: 80, mb: 2, color: "#ffffff", animation: "pulse 2s infinite" }} />}
       />
     );
   }
 
-  // 3. Main App
+  // --- MAIN APP ---
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <ResizableWindow><Chat /></ResizableWindow>
+      
       <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
         <MapView leftOffset={leftWidth} rightOffset={rightWidth} />
+        
         <Box id="timeline-overlay" sx={{ position: "absolute", left: leftWidth + 8, right: rightWidth + 8, bottom: 8, zIndex: 15, pointerEvents: "none" }}>
           <Timeline />
         </Box>
+        
         <Box sx={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 20, pointerEvents: "auto" }}>
-          <LeftPanel expanded={leftExpanded} onToggle={() => setLeftExpanded((v) => !v)} position="left" widthExpanded={250} widthCollapsed={50} />
+          <LeftPanel expanded={leftExpanded} onToggle={() => setLeftExpanded((v) => !v)} position="left" widthExpanded={250} widthCollapsed={50} isDemo={isDemo} />
         </Box>
+        
         <Box sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, pointerEvents: "auto" }}>
           <RightPanel expanded={rightExpanded} onToggle={() => setRightExpanded((v) => !v)} position="right" widthExpanded={300} widthCollapsed={50} project={project} />
         </Box>
+        
         {loading && <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, pointerEvents: "none" }}><MapLoader /></Box>}
+
+        {/* --- FLOATING, DRAGGABLE TOOLS WIDGET --- */}
+        <motion.div
+          drag
+          dragMomentum={false}
+          // Use fixed positioning so it escapes all box constraints
+          style={{ 
+            position: 'fixed', 
+            bottom: '40px', 
+            left: '50%',
+            x: '-50%', // Centers it horizontally based on its own width
+            zIndex: 9999, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center' 
+          }}
+          className="pointer-events-auto"
+        >
+
+          <Tools 
+            selectedMode={selectedMode} 
+            handleToolClick={handleToolClick}
+            handleShapeClick={handleShapeClick}
+            Icons={ToolIcons}
+            isDemo={isDemo}
+          />
+        </motion.div>
+
       </Box>
       
       {notesOpen && <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, pointerEvents: "auto" }}><Notes noteData={currentNote} isOpen={notesOpen} onClose={() => dispatch(closeNotes())} /></Box>}
