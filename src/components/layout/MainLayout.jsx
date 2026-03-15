@@ -244,8 +244,8 @@ export default function MainLayout({ isDemo }) { // <-- Accept isDemo if needed 
           // Use fixed positioning so it escapes all box constraints
           style={{ 
             position: 'fixed', 
-            bottom: '40px', 
-            left: '50%',
+            bottom: '200px', 
+            left: '78%',
             x: '-50%', // Centers it horizontally based on its own width
             zIndex: 9999, 
             display: 'flex', 

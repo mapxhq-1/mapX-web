@@ -13,6 +13,18 @@ import RightPanel from "../panels/RightPanel";
 import MapLoader from "../loaders/MapLoader"; 
 import GalaxyCanvas from "../common/GalaxyCanvas";
 import { fetchAllEmpirePolygons } from "../../store/mapSlice";
+import { motion } from "framer-motion"; 
+import Tools from '../panels/Tools.jsx'
+import handIcon from "../../assets/icons/hand_icon.png";
+import selectIcon from "../../assets/icons/select_icon.png";
+
+import pencilIcon from "../../assets/icons/pencil_icon.png";
+import highlighterIcon from "../../assets/icons/highlighter_icon.png";
+import eraserIcon from "../../assets/icons/eraser_icon.png";
+import noteIcon from "../../assets/icons/note_icon.png";
+import textIcon from "../../assets/icons/text_icon.png";
+import hyperlinkIcon from "../../assets/icons/hyperlink_icon.png";
+import imageIcon from "../../assets/icons/image_icon.png";
 
 // Chatbot Components
 import ResizableWindow from "../Chatbot/ResizableWindow";
@@ -26,6 +38,7 @@ export default function DemoLayout() {
   const [leftExpanded, setLeftExpanded] = useState(false);
   const [rightExpanded, setRightExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedMode, setSelectedMode] = useState(null);
 
   const leftWidth = leftExpanded ? 250 : 50;
   const rightWidth = rightExpanded ? 300 : 50;
@@ -78,6 +91,28 @@ export default function DemoLayout() {
       clearInterval(intervalId);
     };
   }, []);
+
+    const ToolIcons = {
+      SelectSvg: () => <img src={selectIcon} alt="Select" className="w-full h-full object-contain" />,
+      HandSvg: () => <img src={handIcon} alt="Hand" className="w-full h-full object-contain" />,
+      PencilSvg: () => <img src={pencilIcon} alt="Pencil" className="w-full h-full object-contain" />,
+      HighlighterSvg: () => <img src={highlighterIcon} alt="Highlighter" className="w-full h-full object-contain" />,
+      EraserSvg: () => <img src={eraserIcon} alt="Eraser" className="w-full h-full object-contain" />,
+      NoteSvg: () => <img src={noteIcon} alt="Notes" className="w-full h-full object-contain" />,
+      TextSvg: () => <img src={textIcon} alt="Text" className="w-full h-full object-contain" />,
+      HyperlinkSvg: () => <img src={hyperlinkIcon} alt="Hyperlink" className="w-full h-full object-contain" />,
+      ImageSvg: () => <img src={imageIcon} alt="Image" className="w-full h-full object-contain" />,
+    };
+
+    const handleToolClick = (mode, color=null) => {
+    setSelectedMode(mode);
+    try { window.mapxDrawSetMode && window.mapxDrawSetMode(mode,color); } catch (e) { console.error("Error:", e) }
+  };
+
+  const handleShapeClick = (shapeType) => {
+    setSelectedMode(shapeType);
+    try { window.mapxDrawSetMode && window.mapxDrawSetMode(shapeType); } catch(e){console.error("Error:", e)}
+  };
 
   const handleEnterFullscreen = async () => {
     try {
@@ -181,6 +216,31 @@ export default function DemoLayout() {
         </Box>
         
         {loading && <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, pointerEvents: "none" }}><MapLoader /></Box>}
+        <motion.div
+          drag
+          dragMomentum={false}
+          // Use fixed positioning so it escapes all box constraints
+          style={{ 
+            position: 'fixed', 
+            bottom: '200px', 
+            left: '78%',
+            x: '-50%', // Centers it horizontally based on its own width
+            zIndex: 9999, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center' 
+          }}
+          className="pointer-events-auto"
+        >
+
+          <Tools 
+            selectedMode={selectedMode} 
+            handleToolClick={handleToolClick}
+            handleShapeClick={handleShapeClick}
+            Icons={ToolIcons}
+            isDemo={true}
+          />
+        </motion.div>
       </Box>
 
       <style>{`

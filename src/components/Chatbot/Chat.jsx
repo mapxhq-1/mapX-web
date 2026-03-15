@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from "framer-motion";
-
+import { ChevronUp } from "lucide-react";
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish } from "../api/chatService";
 
 export default function Chat() {
@@ -25,6 +25,8 @@ export default function Chat() {
   const animationFrameRef = useRef(null);
   const [volumeLevels, setVolumeLevels] = useState(Array(9).fill(6));
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [gradeOpen, setGradeOpen] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
 
   const startRecording = async () => {
     try {
@@ -151,7 +153,6 @@ export default function Chat() {
       if (!res.ok) throw new Error(await res.text());
 
       const data = await res.json();
-      console.log(data);
       
       if (data.language_code) {
         setVoiceLanguage(data.language_code);
@@ -495,7 +496,6 @@ User query (for context only):
       }
       
       let backendQuery = displayContent;
-      console.log({voiceLanguage})
       if (voiceLanguage !== 'en-IN' && voiceLanguage !== 'kn-IN') {
         backendQuery = await translateToEnglish(displayContent,voiceLanguage);
       }
@@ -509,9 +509,6 @@ User query (for context only):
         .catch(() => setThinkingTexts(["Thinking…"]));
 
       const know_more = gradeToSend === -1 ? 1 : 0;
-      
-      // Send the translated backendQuery to the database/model layer
-      console.log({backendQuery});
       const data = await sendChatMessage(effectiveUserId, activeSessionId, backendQuery, gradeToSend, lang, know_more);
 
       if ((!activeSessionId) && data.sessionId) {
@@ -777,26 +774,145 @@ User query (for context only):
                 </div>
               )}
 
-              <div className={`mb-3 flex flex-wrap ${isLandscapeMobile ? 'gap-1.5 mb-1.5' : 'gap-2.5 mb-3'}`}>
-                <select value={selectedGrade === 0 ? "no_grade" : selectedGrade === null ? "all_grades" : selectedGrade} onChange={(e) => { const val = e.target.value; setSelectedGrade(val === "no_grade" ? 0 : val === "all_grades" ? null : val); }} className={`rounded-full border border-[#e9edef] bg-white text-[#111b21] outline-none cursor-pointer shadow-sm hover:bg-gray-50 transition-colors ${isLandscapeMobile ? 'py-1 px-2 text-xs min-h-[30px]' : 'py-2.5 px-4 text-sm min-h-[40px]'}`}>
-                  <option value="no_grade">No Grade</option>
-                  <option value="all_grades">All Grades</option>
-                  {[6, 7, 8, 9, 10, 11, 12].map(g => <option key={g} value={`${g}th Grade`}>{g}th Grade</option>)}
-                </select>
-                <select value={voiceLanguage} onChange={(e) => setVoiceLanguage(e.target.value)} className={`rounded-full border border-[#e9edef] bg-white text-[#111b21] outline-none cursor-pointer shadow-sm hover:bg-gray-50 transition-colors ${isLandscapeMobile ? 'py-1 px-2 text-xs min-h-[30px]' : 'py-2.5 px-3 text-sm min-h-[40px]'}`}>
-                  <option value="en-IN">English (India)</option>
-                  <option value="hi-IN">Hindi</option>
-                  <option value="bn-IN">Bengali</option>
-                  <option value="kn-IN">Kannada</option>
-                  <option value="ml-IN">Malayalam</option>
-                  <option value="mr-IN">Marathi</option>
-                  <option value="or-IN">Odia</option>
-                  <option value="pa-IN">Punjabi</option>
-                  <option value="ta-IN">Tamil</option>
-                  <option value="te-IN">Telugu</option>
-                  <option value="gu-IN">Gujarati</option>
-                </select>
-              </div>
+              {/* Drop-up selectors */}
+<div className={`flex ${isLandscapeMobile ? 'gap-1.5 mb-1.5' : 'gap-2.5 mb-3'}`}>
+
+  {/* GRADE DROP-UP */}
+  <div className="relative flex-1">
+    <AnimatePresence>
+      {gradeOpen && (
+        <motion.div
+          initial={{ scaleY: 0, opacity: 0 }}
+          animate={{ scaleY: 1, opacity: 1 }}
+          exit={{ scaleY: 0, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 32 }}
+          style={{ transformOrigin: 'bottom center', bottom: '100%' }}
+          className="absolute left-0 right-0 bg-[#075e54] rounded-t-2xl rounded-b-none z-20 overflow-hidden"
+        >
+          <div
+            onClick={() => setGradeOpen(false)}
+            className="flex justify-center items-center py-2 cursor-pointer hover:bg-white/5 transition-colors"
+          >
+            <div className="w-8 h-1 bg-white/25 rounded-full" />
+          </div>
+          <div className="flex flex-col pb-2 px-2 max-h-44 overflow-y-auto custom-scrollbar-sidebar">
+            {[
+              { val: "no_grade", label: "No Grade" },
+              { val: "all_grades", label: "All Grades" },
+              ...([6,7,8,9,10,11,12].map(g => ({ val: `${g}th Grade`, label: `${g}th Grade` })))
+            ].map(opt => {
+              const currentVal = selectedGrade === 0 ? "no_grade" : selectedGrade === null ? "all_grades" : selectedGrade;
+              const isSelected = currentVal === opt.val;
+              return (
+                <div
+                  key={opt.val}
+                  onClick={() => {
+                    const v = opt.val;
+                    setSelectedGrade(v === "no_grade" ? 0 : v === "all_grades" ? null : v);
+                    setGradeOpen(false);
+                  }}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-sm transition-colors ${isSelected ? 'bg-white/20 text-white font-medium' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <span className="text-white/50 text-xs">✓</span>}
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <button
+  onClick={() => { setGradeOpen(p => !p); setLangOpen(false); }}
+  className={`relative z-10 w-full flex items-center justify-between font-medium transition-all duration-200 ${gradeOpen ? 'rounded-b-[20px] rounded-t-none' : 'rounded-full'} ${isLandscapeMobile ? 'px-3 py-1 text-xs min-h-[30px]' : 'px-4 py-2.5 text-sm min-h-[40px]'} bg-[#075e54] text-white hover:bg-[#006D5B]`}
+>
+  <span>{selectedGrade === 0 ? "No Grade" : selectedGrade === null ? "All Grades" : selectedGrade}</span>
+  <motion.div
+    animate={{ rotate: gradeOpen ? 180 : 0 }}
+    transition={{ duration: 0.25 }}
+  >
+    <ChevronUp size={14} className="text-white/60" />
+  </motion.div>
+</button>
+  </div>
+
+  {/* LANGUAGE DROP-UP */}
+  <div className="relative flex-1">
+    <AnimatePresence>
+      {langOpen && (
+        <motion.div
+          initial={{ scaleY: 0, opacity: 0 }}
+          animate={{ scaleY: 1, opacity: 1 }}
+          exit={{ scaleY: 0, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 32 }}
+          style={{ transformOrigin: 'bottom center', bottom: '100%' }}
+          className="absolute left-0 right-0 bg-[#075e54] rounded-t-2xl rounded-b-none z-20 overflow-hidden"
+        >
+          <div
+            onClick={() => setLangOpen(false)}
+            className="flex justify-center items-center py-2 cursor-pointer hover:bg-white/5 transition-colors"
+          >
+            <div className="w-8 h-1 bg-white/25 rounded-full" />
+          </div>
+          <div className="flex flex-col pb-2 px-2 max-h-44 overflow-y-auto custom-scrollbar-sidebar">
+            {[
+              { val: "en-IN", label: "English (India)" },
+              { val: "hi-IN", label: "Hindi" },
+              { val: "bn-IN", label: "Bengali" },
+              { val: "kn-IN", label: "Kannada" },
+              { val: "ml-IN", label: "Malayalam" },
+              { val: "mr-IN", label: "Marathi" },
+              { val: "or-IN", label: "Odia" },
+              { val: "pa-IN", label: "Punjabi" },
+              { val: "ta-IN", label: "Tamil" },
+              { val: "te-IN", label: "Telugu" },
+              { val: "gu-IN", label: "Gujarati" },
+            ].map(opt => {
+              const isSelected = voiceLanguage === opt.val;
+              return (
+                <div
+                  key={opt.val}
+                  onClick={() => { setVoiceLanguage(opt.val); setLangOpen(false); }}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-sm transition-colors ${isSelected ? 'bg-white/20 text-white font-medium' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <span className="text-white/50 text-xs">✓</span>}
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <button
+  onClick={() => { setLangOpen(p => !p); setGradeOpen(false); }}
+  className={`relative z-10 w-full flex items-center justify-between font-medium transition-all duration-200 ${langOpen ? 'rounded-b-[20px] rounded-t-none' : 'rounded-full'} ${isLandscapeMobile ? 'px-3 py-1 text-xs min-h-[30px]' : 'px-4 py-2.5 text-sm min-h-[40px]'} bg-[#075e54] text-white hover:bg-[#006D5B]`}
+>
+  <span className="truncate">{[
+    { val: "en-IN", label: "English (India)" },
+    { val: "hi-IN", label: "Hindi" },
+    { val: "bn-IN", label: "Bengali" },
+    { val: "kn-IN", label: "Kannada" },
+    { val: "ml-IN", label: "Malayalam" },
+    { val: "mr-IN", label: "Marathi" },
+    { val: "or-IN", label: "Odia" },
+    { val: "pa-IN", label: "Punjabi" },
+    { val: "ta-IN", label: "Tamil" },
+    { val: "te-IN", label: "Telugu" },
+    { val: "gu-IN", label: "Gujarati" },
+  ].find(o => o.val === voiceLanguage)?.label}</span>
+  <motion.div
+    animate={{ rotate: langOpen ? 180 : 0 }}
+    transition={{ duration: 0.25 }}
+  >
+    <ChevronUp size={14} className="text-white/60" />
+  </motion.div>
+</button>
+  </div>
+
+</div>
 
               <div className={`relative w-full rounded-3xl overflow-hidden bg-white shadow-sm`}>
                 {(listening || isProcessingAudio) && <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[80%] h-[70px] blur-[10px] z-0 pointer-events-none animate-[pulse_2s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_bottom,rgba(37,211,102,0.8)_0%,transparent_100%)]" />}

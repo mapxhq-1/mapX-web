@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import { useSelector, useDispatch } from "react-redux";
 import { useParams } from "react-router-dom";
 import "maplibre-gl/dist/maplibre-gl.css";
-
+import LiquidGlass from "../Chatbot/LiquidGlass";
 // Redux & Utils
 import { fetchAllEmpirePolygons, openNotes, setFlyToPosition, setMarkers } from "../../store/mapSlice";
 import { colorPolygonsFourColor, colorIndexToHex, colorIndexToHexDark } from "../../utils/polygonColoring";
@@ -1098,53 +1098,88 @@ const onEmpireClick = async (e) => {
                     currentMetadataRef.current = data;
 
                     // CHECK FOR IMAGES
-const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
+                    const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
 const htmlContent = `
     <style>
-        .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; }
+        /* Removes MapLibre's default white styling, borders, and the popup arrow tip */
+        .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
+        .maplibregl-popup-tip { display: none !important; }
+        
         .dyno-scroll::-webkit-scrollbar { width: 3px; }
         .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
         .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
+        
+        /* Swaps the outside icon for the gallery panel */
+        .popup-collapsed .gallery-panel { display: none !important; }
+        #popup-wrapper:not(.popup-collapsed) .outside-icon-container { display: none !important; }
     </style>
 
-    <div class="relative flex max-w-[90vw]" style="${hasImages ? 'padding-right: 272px;' : ''}">
+    <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden popup-collapsed transition-all" style="width: 380px; height: 350px; min-width: 560px; min-height: 200px; padding: 2px;">
         
-        <div class="bg-[#f1ebe3] resize rounded-lg shadow-xl border border-[#d4c5b0] w-[340px] h-[200px] min-w-[250px] min-h-[150px] p-4 font-sans flex flex-col relative overflow-hidden z-10">
-            
-            <div class="flex justify-between items-center mb-2 border-b border-black/10 pb-2">
-                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2">
+        <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
+            <div class="flex justify-between items-start mb-2 border-b border-black/10 pb-2 min-h-[54px]">
+                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 pt-1">
                     ${data.name || empireName || 'Empire Details'}
                 </h3>
                 
-                <div class="flex flex-col items-center shrink-0">
-                    <span class="text-[9px] text-[#8c7b6e] font-medium tracking-tight mb-1">
-                        To know more
-                    </span>
-                    <button class="bg-[#075e54] text-white px-5 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" onclick="window.handleAskDyno()">
-                        Ask Dyno
-                    </button>
+                <div class="flex items-start gap-3 shrink-0">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[9px] text-[#8c7b6e] font-medium tracking-tight mb-1">To know more</span>
+                        <button class="bg-[#075e54] text-white px-5 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" onclick="window.handleAskDyno()">
+                            Ask Dyno
+                        </button>
+                    </div>
                 </div>
             </div>
             
-            <div class="dyno-scroll flex-1 overflow-y-auto pr-1 space-y-1.5">
+            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0">
                 ${Object.entries(data)
                     .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
                     .map(([key, value]) => `
-                        <div class="flex justify-between items-start text-xs border-b border-black/5 pb-1 last:border-0">
-                            <span class="font-semibold text-[#6b5b4e] capitalize shrink-0 mr-3">${key.replace(/_/g, ' ')}</span> 
-                            <span class="font-medium text-gray-800 text-right leading-tight break-words flex-1">${value}</span>
+                        <div class="flex items-start text-xs border-b border-black/5 last:border-0">
+                            <span class="font-semibold text-[#6b5b4e] capitalize w-[35%] min-w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
+                            
+                            <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
+                            
+                            <span class="font-medium text-gray-800 text-left leading-tight break-words whitespace-normal min-w-0 flex-1 py-1.5">${value !== null && value !== undefined && value !== '' ? value : '-'}</span>
                         </div>
                     `).join('')}
             </div>
         </div>
 
         ${hasImages ? `
-        <div class="absolute top-0 right-0 w-[260px] h-full bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 font-sans flex flex-col overflow-hidden">
-            <h3 class="text-[#2A1F14] font-bold text-sm leading-snug mb-2 border-b border-black/10 pb-2">
-                Gallery
-            </h3>
-            <div class="dyno-scroll flex-1 overflow-y-auto pr-1 space-y-3">
+        <div class="outside-icon-container flex items-start shrink-0 h-full pt-1">
+            <button onclick="
+                const wrapper = document.getElementById('popup-wrapper');
+                wrapper.classList.remove('popup-collapsed');
+                wrapper.style.width = (wrapper.offsetWidth + 240) + 'px';
+            " class="bg-[#f1ebe3] hover:bg-[#e0d5c1] border border-[#d4c5b0] text-[#2A1F14] rounded-full w-8 h-8 flex items-center justify-center shadow-md transition-colors shrink-0" title="Open Gallery">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                </svg>
+            </button>
+        </div>
+        ` : ''}
+
+        ${hasImages ? `
+        <div class="gallery-panel w-[240px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
+            <div class="flex justify-between items-start mb-2 border-b border-black/10 pb-2 min-h-[54px]">
+                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug p-2">Gallery</h3>
+                
+                <button onclick="
+                    const wrapper = document.getElementById('popup-wrapper');
+                    wrapper.classList.add('popup-collapsed');
+                    wrapper.style.width = Math.max(380, wrapper.offsetWidth - 240) + 'px';
+                " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0 mt-1" title="Close Gallery">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3">
                 ${data.images.map(img => `
                     <div class="flex flex-col gap-1">
                         <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />
@@ -1158,10 +1193,10 @@ const htmlContent = `
     </div>
 `;
 
-popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
-    .setLngLat(e.lngLat)
-    .setHTML(htmlContent)
-    .addTo(map.current);
+                    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
+                        .setLngLat(e.lngLat)
+                        .setHTML(htmlContent)
+                        .addTo(map.current);
                 }
             } catch (err) { console.error(err); }
         }
@@ -1510,12 +1545,37 @@ useEffect(() => {
     updateMapPolygons(polygons, isYearChange);
   }, [polygons, year, updateMapPolygons]);
 
-  // ========================================================================
-  // HANDLE YEAR CHANGES (for tools)
+// ========================================================================
+  // HANDLE YEAR CHANGES (for tools & popups)
   // ========================================================================
 
   useEffect(() => {
     if (!map.current) return;
+
+    // 1. 👉 CLOSE THE POPUP
+    if (popupRef.current) {
+      popupRef.current.remove();
+      popupRef.current = null;
+    }
+
+    // 2. 👉 RESET THE GLOW FILTERS
+    // This ensures the "highlight" disappears from the old empire 
+    selectedEmpireNameRef.current = null;
+    try { 
+        const hideExpr = ["==", ["id"], "never-match-this-id"];
+        map.current.setFilter("polygon-empire-white-border", hideExpr); 
+        map.current.setFilter("polygon-empire-glow-outer", hideExpr);
+        map.current.setFilter("polygon-empire-glow-middle", hideExpr);
+        map.current.setFilter("polygon-empire-glow-inner", hideExpr);
+
+        map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
+        map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
+        map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
+    } catch(e) {
+        // Silently catch if layers aren't ready yet
+    }
+
+    // 3. Existing logic for overlays/tools
     maOverlayManagerRef.current?.handleYearChange();
 
     const ctx = { year: getAbsoluteYear(year), era: getEraForYear(year) };
@@ -1588,13 +1648,33 @@ useEffect(() => {
         </div>
       )}
 
-      {markerOn && <button
-            onClick={handleClear}
-            className="absolute top-5 cursor-pointer left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded shadow-md hover:bg-black transition-colors"
-          >
-            Clear Markers
-          </button>
-        }
+      {markerOn && (
+  <div 
+    className="absolute top-30 left-1/2 -translate-x-1/2 z-[1000]" 
+    style={{ width: 'fit-content', borderRadius: '999px', overflow: 'hidden' }}
+  >
+    <LiquidGlass>
+      <div style={{ position: 'relative' }}>
+        {/* subtle dark tint */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.18)',
+          borderRadius: '999px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }} />
+        <button
+          onClick={handleClear}
+          className="cursor-pointer px-4 py-2 text-white text-sm font-medium"
+          style={{ background: 'none', border: 'none', whiteSpace: 'nowrap', position: 'relative', zIndex: 1 }}
+        >
+          Clear Markers
+        </button>
+      </div>
+    </LiquidGlass>
+  </div>
+)}
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

@@ -44,12 +44,11 @@ const getColorByType = (type) => {
     return colors[Math.floor(Math.random() * colors.length)];
 };
 
-const Layers = ({ searchQuery = "" }) => {
+const Layers = ({ searchQuery = "" ,setSelectedType,selectedType}) => {
     const dispatch = useDispatch();
     const layers = useSelector((state) => state.layers.layers);
     
     const [typesList, setTypesList] = useState([]);
-    const [selectedType, setSelectedType] = useState(""); 
     const [loading, setLoading] = useState(false);
 
     // --- COMPACT MODE DETECTION ---

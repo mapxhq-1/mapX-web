@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Rnd } from "react-rnd";
 import LiquidGlass from "./LiquidGlass";
-
+import dyno from '../../assets/icons/dyno.png'
 // Shared classes for resize handles
 const HANDLE_BASE = "absolute z-[1000000] transition-all duration-200 ease-in-out";
 const HANDLE_CORNER = `${HANDLE_BASE} !w-6 !h-6 z-[1000001] hover:bg-cyan-400/30`;
 
 const ResizableWindow = ({
   children,
-  initialPos = { x: 330, y: 10 },
+  initialPos = { x: 370, y: 140 },
   initialSize = { width: 550, height: 600 },
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
@@ -23,6 +23,9 @@ const ResizableWindow = ({
   
   const [isDragging, setIsDragging] = useState(false);
   const [prevBounds, setPrevBounds] = useState(null);
+  const [isCompact, setIsCompact] = useState(false);
+
+  const CLOSED_BUTTON_SIZE = isCompact ? 70 : 80; 
   
   // Refs
   const isDraggingRef = useRef(false);
@@ -62,6 +65,16 @@ const ResizableWindow = ({
       window.removeEventListener("resize", handleResize);
       window.removeEventListener('trigger-know-more', handleAutoOpen);
     };
+  }, []);
+  useEffect(() => {
+    const checkSize = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const isShort = window.innerHeight < 600;
+      setIsCompact(isLandscape && isShort);
+    };
+    checkSize();
+    window.addEventListener("resize", checkSize);
+    return () => window.removeEventListener("resize", checkSize);
   }, []);
 
   // --- Core Maximize Logic ---
@@ -121,7 +134,7 @@ const ResizableWindow = ({
   const getTargetSize = () => {
     if (isMinimized) {
         // Reduced bubble size for mobile (48px vs 64px)
-        return isMobile ? { width: 48, height: 48 } : { width: 64, height: 64 };
+        return { width: CLOSED_BUTTON_SIZE, height: CLOSED_BUTTON_SIZE };
     }
     return isMaximized ? { width: "100%", height: "100%" } : size;
   };
@@ -176,7 +189,7 @@ const ResizableWindow = ({
            onPointerDown={handleBubblePointerDown}
            onPointerUp={handleBubblePointerUp}
         >
-          <img src="/logo/dyno.png" alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
+          <img src={dyno} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
         </div>
 
         {/* --- MAXIMIZED CONTENT --- */}
