@@ -8,7 +8,6 @@ import { toast } from 'react-toastify';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp } from "lucide-react";
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish } from "../api/chatService";
 
 export default function Chat() {
@@ -242,18 +241,18 @@ User query (for context only):
   const audioChunksRef = useRef([]);
 
   const placeholders = [
-    "Press mic to start speaking",              
-    "बोलना शुरू करने के लिए माइक दबाएं",        
-    "কথা বলা শুরু করতে মাইক টিপুন",              
-    "ಮಾತನಾಡಲು ಮೈಕ್ ಒತ್ತಿರಿ",                    
-    "സംസാരിക്കാൻ മൈക്ക് അമർത്തുക",                
-    "बोलणे सुरू करण्यासाठी माइक दाबा",          
-    "କହିବା ଆରମ୍ଭ କରିବାକୁ ମାଇକ୍ ଦବାନ୍ତୁ",            
-    "ਬੋਲਣਾ ਸ਼ੁਰੂ ਕਰਨ ਲਈ ਮਾਈਕ ਦਬਾਓ",               
-    "பேசத் தொடங்க மைக்கை அழுத்தவும்",            
-    "మాట్లాడటం ప్రారంభించడానికి మైక్ నొక్కండి",    
-    "બોલવાનું શરૂ કરવા માટે માઇક દબાવો"          
-  ];
+  "Namaskar",
+  "नमस्ते",
+  "নমস্কার",
+  "ನಮಸ್ಕಾರ",
+  "നമസ്കാരം",
+  "नमस्कार",
+  "ନମସ୍କାର",
+  "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ",
+  "வணக்கம்",
+  "నమస్కారం",
+  "નમસ્તે"
+];
 
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
@@ -261,7 +260,7 @@ User query (for context only):
     if (listening || isProcessingAudio || input.length > 0) return;
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 1250); 
+    }, 1500); 
     return () => clearInterval(interval);
   }, [listening, isProcessingAudio, input]); 
 
@@ -807,7 +806,7 @@ User query (for context only):
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex flex-col px-1.5 py-1 gap-0.5 max-h-48 overflow-y-auto custom-scrollbar-sidebar shrink-0"
+              className="flex flex-col px-1.5 py-1 gap-0.5 max-h-70 overflow-y-auto custom-scrollbar-sidebar shrink-0"
             >
               {[
                 { val: "no_grade", label: "No Grade" },
@@ -876,7 +875,7 @@ User query (for context only):
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex flex-col px-1.5 py-1 gap-0.5 max-h-48 overflow-y-auto custom-scrollbar-sidebar shrink-0"
+              className="flex flex-col px-1.5 py-1 gap-0.5 max-h-70 overflow-y-auto custom-scrollbar-sidebar shrink-0"
             >
               {[
                 { val: "en-IN", label: "English (India)" },
