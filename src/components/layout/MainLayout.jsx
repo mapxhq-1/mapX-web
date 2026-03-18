@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react"; // <-- Added useRef
 import { Box, Typography, Button, useMediaQuery } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import axios from "axios";
-import { motion } from "framer-motion"; // <-- Added for draggable window
+import { motion } from "framer-motion"; 
 
 import ScreenRotationIcon from '@mui/icons-material/ScreenRotation'; 
 import FullscreenIcon from '@mui/icons-material/Fullscreen'; 
@@ -34,9 +34,12 @@ import imageIcon from "../../assets/icons/image_icon.png";
 import handIcon from "../../assets/icons/hand_icon.png";
 import selectIcon from "../../assets/icons/select_icon.png";
 
-export default function MainLayout({ isDemo }) { // <-- Accept isDemo if needed for Tools
+export default function MainLayout({ isDemo }) { 
   const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
   
+  // --- NEW: Drag Boundary Ref ---
+  const dragBoundaryRef = useRef(null);
+
   // --- LAYOUT STATE ---
   const [leftExpanded, setLeftExpanded] = useState(false);
   const [rightExpanded, setRightExpanded] = useState(false);
@@ -218,6 +221,14 @@ export default function MainLayout({ isDemo }) { // <-- Accept isDemo if needed 
   // --- MAIN APP ---
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      
+      {/* --- INVISIBLE DRAG BOUNDARY W/ PADDING --- */}
+      {/* We use inline styles here to ensure it creates a 20px padding wall around the screen edges */}
+      <div 
+        ref={dragBoundaryRef} 
+        style={{ position: 'fixed', top: 20, left: 20, right: 20, bottom: 20, pointerEvents: 'none', zIndex: -1 }} 
+      />
+
       <ResizableWindow><Chat /></ResizableWindow>
       
       <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
@@ -240,13 +251,14 @@ export default function MainLayout({ isDemo }) { // <-- Accept isDemo if needed 
         {/* --- FLOATING, DRAGGABLE TOOLS WIDGET --- */}
         <motion.div
           drag
+          dragConstraints={dragBoundaryRef} // <-- Added the boundary constraint here
+          dragElastic={0.1} // <-- Added a slight bounce when hitting the edge wall
           dragMomentum={false}
-          // Use fixed positioning so it escapes all box constraints
           style={{ 
             position: 'fixed', 
             bottom: '200px', 
             left: '78%',
-            x: '-50%', // Centers it horizontally based on its own width
+            x: '-50%',
             zIndex: 9999, 
             display: 'flex', 
             flexDirection: 'column', 

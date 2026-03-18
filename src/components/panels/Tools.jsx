@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import LiquidGlass from "../Chatbot/LiquidGlass"; // <-- Updated Import
+import LiquidGlass from "../Chatbot/LiquidGlass";
 
 // --- NOTE IMAGES ---
 import noteYellow from '../../assets/Notes/yellow.png';
@@ -21,7 +21,7 @@ import hlPink from '../../assets/Highlighter/pink.png';
 import shapes from '../../assets/icons/shapes.png';
 
 // --- CENTER IMAGE ---
-import centerImage from '../../assets/icons/feather1.png'; 
+import centerImage from '../../assets/icons/feather1.png';
 
 // --- Configuration Arrays ---
 const NOTE_OPTIONS = [
@@ -42,10 +42,9 @@ const HIGHLIGHTER_OPTIONS = [
 
 const SHAPE_OPTIONS = ['line', 'arrow', 'circle', 'polygon'];
 
-// --- Math Helper for Drawing SVG Pie Slices (For Borders) ---
 const describeArc = (cx, cy, rInner, rOuter, startAngle, endAngle, roundStartOuter = false, roundEndOuter = false) => {
-  const cornerRadius = 16; 
-  const maxDelta = (endAngle - startAngle) / 2.5; 
+  const cornerRadius = 16;
+  const maxDelta = (endAngle - startAngle) / 2.5;
   const requestedDelta = cornerRadius / rOuter;
   const deltaTheta = Math.min(requestedDelta, maxDelta);
   const actualCornerRadius = deltaTheta * rOuter;
@@ -54,7 +53,7 @@ const describeArc = (cx, cy, rInner, rOuter, startAngle, endAngle, roundStartOut
   const p1y = cy + rOuter * Math.sin(startAngle);
   const p2x = cx + rOuter * Math.cos(endAngle);
   const p2y = cy + rOuter * Math.sin(endAngle);
-  
+
   const p3x = cx + rInner * Math.cos(endAngle);
   const p3y = cy + rInner * Math.sin(endAngle);
   const p4x = cx + rInner * Math.cos(startAngle);
@@ -69,7 +68,6 @@ const describeArc = (cx, cy, rInner, rOuter, startAngle, endAngle, roundStartOut
     const p1StraightY = cy + (rOuter - actualCornerRadius) * Math.sin(startAngle);
     const p1ArcX = cx + rOuter * Math.cos(startAngle + deltaTheta);
     const p1ArcY = cy + rOuter * Math.sin(startAngle + deltaTheta);
-    
     path += `L ${p1StraightX} ${p1StraightY} `;
     path += `Q ${p1x} ${p1y} ${p1ArcX} ${p1ArcY} `;
   } else {
@@ -81,7 +79,6 @@ const describeArc = (cx, cy, rInner, rOuter, startAngle, endAngle, roundStartOut
     const p2ArcY = cy + rOuter * Math.sin(endAngle - deltaTheta);
     const p2StraightX = cx + (rOuter - actualCornerRadius) * Math.cos(endAngle);
     const p2StraightY = cy + (rOuter - actualCornerRadius) * Math.sin(endAngle);
-    
     path += `A ${rOuter} ${rOuter} 0 ${largeArcFlag} 1 ${p2ArcX} ${p2ArcY} `;
     path += `Q ${p2x} ${p2y} ${p2StraightX} ${p2StraightY} `;
     path += `L ${p3x} ${p3y} `;
@@ -91,15 +88,14 @@ const describeArc = (cx, cy, rInner, rOuter, startAngle, endAngle, roundStartOut
   }
 
   path += `A ${rInner} ${rInner} 0 ${largeArcFlag} 0 ${p4x} ${p4y} Z`;
-
   return path;
 };
 
 // --- MAIN TOOLS COMPONENT ---
-const Tools = ({ 
-  selectedMode, 
-  handleToolClick, 
-  handleShapeClick, 
+const Tools = ({
+  selectedMode,
+  handleToolClick,
+  handleShapeClick,
   Icons,
   isDemo
 }) => {
@@ -108,7 +104,6 @@ const Tools = ({
   const [activePopup, setActivePopup] = useState(null);
   const [isCompact, setIsCompact] = useState(false);
 
-  // --- DRAG VS CLICK PREVENTION ---
   const pointerStart = useRef({ x: 0, y: 0 });
 
   const handlePointerDown = (e) => {
@@ -118,9 +113,7 @@ const Tools = ({
   const executeIfClick = (e, action) => {
     const dx = e.clientX - pointerStart.current.x;
     const dy = e.clientY - pointerStart.current.y;
-    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
-      action();
-    }
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) action();
   };
 
   useEffect(() => {
@@ -147,10 +140,24 @@ const Tools = ({
 
   const numTools = PRIMARY_TOOLS.length;
   const sliceAngle = (2 * Math.PI) / numTools;
+  const sliceDegrees = 360 / numTools;
+
+  // --- UPDATED ACTIVE INDEX LOGIC ---
+  // This correctly maps sub-tools (like specific shapes or eraser) back to their parent category index
+  const activeIndex = PRIMARY_TOOLS.findIndex(tool => {
+    if (activePopup === tool.id) return true; // Matches when the popup menu for this tool is open
+    if (selectedMode === tool.id) return true; // Exact match (e.g. 'text', 'hand')
+
+    // Map sub-tools back to their parent
+    if (tool.id === 'pencil' && ['eraser', 'highlight'].includes(selectedMode)) return true;
+    if (tool.id === 'shapes' && SHAPE_OPTIONS.includes(selectedMode)) return true;
+    if (tool.id === 'note' && NOTE_OPTIONS.some(opt => opt.id === selectedMode)) return true;
+
+    return false;
+  });
 
   const onMainToolClick = (toolId) => {
     if (isDemo) return;
-    
     if (['pencil', 'note', 'shapes'].includes(toolId)) {
       setActivePopup(activePopup === toolId ? null : toolId);
     } else {
@@ -164,63 +171,60 @@ const Tools = ({
     setActivePopup(null);
   };
 
-  // --- MATH & SIZING ---
-  const MENU_SIZE = isCompact ? 300 : 380; 
+  const MENU_SIZE = isCompact ? 300 : 380;
   const CENTER = MENU_SIZE / 2;
-  
-  const CLOSED_BUTTON_SIZE = isCompact ? 70 : 80; 
-  const OPEN_BUTTON_SIZE = isCompact ? 60 : 70; 
-  
-  const INNER_RADIUS = OPEN_BUTTON_SIZE / 2; 
-  
-  const MAIN_OUTER_RADIUS = isCompact ? 65 : 80; 
-  const SUB_OUTER_RADIUS = isCompact ? 100 : 125; 
-  
-  const MAIN_ICON_RADIUS = (INNER_RADIUS + MAIN_OUTER_RADIUS) / 2; 
+
+  const CLOSED_BUTTON_SIZE = isCompact ? 60:70;
+  const OPEN_BUTTON_SIZE = isCompact ? 50 : 60;
+
+  const INNER_RADIUS = OPEN_BUTTON_SIZE / 2;
+
+  const MAIN_OUTER_RADIUS = isCompact ? 65 : 80;
+  const SUB_OUTER_RADIUS = isCompact ? 100 : 125;
+
+  const MAIN_ICON_RADIUS = (INNER_RADIUS + MAIN_OUTER_RADIUS) / 2;
   const SUB_ICON_RADIUS = (MAIN_OUTER_RADIUS + SUB_OUTER_RADIUS) / 2;
 
   const smoothSpin = { type: "spring", stiffness: 150, damping: 18 };
 
   return (
-    <div 
+    <div
       className={`relative flex items-center justify-center transition-all pointer-events-none ${isDemo ? "opacity-60 grayscale" : ""}`}
       style={{ width: CLOSED_BUTTON_SIZE, height: CLOSED_BUTTON_SIZE }}
     >
-      
-      {/* PRE-CACHE HEAVY SVG FILTERS */}
+
       <div className="absolute w-0 h-0 opacity-0 overflow-hidden pointer-events-none">
         <LiquidGlass />
       </div>
 
       {isDemo && isMenuOpen && (
         <div className="absolute top-[-60px] z-[60] flex flex-col items-center justify-center">
-            <button 
-              onClick={() => navigate('/myProjects')}
-              className="flex items-center justify-center gap-2 bg-[#9EFAA5] text-black font-bold rounded-full px-4 py-2 text-xs shadow-lg hover:scale-105 transition-transform whitespace-nowrap pointer-events-auto"
-            >
-              Login to Unlock Tools
-            </button>
+          <button
+            onClick={() => navigate('/myProjects')}
+            className="flex items-center justify-center gap-2 bg-[#9EFAA5] text-black font-bold rounded-full px-4 py-2 text-xs shadow-lg hover:scale-105 transition-transform whitespace-nowrap pointer-events-auto"
+          >
+            Login to Unlock Tools
+          </button>
         </div>
       )}
 
-      {/* LARGE INVISIBLE MENU WRAPPER */}
-      <div 
+      <div
         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
         style={{ width: MENU_SIZE, height: MENU_SIZE }}
       >
-        
+
         {/* --- 1. MAIN MENU LAYER 1: STATIC GLASS (FADE ONLY) --- */}
         <motion.div
           initial={false}
           animate={{ opacity: isMenuOpen ? 1 : 0 }}
-          transition={{ duration: 0.15 }} 
+          transition={{ duration: 0.15 }}
           className="absolute inset-0 z-0 flex items-center justify-center"
           style={{ pointerEvents: isMenuOpen ? "auto" : "none" }}
         >
-          <div 
+          <div
             className="shadow-2xl overflow-hidden"
-            style={{ 
-              width: MAIN_OUTER_RADIUS * 2, 
+            style={{
+              width: MAIN_OUTER_RADIUS * 2,
               height: MAIN_OUTER_RADIUS * 2,
               borderRadius: "50%"
             }}
@@ -234,10 +238,10 @@ const Tools = ({
         {/* --- 1. MAIN MENU LAYER 2: ICONS & BORDERS (SCALE & SPIN) --- */}
         <motion.div
           initial={false}
-          animate={{ 
-            opacity: isMenuOpen ? 1 : 0, 
-            scale: isMenuOpen ? 1 : 0, 
-            rotate: isMenuOpen ? 0 : -180 
+          animate={{
+            opacity: isMenuOpen ? 1 : 0,
+            scale: isMenuOpen ? 1 : 0,
+            rotate: isMenuOpen ? 0 : -180
           }}
           transition={smoothSpin}
           className="absolute inset-0 z-10"
@@ -246,20 +250,47 @@ const Tools = ({
           <svg width={MENU_SIZE} height={MENU_SIZE} className="absolute inset-0 overflow-visible pointer-events-none">
             <defs>
               <radialGradient id="pressed-state" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.4)" />
+                <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
                 <stop offset="100%" stopColor="rgba(255,255,255,0.0)" />
               </radialGradient>
+              
+              <filter id="border-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#ffffff" floodOpacity="0.8">
+                  <animate attributeName="flood-opacity" values="0.3; 0.9; 0.3" dur="2s" repeatCount="indefinite" />
+                </feDropShadow>
+              </filter>
             </defs>
 
-            {PRIMARY_TOOLS.map((tool, i) => {
-              const isActive = selectedMode === tool.id || activePopup === tool.id || 
-                              (tool.id === 'pencil' && (selectedMode === 'eraser' || selectedMode === 'highlight'));
-              if (!isActive) return null;
-              const startA = -Math.PI / 2 + (i * sliceAngle);
-              const endA = startA + sliceAngle;
-              const d = describeArc(CENTER, CENTER, INNER_RADIUS, MAIN_OUTER_RADIUS, startA, endA);
-              return <path key={`hl-${i}`} d={d} fill="url(#pressed-state)" className="pointer-events-auto" />;
-            })}
+            {/* --- SMOOTH ROTATING HIGHLIGHT WEDGE --- */}
+            {activeIndex !== -1 && (
+              <motion.g
+                initial={false}
+                animate={{ rotate: activeIndex * sliceDegrees }}
+                transition={{ type: "spring", stiffness: 200, damping: 22 }}
+                style={{ originX: 0.5, originY: 0.5 }}
+              >
+                {/* INVISIBLE ANCHOR */}
+                <circle cx={CENTER} cy={CENTER} r={MENU_SIZE / 2} fill="transparent" stroke="none" pointerEvents="none" />
+                
+                {/* LAYER 1: BACKGROUND FILL (No Glow Filter) */}
+                <path 
+                  d={describeArc(CENTER, CENTER, INNER_RADIUS, MAIN_OUTER_RADIUS, -Math.PI / 2, -Math.PI / 2 + sliceAngle)} 
+                  fill="url(#pressed-state)" 
+                  stroke="none" 
+                  className="pointer-events-auto" 
+                />
+
+                {/* LAYER 2: GLOWING BORDER (No Fill) */}
+                <path 
+                  d={describeArc(CENTER, CENTER, INNER_RADIUS, MAIN_OUTER_RADIUS, -Math.PI / 2, -Math.PI / 2 + sliceAngle)} 
+                  fill="none" 
+                  stroke="rgba(255,255,255,0.7)" 
+                  strokeWidth="1.5"                
+                  filter="url(#border-glow)"     
+                  className="pointer-events-none" 
+                />
+              </motion.g>
+            )}
 
             <circle cx={CENTER} cy={CENTER} r={MAIN_OUTER_RADIUS - 1} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
             <circle cx={CENTER} cy={CENTER} r={INNER_RADIUS + 1} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
@@ -278,9 +309,8 @@ const Tools = ({
             const angle = -Math.PI / 2 + (index * sliceAngle) + (sliceAngle / 2);
             const x = CENTER + MAIN_ICON_RADIUS * Math.cos(angle);
             const y = CENTER + MAIN_ICON_RADIUS * Math.sin(angle);
-            const isActive = selectedMode === tool.id || activePopup === tool.id || 
-                            (tool.id === 'pencil' && (selectedMode === 'eraser' || selectedMode === 'highlight'));
-            const iconSize = isCompact ? 26 : 34; 
+            const isActive = activeIndex === index;
+            const iconSize = isCompact ? 26 : 34;
 
             return (
               <button
@@ -294,7 +324,7 @@ const Tools = ({
                 className={`
                   z-50 flex items-center justify-center rounded-lg transition-transform hover:scale-110 pointer-events-auto
                   drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]
-                  ${isActive ? "text-[#e4e4e7] opacity-100 scale-95" : "text-white hover:text-[#d4d4d8]"}
+                  ${isActive ? "text-[#ffffff] opacity-100 scale-95" : "text-white hover:text-[#d4d4d8]"}
                 `}
                 title={tool.label}
               >
@@ -310,23 +340,22 @@ const Tools = ({
         <AnimatePresence>
           {isMenuOpen && activePopup && (() => {
             const toolIndex = PRIMARY_TOOLS.findIndex(t => t.id === activePopup);
-            if(toolIndex === -1) return null;
+            if (toolIndex === -1) return null;
 
             let options = [];
             if (activePopup === 'pencil') {
               options = [
-                { id: 'pencil', icon: Icons.PencilSvg, isTool: true }, 
+                { id: 'pencil', icon: Icons.PencilSvg, isTool: true },
                 { id: 'eraser', icon: Icons.EraserSvg, isTool: true },
                 ...HIGHLIGHTER_OPTIONS.map(opt => ({ ...opt, isHighlight: true }))
               ];
             }
             if (activePopup === 'note') options = NOTE_OPTIONS;
             if (activePopup === 'shapes') options = SHAPE_OPTIONS;
-
-            if(options.length === 0) return null;
+            if (options.length === 0) return null;
 
             const sliceMidAngle = -Math.PI / 2 + (toolIndex * sliceAngle) + (sliceAngle / 2);
-            const wedgeAngle = Math.PI / 6; 
+            const wedgeAngle = Math.PI / 6;
             const startSubAngle = sliceMidAngle - (options.length * wedgeAngle) / 2;
 
             const wedgeData = options.map((opt, i) => {
@@ -343,42 +372,36 @@ const Tools = ({
               return { opt, d, subX, subY, subIconSize, key };
             });
 
-            // Calculate the exact bounding path for the entire continuous arc wedge
             const totalEndAngle = startSubAngle + (options.length * wedgeAngle);
             const popupBgPath = describeArc(CENTER, CENTER, MAIN_OUTER_RADIUS, SUB_OUTER_RADIUS, startSubAngle, totalEndAngle, true, true);
 
             return (
               <React.Fragment key={`sub-menu-wrap-${activePopup}`}>
-                
-                {/* POPUP LAYER 1: HARDWARE ACCELERATED WEDGE CLIP */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9, rotate: -30 }} 
+                  initial={{ opacity: 0, scale: 0.9, rotate: -30 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
                   exit={{ opacity: 0, scale: 0.9, rotate: 30 }}
                   transition={smoothSpin}
                   className="absolute inset-0 z-0 pointer-events-none drop-shadow-xl"
                   style={{ transformOrigin: "center center" }}
                 >
-                  <div 
+                  <div
                     className="absolute inset-0 pointer-events-auto"
                     style={{
                       clipPath: `path('${popupBgPath}')`,
                       WebkitClipPath: `path('${popupBgPath}')`,
-                      // THIS IS THE MAGIC FIX: Forces hardware acceleration so backdrop-filter survives the clip
-                      transform: 'translateZ(0)', 
+                      transform: 'translateZ(0)',
                       willChange: 'transform'
                     }}
                   >
-                    {/* The liquid glass spans the entire 380x380 area, and the CSS path cleanly cuts out the wedge */}
                     <div className="absolute inset-0 w-full h-full">
                       <LiquidGlass />
                     </div>
                   </div>
                 </motion.div>
 
-                {/* POPUP LAYER 2: ICONS & BORDERS (SCALE & SPIN) */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9, rotate: -30 }} 
+                  initial={{ opacity: 0, scale: 0.9, rotate: -30 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
                   exit={{ opacity: 0, scale: 0.9, rotate: 30 }}
                   transition={smoothSpin}
@@ -387,10 +410,10 @@ const Tools = ({
                 >
                   <svg width={MENU_SIZE} height={MENU_SIZE} className="absolute inset-0 pointer-events-none overflow-visible">
                     {wedgeData.map((w) => (
-                       <path key={`stroke-${w.key}`} d={w.d} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" className="pointer-events-auto" />
+                      <path key={`stroke-${w.key}`} d={w.d} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" className="pointer-events-auto" />
                     ))}
                   </svg>
-                  
+
                   {wedgeData.map((w) => (
                     <button
                       key={`btn-${w.key}`}
@@ -405,7 +428,7 @@ const Tools = ({
                         setActivePopup(null);
                       })}
                       style={{
-                        position: 'absolute', left: w.subX - w.subIconSize/2, top: w.subY - w.subIconSize/2,
+                        position: 'absolute', left: w.subX - w.subIconSize / 2, top: w.subY - w.subIconSize / 2,
                         width: w.subIconSize, height: w.subIconSize,
                       }}
                       className="z-40 flex items-center justify-center hover:scale-110 transition-transform pointer-events-auto drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]"
@@ -422,9 +445,9 @@ const Tools = ({
                       {activePopup === 'shapes' && (
                         <div className="w-[70%] h-[70%] text-white/90">
                           {w.opt === 'line' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="2" y1="22" x2="22" y2="2" /></svg>}
-                          {w.opt === 'arrow' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
-                          {w.opt === 'circle' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/></svg>}
-                          {w.opt === 'polygon' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l10 6-4 14H6L2 8z"/></svg>}
+                          {w.opt === 'arrow' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>}
+                          {w.opt === 'circle' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /></svg>}
+                          {w.opt === 'polygon' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l10 6-4 14H6L2 8z" /></svg>}
                         </div>
                       )}
                     </button>
@@ -435,7 +458,7 @@ const Tools = ({
           })()}
         </AnimatePresence>
 
-        {/* --- 3. CENTRAL BUTTON (UNTOUCHED) --- */}
+        {/* --- 3. CENTRAL BUTTON — glassmorphism + conic arc border --- */}
         <motion.button
           onPointerDown={handlePointerDown}
           onClick={(e) => executeIfClick(e, () => {
@@ -447,34 +470,46 @@ const Tools = ({
             height: isMenuOpen ? OPEN_BUTTON_SIZE : CLOSED_BUTTON_SIZE,
           }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          style={{ 
-            position: 'absolute', left: CENTER, top: CENTER, 
-            x: "-50%", y: "-50%"
+          style={{
+            position: 'absolute', left: CENTER, top: CENTER,
+            x: "-50%", y: "-50%",
+            background: 'rgba(255, 255, 255, 0.12)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
           }}
-          className={`
-            relative rounded-full flex items-center justify-center z-[55] cursor-pointer pointer-events-auto
-            bg-black/30 backdrop-blur-md
-            shadow-[0_15px_35px_rgba(0,0,0,0.6),inset_0_-8px_20px_rgba(0,0,0,0.7),inset_0_0_8px_rgba(255,255,255,0.3)]
-            overflow-hidden active:scale-95
-          `}
+          className="relative rounded-full flex items-center justify-center z-[55] cursor-pointer pointer-events-auto overflow-hidden active:scale-95"
         >
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            initial={false}
-            animate={{ rotate: isMenuOpen ? 180 : 0 }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
-          >
-            <div className="absolute top-[2%] left-[10%] w-[80%] h-[40%] rounded-t-full bg-gradient-to-b from-white/40 to-transparent pointer-events-none mix-blend-screen" />
-            <div className="absolute top-[3%] left-[10%] w-[45%] h-[12%] bg-white rounded-[100%] -rotate-[35deg] blur-[3px] opacity-100 mix-blend-screen shadow-[0_0_15px_10px_rgba(255,255,255,1)]" />
-            <div className="absolute bottom-[3%] right-[10%] w-[35%] h-[10%] bg-white rounded-[100%] -rotate-[35deg] blur-[3px] opacity-80 mix-blend-screen shadow-[0_0_12px_8px_rgba(255,255,255,0.9)]" />
-          </motion.div>
+          {/* Conic-gradient arc border — top-left bright, bottom-right soft */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            padding: '2px',
+            background: `conic-gradient(
+              from 200deg,
+              rgba(255,255,255,0) 0deg,
+              rgba(255,255,255,0.9) 60deg,
+              rgba(255,255,255,1) 90deg,
+              rgba(255,255,255,0.9) 120deg,
+              rgba(255,255,255,0) 160deg,
+              rgba(255,255,255,0) 200deg,
+              rgba(255,255,255,0.35) 260deg,
+              rgba(255,255,255,0.5) 290deg,
+              rgba(255,255,255,0.35) 320deg,
+              rgba(255,255,255,0) 360deg
+            )`,
+            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }} />
 
-          <div 
-             className={`z-10 w-[100%] h-[100%] flex items-center justify-center pointer-events-none transition-all duration-300
-             ${isMenuOpen ? "drop-shadow-[0_0_12px_rgba(255,255,255,1)]" : "drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"}
-             `}
-          >
-             <img src={centerImage} alt="Center tool icon" className="w-full h-full object-contain opacity-80" />
+          {/* Center image */}
+          <div className={`z-10 w-[100%] h-[100%] flex items-center justify-center pointer-events-none transition-all duration-300
+            ${isMenuOpen ? "drop-shadow-[0_0_12px_rgba(255,255,255,1)]" : "drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"}
+          `}>
+            <img src={centerImage} alt="Center tool icon" className="w-full h-full object-contain opacity-80" />
           </div>
         </motion.button>
 

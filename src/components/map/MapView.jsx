@@ -1025,14 +1025,16 @@ onSaveEdit: async (id, text, size, color) => {
 
 const onEmpireClick = async (e) => {
       if (currentToolRef.current !== 'select') return;
+      
       // 1. Priority: Check drawing tools first
       const drawingFeatures = map.current.queryRenderedFeatures(e.point, {
         layers: ["draw-final-line", "draw-final-fill", "draw-final-text"]
       });
+      
       if (drawingFeatures?.length) {
         onSelectClick(e); 
         return;
-    }
+      }
       
       // 2. Check for empire clicks
       const features = map.current.queryRenderedFeatures(e.point, {
@@ -1045,7 +1047,9 @@ const onEmpireClick = async (e) => {
         const feature = features[0];
         const empireId = feature.properties?.id; 
         const empireName = feature.properties?.name || feature.properties?.Name;
-        console.log(empireName)
+        
+        console.log(empireName);
+        
         if (empireId) {
             selectedEmpireNameRef.current = empireId;
             const filterExpr = ["==", ["get", "id"], empireId];
@@ -1055,7 +1059,7 @@ const onEmpireClick = async (e) => {
                 map.current.setFilter("polygon-empire-glow-middle", filterExpr);
                 map.current.setFilter("polygon-empire-glow-inner", filterExpr);
                 
-                // 👈 SUBTLE GLOW UPDATES
+                // SUBTLE GLOW UPDATES
                 map.current.setPaintProperty("empire-labels", "text-halo-color", [
                     "case", ["==", ["get", "id"], empireId], "rgba(255, 215, 0, 0.5)", "#ffffff"
                 ]);
@@ -1075,7 +1079,7 @@ const onEmpireClick = async (e) => {
                 map.current.setFilter("polygon-empire-glow-middle", filterExpr);
                 map.current.setFilter("polygon-empire-glow-inner", filterExpr);
                 
-                // 👈 SUBTLE GLOW UPDATES
+                // SUBTLE GLOW UPDATES
                 map.current.setPaintProperty("empire-labels", "text-halo-color", [
                     "case", ["==", ["get", "name"], empireName], "rgba(255, 215, 0, 0.5)", "#ffffff"
                 ]);
@@ -1087,17 +1091,13 @@ const onEmpireClick = async (e) => {
                 ]);
             } catch (e) {}
         }
-        // ---------------------------
 
         if (empireId) {
             try {
                 const data = await getMetadataByEmpireId(empireId);
 
                 if (data) {
-                    // STORE DATA IN REF
                     currentMetadataRef.current = data;
-
-                    // CHECK FOR IMAGES
                     const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
 const htmlContent = `
@@ -1110,38 +1110,55 @@ const htmlContent = `
         .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
         .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
         
-        /* Swaps the outside icon for the gallery panel */
-        .popup-collapsed .gallery-panel { display: none !important; }
+        /* Smooth Reveal for the Gallery Panel */
+        .gallery-panel {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 1;
+            transform: translateX(0);
+            display: flex;
+        }
+        .popup-collapsed .gallery-panel { 
+            opacity: 0;
+            transform: translateX(-10px);
+            position: absolute;
+            pointer-events: none;
+            visibility: hidden;
+            z-index: -1;
+        }
+
+        /* Targeted Width Animation */
+        .animate-resize {
+            transition: width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+        }
+
         #popup-wrapper:not(.popup-collapsed) .outside-icon-container { display: none !important; }
     </style>
 
-    <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden popup-collapsed transition-all" style="width: 380px; height: 350px; min-width: 560px; min-height: 200px; padding: 2px;">
+    <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden relative ${hasImages ? '' : 'popup-collapsed'}" 
+         style="width: ${hasImages ? '704px' : '380px'}; height: 350px; min-width: ${hasImages ? '704px' : '380px'}; min-height: 250px; padding: 2px;">
         
         <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
-            <div class="flex justify-between items-start mb-2 border-b border-black/10 pb-2 min-h-[54px]">
-                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 pt-1">
+            
+            <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
+                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 flex-1 line-clamp-2">
                     ${data.name || empireName || 'Empire Details'}
                 </h3>
                 
-                <div class="flex items-start gap-3 shrink-0">
-                    <div class="flex flex-col items-center">
-                        <span class="text-[9px] text-[#8c7b6e] font-medium tracking-tight mb-1">To know more</span>
-                        <button class="bg-[#075e54] text-white px-5 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" onclick="window.handleAskDyno()">
-                            Ask Dyno
-                        </button>
-                    </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-[10px] text-[#8c7b6e] font-medium tracking-tight">To know more</span>
+                    <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" onclick="window.handleAskDyno()">
+                        Ask Dyno
+                    </button>
                 </div>
             </div>
             
-            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0">
+            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0 min-h-0">
                 ${Object.entries(data)
                     .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
                     .map(([key, value]) => `
                         <div class="flex items-start text-xs border-b border-black/5 last:border-0">
-                            <span class="font-semibold text-[#6b5b4e] capitalize w-[35%] min-w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
-                            
+                            <span class="font-semibold text-[#6b5b4e] capitalize w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
                             <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
-                            
                             <span class="font-medium text-gray-800 text-left leading-tight break-words whitespace-normal min-w-0 flex-1 py-1.5">${value !== null && value !== undefined && value !== '' ? value : '-'}</span>
                         </div>
                     `).join('')}
@@ -1152,8 +1169,11 @@ const htmlContent = `
         <div class="outside-icon-container flex items-start shrink-0 h-full pt-1">
             <button onclick="
                 const wrapper = document.getElementById('popup-wrapper');
+                wrapper.classList.add('animate-resize');
                 wrapper.classList.remove('popup-collapsed');
-                wrapper.style.width = (wrapper.offsetWidth + 240) + 'px';
+                wrapper.style.minWidth = '704px';
+                wrapper.style.width = (wrapper.offsetWidth + 324) + 'px';
+                setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
             " class="bg-[#f1ebe3] hover:bg-[#e0d5c1] border border-[#d4c5b0] text-[#2A1F14] rounded-full w-8 h-8 flex items-center justify-center shadow-md transition-colors shrink-0" title="Open Gallery">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -1164,22 +1184,27 @@ const htmlContent = `
         ` : ''}
 
         ${hasImages ? `
-        <div class="gallery-panel w-[240px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
-            <div class="flex justify-between items-start mb-2 border-b border-black/10 pb-2 min-h-[54px]">
-                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug p-2">Gallery</h3>
+        <div class="gallery-panel w-[320px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
+            
+            <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
+                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug">Gallery</h3>
                 
                 <button onclick="
                     const wrapper = document.getElementById('popup-wrapper');
+                    wrapper.classList.add('animate-resize');
                     wrapper.classList.add('popup-collapsed');
-                    wrapper.style.width = Math.max(380, wrapper.offsetWidth - 240) + 'px';
-                " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0 mt-1" title="Close Gallery">
+                    wrapper.style.minWidth = '380px';
+                    wrapper.style.width = Math.max(380, wrapper.offsetWidth - 324) + 'px';
+                    setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
+                " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0" title="Close Gallery">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                 </button>
             </div>
-            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3">
+            
+            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3 min-h-0">
                 ${data.images.map(img => `
                     <div class="flex flex-col gap-1">
                         <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />

@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 
 // Components
 import Layers from "./Layers";
-import Tools from "./Tools";
 
 // Icons
 import satelliteIcon from "../../assets/icons/satellite_icon.png";

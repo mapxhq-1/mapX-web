@@ -774,142 +774,160 @@ User query (for context only):
                 </div>
               )}
 
-              {/* Drop-up selectors */}
-<div className={`flex ${isLandscapeMobile ? 'gap-1.5 mb-1.5' : 'gap-2.5 mb-3'}`}>
+{/* Drop-up selectors */}
+<div className={`flex justify-start ${isLandscapeMobile ? 'gap-1.5 mb-1.5' : 'gap-2.5 mb-3'}`}>
 
   {/* GRADE DROP-UP */}
-  <div className="relative flex-1">
-    <AnimatePresence>
-      {gradeOpen && (
-        <motion.div
-          initial={{ scaleY: 0, opacity: 0 }}
-          animate={{ scaleY: 1, opacity: 1 }}
-          exit={{ scaleY: 0, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 400, damping: 32 }}
-          style={{ transformOrigin: 'bottom center', bottom: '100%' }}
-          className="absolute left-0 right-0 bg-[#075e54] rounded-t-2xl rounded-b-none z-20 overflow-hidden"
-        >
-          <div
-            onClick={() => setGradeOpen(false)}
-            className="flex justify-center items-center py-2 cursor-pointer hover:bg-white/5 transition-colors"
-          >
-            <div className="w-8 h-1 bg-white/25 rounded-full" />
-          </div>
-          <div className="flex flex-col pb-2 px-2 max-h-44 overflow-y-auto custom-scrollbar-sidebar">
-            {[
-              { val: "no_grade", label: "No Grade" },
-              { val: "all_grades", label: "All Grades" },
-              ...([6,7,8,9,10,11,12].map(g => ({ val: `${g}th Grade`, label: `${g}th Grade` })))
-            ].map(opt => {
-              const currentVal = selectedGrade === 0 ? "no_grade" : selectedGrade === null ? "all_grades" : selectedGrade;
-              const isSelected = currentVal === opt.val;
-              return (
-                <div
-                  key={opt.val}
-                  onClick={() => {
-                    const v = opt.val;
-                    setSelectedGrade(v === "no_grade" ? 0 : v === "all_grades" ? null : v);
-                    setGradeOpen(false);
-                  }}
-                  className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-sm transition-colors ${isSelected ? 'bg-white/20 text-white font-medium' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
-                >
-                  <span>{opt.label}</span>
-                  {isSelected && <span className="text-white/50 text-xs">✓</span>}
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+  <div className={`relative ${isLandscapeMobile ? 'w-[110px]' : 'w-[140px]'}`}>
+    {/* Spacer to hold normal document flow */}
+    <div className={`w-full ${isLandscapeMobile ? 'h-[40px]' : 'h-[48px]'} pointer-events-none`} />
 
-    <button
-  onClick={() => { setGradeOpen(p => !p); setLangOpen(false); }}
-  className={`relative z-10 w-full flex items-center justify-between font-medium transition-all duration-200 ${gradeOpen ? 'rounded-b-[20px] rounded-t-none' : 'rounded-full'} ${isLandscapeMobile ? 'px-3 py-1 text-xs min-h-[30px]' : 'px-4 py-2.5 text-sm min-h-[40px]'} bg-[#075e54] text-white hover:bg-[#006D5B]`}
->
-  <span>{selectedGrade === 0 ? "No Grade" : selectedGrade === null ? "All Grades" : selectedGrade}</span>
-  <motion.div
-    animate={{ rotate: gradeOpen ? 180 : 0 }}
-    transition={{ duration: 0.25 }}
-  >
-    <ChevronUp size={14} className="text-white/60" />
-  </motion.div>
-</button>
+    {/* Shutter Mechanism */}
+    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end">
+      
+      {/* 1. Handle (Always at top, White BG, Rounded Top) */}
+      <div
+        onClick={() => { setGradeOpen(!gradeOpen); setLangOpen(false); }}
+        className={`w-full bg-white rounded-t-[24px] border-t border-l border-r border-[#e9edef] flex justify-center cursor-pointer hover:bg-gray-50 transition-colors z-10 ${isLandscapeMobile ? 'pt-2 pb-1' : 'pt-2.5 pb-1.5'}`}
+      >
+        <div className="w-6 h-1 bg-[#8696a0] rounded-full" />
+      </div>
+
+      {/* 2. Expanding Shutter Body */}
+      <motion.div
+        initial={false}
+        animate={{ height: gradeOpen ? "auto" : 0 }}
+        transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}
+        className="w-full bg-white border-l border-r border-[#e9edef] overflow-hidden flex flex-col"
+      >
+        <AnimatePresence>
+          {gradeOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col px-1.5 py-1 gap-0.5 max-h-48 overflow-y-auto custom-scrollbar-sidebar shrink-0"
+            >
+              {[
+                { val: "no_grade", label: "No Grade" },
+                { val: "all_grades", label: "All Grades" },
+                ...([6,7,8,9,10,11,12].map(g => ({ val: `${g}th Grade`, label: `${g}th Grade` })))
+              ].map(opt => {
+                const currentVal = selectedGrade === 0 ? "no_grade" : selectedGrade === null ? "all_grades" : selectedGrade;
+                const isSelected = currentVal === opt.val;
+                return (
+                  <div
+                    key={opt.val}
+                    onClick={() => {
+                      const v = opt.val;
+                      setSelectedGrade(v === "no_grade" ? 0 : v === "all_grades" ? null : v);
+                      setGradeOpen(false);
+                    }}
+                    className={`flex justify-center items-center px-3 py-2 rounded-full cursor-pointer text-sm transition-colors ${isSelected ? 'bg-black/10 text-[#111b21] font-semibold' : 'text-[#54656f] hover:bg-black/5 hover:text-[#111b21]'}`}
+                  >
+                    <span className="text-center">{opt.label}</span>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* 3. Selected Text (Always at bottom, White BG, Rounded Bottom) */}
+      <div
+        onClick={() => { setGradeOpen(!gradeOpen); setLangOpen(false); }}
+        className={`w-full bg-white rounded-b-[24px] border-b border-l border-r border-[#e9edef] flex justify-center items-center text-center truncate cursor-pointer font-medium text-[#111b21] hover:bg-gray-50 transition-colors ${isLandscapeMobile ? 'pb-2 pt-0.5 text-xs' : 'pb-2.5 pt-1 text-sm'}`}
+      >
+        {selectedGrade === 0 ? "No Grade" : selectedGrade === null ? "All Grades" : selectedGrade}
+      </div>
+      
+    </div>
   </div>
 
   {/* LANGUAGE DROP-UP */}
-  <div className="relative flex-1">
-    <AnimatePresence>
-      {langOpen && (
-        <motion.div
-          initial={{ scaleY: 0, opacity: 0 }}
-          animate={{ scaleY: 1, opacity: 1 }}
-          exit={{ scaleY: 0, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 400, damping: 32 }}
-          style={{ transformOrigin: 'bottom center', bottom: '100%' }}
-          className="absolute left-0 right-0 bg-[#075e54] rounded-t-2xl rounded-b-none z-20 overflow-hidden"
-        >
-          <div
-            onClick={() => setLangOpen(false)}
-            className="flex justify-center items-center py-2 cursor-pointer hover:bg-white/5 transition-colors"
-          >
-            <div className="w-8 h-1 bg-white/25 rounded-full" />
-          </div>
-          <div className="flex flex-col pb-2 px-2 max-h-44 overflow-y-auto custom-scrollbar-sidebar">
-            {[
-              { val: "en-IN", label: "English (India)" },
-              { val: "hi-IN", label: "Hindi" },
-              { val: "bn-IN", label: "Bengali" },
-              { val: "kn-IN", label: "Kannada" },
-              { val: "ml-IN", label: "Malayalam" },
-              { val: "mr-IN", label: "Marathi" },
-              { val: "or-IN", label: "Odia" },
-              { val: "pa-IN", label: "Punjabi" },
-              { val: "ta-IN", label: "Tamil" },
-              { val: "te-IN", label: "Telugu" },
-              { val: "gu-IN", label: "Gujarati" },
-            ].map(opt => {
-              const isSelected = voiceLanguage === opt.val;
-              return (
-                <div
-                  key={opt.val}
-                  onClick={() => { setVoiceLanguage(opt.val); setLangOpen(false); }}
-                  className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-sm transition-colors ${isSelected ? 'bg-white/20 text-white font-medium' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
-                >
-                  <span>{opt.label}</span>
-                  {isSelected && <span className="text-white/50 text-xs">✓</span>}
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+  <div className={`relative ${isLandscapeMobile ? 'w-[130px]' : 'w-[160px]'}`}>
+    {/* Spacer to hold normal document flow */}
+    <div className={`w-full ${isLandscapeMobile ? 'h-[40px]' : 'h-[48px]'} pointer-events-none`} />
 
-    <button
-  onClick={() => { setLangOpen(p => !p); setGradeOpen(false); }}
-  className={`relative z-10 w-full flex items-center justify-between font-medium transition-all duration-200 ${langOpen ? 'rounded-b-[20px] rounded-t-none' : 'rounded-full'} ${isLandscapeMobile ? 'px-3 py-1 text-xs min-h-[30px]' : 'px-4 py-2.5 text-sm min-h-[40px]'} bg-[#075e54] text-white hover:bg-[#006D5B]`}
->
-  <span className="truncate">{[
-    { val: "en-IN", label: "English (India)" },
-    { val: "hi-IN", label: "Hindi" },
-    { val: "bn-IN", label: "Bengali" },
-    { val: "kn-IN", label: "Kannada" },
-    { val: "ml-IN", label: "Malayalam" },
-    { val: "mr-IN", label: "Marathi" },
-    { val: "or-IN", label: "Odia" },
-    { val: "pa-IN", label: "Punjabi" },
-    { val: "ta-IN", label: "Tamil" },
-    { val: "te-IN", label: "Telugu" },
-    { val: "gu-IN", label: "Gujarati" },
-  ].find(o => o.val === voiceLanguage)?.label}</span>
-  <motion.div
-    animate={{ rotate: langOpen ? 180 : 0 }}
-    transition={{ duration: 0.25 }}
-  >
-    <ChevronUp size={14} className="text-white/60" />
-  </motion.div>
-</button>
+    {/* Shutter Mechanism */}
+    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end">
+      
+      {/* 1. Handle (Always at top, White BG, Rounded Top) */}
+      <div
+        onClick={() => { setLangOpen(!langOpen); setGradeOpen(false); }}
+        className={`w-full bg-white rounded-t-[24px] border-t border-l border-r border-[#e9edef] flex justify-center cursor-pointer hover:bg-gray-50 transition-colors z-10 ${isLandscapeMobile ? 'pt-2 pb-1' : 'pt-2.5 pb-1.5'}`}
+      >
+        <div className="w-6 h-1 bg-[#8696a0] rounded-full" />
+      </div>
+
+      {/* 2. Expanding Shutter Body */}
+      <motion.div
+        initial={false}
+        animate={{ height: langOpen ? "auto" : 0 }}
+        transition={{ duration: 0.3, ease: [0.25, 1, 0.5, 1] }}
+        className="w-full bg-white border-l border-r border-[#e9edef] overflow-hidden flex flex-col"
+      >
+        <AnimatePresence>
+          {langOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col px-1.5 py-1 gap-0.5 max-h-48 overflow-y-auto custom-scrollbar-sidebar shrink-0"
+            >
+              {[
+                { val: "en-IN", label: "English (India)" },
+                { val: "hi-IN", label: "Hindi" },
+                { val: "bn-IN", label: "Bengali" },
+                { val: "kn-IN", label: "Kannada" },
+                { val: "ml-IN", label: "Malayalam" },
+                { val: "mr-IN", label: "Marathi" },
+                { val: "or-IN", label: "Odia" },
+                { val: "pa-IN", label: "Punjabi" },
+                { val: "ta-IN", label: "Tamil" },
+                { val: "te-IN", label: "Telugu" },
+                { val: "gu-IN", label: "Gujarati" },
+              ].map(opt => {
+                const isSelected = voiceLanguage === opt.val;
+                return (
+                  <div
+                    key={opt.val}
+                    onClick={() => { setVoiceLanguage(opt.val); setLangOpen(false); }}
+                    className={`flex justify-center items-center px-3 py-2 rounded-full cursor-pointer text-sm transition-colors ${isSelected ? 'bg-black/10 text-[#111b21] font-semibold' : 'text-[#54656f] hover:bg-black/5 hover:text-[#111b21]'}`}
+                  >
+                    <span className="text-center">{opt.label}</span>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* 3. Selected Text (Always at bottom, White BG, Rounded Bottom) */}
+      <div
+        onClick={() => { setLangOpen(!langOpen); setGradeOpen(false); }}
+        className={`w-full bg-white rounded-b-[24px] border-b border-l border-r border-[#e9edef] flex justify-center items-center text-center truncate cursor-pointer font-medium text-[#111b21] hover:bg-gray-50 transition-colors ${isLandscapeMobile ? 'pb-2 pt-0.5 text-xs' : 'pb-2.5 pt-1 text-sm'}`}
+      >
+        {[
+          { val: "en-IN", label: "English (India)" },
+          { val: "hi-IN", label: "Hindi" },
+          { val: "bn-IN", label: "Bengali" },
+          { val: "kn-IN", label: "Kannada" },
+          { val: "ml-IN", label: "Malayalam" },
+          { val: "mr-IN", label: "Marathi" },
+          { val: "or-IN", label: "Odia" },
+          { val: "pa-IN", label: "Punjabi" },
+          { val: "ta-IN", label: "Tamil" },
+          { val: "te-IN", label: "Telugu" },
+          { val: "gu-IN", label: "Gujarati" },
+        ].find(o => o.val === voiceLanguage)?.label}
+      </div>
+      
+    </div>
   </div>
 
 </div>

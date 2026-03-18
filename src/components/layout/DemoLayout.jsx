@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react"; // <-- Added useRef
 import { Box, Typography, Button, useMediaQuery } from "@mui/material";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +33,9 @@ import Chat from "../Chatbot/Chat";
 export default function DemoLayout() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  // --- NEW: Drag Boundary Ref ---
+  const dragBoundaryRef = useRef(null);
 
   // --- LAYOUT & FULLSCREEN STATE ---
   const [leftExpanded, setLeftExpanded] = useState(false);
@@ -194,6 +197,12 @@ export default function DemoLayout() {
   return (
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       
+      {/* --- INVISIBLE DRAG BOUNDARY W/ PADDING --- */}
+      <div 
+        ref={dragBoundaryRef} 
+        style={{ position: 'fixed', top: 20, left: 20, right: 20, bottom: 20, pointerEvents: 'none', zIndex: -1 }} 
+      />
+
       {/* chatbot with Demo Prop */}
       <ResizableWindow>
         <Chat isDemo={true} />
@@ -216,8 +225,12 @@ export default function DemoLayout() {
         </Box>
         
         {loading && <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, pointerEvents: "none" }}><MapLoader /></Box>}
+        
+        {/* --- FLOATING, DRAGGABLE TOOLS WIDGET --- */}
         <motion.div
           drag
+          dragConstraints={dragBoundaryRef} // <-- Added boundary constraint here
+          dragElastic={0.1} // <-- Slight bounce when hitting edge
           dragMomentum={false}
           // Use fixed positioning so it escapes all box constraints
           style={{ 

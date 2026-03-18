@@ -10,7 +10,7 @@ import { getUserProfile, getProfilePhoto } from '../../api/auth';
 import { saveFeedback } from '../../api/project';
 
 import Profile from "./Profile";
-import {Play} from 'lucide-react'
+import {Youtube} from 'lucide-react'
 // Assets
 import plus from '../../../assets/icons/Plus.png';
 import time from '../../../assets/icons/time.png';
@@ -177,7 +177,7 @@ const Sidebar = () => {
     
     const topSectionClasses = isCompact 
         ? "pt-2 pb-1" 
-        : "flex-1 overflow-y-auto no-scrollbar pt-8 pb-4";
+        : "flex-1 overflow-y-auto custom-scrollbar pt-8 pb-4";
 
     const iconSize = isCompact ? "w-2.5 h-2.5" : "w-4 h-4"; 
     const textSize = isCompact ? "text-[10px]" : "text-sm";
@@ -188,6 +188,35 @@ const Sidebar = () => {
 
     return (
         <>
+        {/* --- INJECTED CUSTOM SCROLLBAR CSS --- */}
+<style>{`
+    .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #52525b transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #52525b;
+        border-radius: 10px;
+    }
+    /* The Nuclear Option for Scrollbar Arrows */
+    .custom-scrollbar::-webkit-scrollbar-button {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+    /* Also target specific arrow pseudo-elements just in case */
+    .custom-scrollbar::-webkit-scrollbar-button:start:decrement,
+    .custom-scrollbar::-webkit-scrollbar-button:end:increment {
+        display: none !important;
+    }
+`}</style>
             {/* --- MOBILE TRIGGER --- */}
             <button 
                 onClick={() => setIsMobileOpen(true)}
@@ -277,7 +306,7 @@ const Sidebar = () => {
                             <p className={`${headerPadding} mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600`}>Support</p>
                             <a href='https://help.happydyno.com' target='_blank' rel="noreferrer">
                                 <div className={getNavItemClass(false)}>
-                                    <Play size={18}/>
+                                    <Youtube size={18}/>
                                     <span className={`font-medium ${textSize}`}>How to use - Videos</span>
                                 </div>
                             </a>
