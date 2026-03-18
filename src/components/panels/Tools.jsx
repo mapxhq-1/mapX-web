@@ -509,7 +509,7 @@ const Tools = ({
           <div className={`z-10 w-[100%] h-[100%] flex items-center justify-center pointer-events-none transition-all duration-300
             ${isMenuOpen ? "drop-shadow-[0_0_12px_rgba(255,255,255,1)]" : "drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"}
           `}>
-            <img src={centerImage} alt="Center tool icon" className="w-full h-full object-contain opacity-80" />
+            <img src={centerImage} alt="Center tool icon" className="w-[80%] h-[80%] object-contain opacity-80" />
           </div>
         </motion.button>
 
