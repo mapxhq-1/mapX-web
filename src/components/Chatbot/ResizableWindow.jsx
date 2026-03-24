@@ -55,16 +55,38 @@ const ResizableWindow = ({
     return () => window.removeEventListener("resize", checkSize);
   }, []);
 
+  const getSafePosition = (x, y, targetWidth, targetHeight) => {
+    const w = typeof targetWidth === 'string' ? parseInt(targetWidth) : targetWidth;
+    const h = typeof targetHeight === 'string' ? parseInt(targetHeight) : targetHeight;
+    
+    const padding = 10;
+    const maxX = Math.max(0, window.innerWidth - w - padding);
+    const maxY = Math.max(0, window.innerHeight - h - padding);
+    
+    return {
+      x: Math.max(padding, Math.min(x, maxX)),
+      y: Math.max(padding, Math.min(y, maxY))
+    };
+  };
+
   const performMaximize = () => {
-    if (isMinimized) { setIsMinimized(false); return; }
+    if (isMinimized) { 
+      const safePos = getSafePosition(position.x, position.y, size.width, size.height);
+      setPosition(safePos);
+      setIsMinimized(false); 
+      return; 
+    }
     if (!isMaximized) {
       setPrevBounds({ x: position.x, y: position.y, width: size.width, height: size.height });
-      setPosition({ x: 0, y: 0 });
-      setSize({ width: "100%", height: "100%" });
+      setIsMaximized(true);
     } else {
-      if (prevBounds) { setPosition({ x: prevBounds.x, y: prevBounds.y }); setSize({ width: prevBounds.width, height: prevBounds.height }); }
+      if (prevBounds) { 
+        const safePos = getSafePosition(prevBounds.x, prevBounds.y, prevBounds.width, prevBounds.height);
+        setPosition(safePos); 
+        setSize({ width: prevBounds.width, height: prevBounds.height }); 
+      }
+      setIsMaximized(false);
     }
-    setIsMaximized(!isMaximized);
   };
 
   const handleHeaderPointerDown = (e) => { headerStartRef.current = { x: e.clientX, y: e.clientY }; };
@@ -78,23 +100,48 @@ const ResizableWindow = ({
   const handleBubblePointerUp = (e) => {
     const deltaX = Math.abs(e.clientX - bubbleStartRef.current.x);
     const deltaY = Math.abs(e.clientY - bubbleStartRef.current.y);
-    if (deltaX < 5 && deltaY < 5) setIsMinimized(false);
+    if (deltaX < 5 && deltaY < 5) {
+      const safePos = getSafePosition(position.x, position.y, size.width, size.height);
+      setPosition(safePos);
+      setIsMinimized(false);
+    }
   };
 
   const toggleMinimize = (e) => {
     e.stopPropagation();
     if (isMaximized) {
       setIsMaximized(false);
-      if (prevBounds) { setPosition({ x: prevBounds.x, y: prevBounds.y }); setSize({ width: prevBounds.width, height: prevBounds.height }); }
+      if (prevBounds) { 
+        const safePos = getSafePosition(prevBounds.x, prevBounds.y, prevBounds.width, prevBounds.height);
+        setPosition(safePos); 
+        setSize({ width: prevBounds.width, height: prevBounds.height }); 
+      }
+    } else if (isMinimized) {
+      const safePos = getSafePosition(position.x, position.y, size.width, size.height);
+      setPosition(safePos);
     }
     setIsMinimized(!isMinimized);
   };
 
-  const toggleMaximizeButton = (e) => { e.stopPropagation(); performMaximize(); };
+  const toggleMaximizeButton = (e) => { 
+    e.stopPropagation(); 
+    performMaximize(); 
+  };
 
-  const getTargetSize = () => isMinimized ? { width: CLOSED_BUTTON_SIZE, height: CLOSED_BUTTON_SIZE } : (isMaximized ? { width: "100%", height: "100%" } : size);
-  const getTargetPos = () => isMaximized && !isMinimized ? { x: 0, y: 0 } : position;
-  const transitionClass = isDragging ? "transition-none" : "transition-[width,height,transform] duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]";
+  const getTargetSize = () => {
+    if (isMinimized) return { width: CLOSED_BUTTON_SIZE, height: CLOSED_BUTTON_SIZE };
+    if (isMaximized) return { width: "100%", height: "100%" };
+    return size;
+  };
+
+  const getTargetPos = () => {
+    if (isMaximized && !isMinimized) return { x: 0, y: 0 };
+    return position;
+  };
+
+  const transitionClass = isDragging 
+    ? "!transition-none" 
+    : "transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]";
 
   return (
     <Rnd
@@ -136,61 +183,44 @@ const ResizableWindow = ({
       className={`fixed flex flex-col box-border z-[999999] overflow-hidden ${isMinimized ? "rounded-full" : "rounded-2xl"} ${isMaximized && !isMinimized ? "!rounded-none" : ""} ${transitionClass}`}
     >
       {isMinimized ? (
-  <div
-    className="drag-handle w-full h-full rounded-full cursor-pointer relative flex items-center justify-center"
-    onPointerDown={handleBubblePointerDown}
-    onPointerUp={handleBubblePointerUp}
-    style={{
-      background: 'rgba(255, 255, 255, 0.12)',
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-    }}
-  >
-    {/* Perfect circle border using conic-gradient — top-left bright, bottom-right soft */}
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      borderRadius: '50%',
-      padding: '2px',
-      background: `conic-gradient(
-        from 200deg,
-        rgba(255,255,255,0) 0deg,
-        rgba(255,255,255,0.9) 60deg,
-        rgba(255,255,255,1) 90deg,
-        rgba(255,255,255,0.9) 120deg,
-        rgba(255,255,255,0) 160deg,
-        rgba(255,255,255,0) 200deg,
-        rgba(255,255,255,0.35) 260deg,
-        rgba(255,255,255,0.5) 290deg,
-        rgba(255,255,255,0.35) 320deg,
-        rgba(255,255,255,0) 360deg
-      )`,
-      WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-      WebkitMaskComposite: 'xor',
-      maskComposite: 'exclude',
-      pointerEvents: 'none',
-      zIndex: 10,
-    }} />
+        <div
+          className="drag-handle w-full h-full rounded-full cursor-pointer relative flex items-center justify-center"
+          onPointerDown={handleBubblePointerDown}
+          onPointerUp={handleBubblePointerUp}
+          style={{
+            background: 'rgba(255, 255, 255, 0.12)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            padding: '2px',
+            background: `conic-gradient(from 200deg, rgba(255,255,255,0) 0deg, rgba(255,255,255,0.9) 60deg, rgba(255,255,255,1) 90deg, rgba(255,255,255,0.9) 120deg, rgba(255,255,255,0) 160deg, rgba(255,255,255,0) 200deg, rgba(255,255,255,0.35) 260deg, rgba(255,255,255,0.5) 290deg, rgba(255,255,255,0.35) 320deg, rgba(255,255,255,0) 360deg)`,
+            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }} />
 
-    {/* Dyno image */}
-    <img
-      src={dyno}
-      alt=""
-      className="pointer-events-none select-none"
-      draggable={false}
-      style={{
-        position: 'absolute',
-        width: '100%',
-        height: '100%',
-        objectFit: 'contain',
-        zIndex: 3,
-      }}
-    />
-  </div>
-
+          <img
+            src={dyno}
+            alt=""
+            className="pointer-events-none select-none"
+            draggable={false}
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              zIndex: 3,
+            }}
+          />
+        </div>
       ) : (
-
-        /* ── EXPANDED — LiquidGlass as normal ── */
         <LiquidGlass>
           <div className="flex flex-col h-full w-full relative">
             <div
@@ -201,7 +231,12 @@ const ResizableWindow = ({
               <div className="flex items-center gap-2">
                 <span className="text-white dark:text-white text-[13px] potta-one">Happy Dyno</span>
               </div>
-              <div className="no-drag flex gap-1.5">
+              {/* THE FIX: Isolate pointer events within the button container */}
+              <div 
+                className="no-drag flex gap-1.5"
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+              >
                 <button onClick={toggleMinimize} className="w-5 h-5 rounded-full bg-black/70 hover:bg-white/30 flex items-center justify-center text-white">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <line x1="5" y1="12" x2="19" y2="12" />
@@ -219,7 +254,6 @@ const ResizableWindow = ({
             </div>
           </div>
         </LiquidGlass>
-
       )}
     </Rnd>
   );

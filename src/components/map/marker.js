@@ -5,13 +5,14 @@ import { useSelector, useDispatch } from "react-redux";
 // --- Updated CSS Constants with Pill Popup Styles ---
 const MARKER_STYLES = `
   .custom-marker-container {
-    width: 0;
-    height: 0;
+    width: 24px;  /* Hitbox for easier tapping on mobile */
+    height: 24px; 
     position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
     pointer-events: auto;
+    cursor: pointer; 
     overflow: visible; 
   }
   
@@ -82,19 +83,18 @@ const MARKER_STYLES = `
 
   /* --- MapLibre Custom Pill Popup --- */
   .maplibregl-popup-content {
-    background-color: rgba(0, 0, 0, 0.9) !important; /* Black/90 */
+    background-color: rgba(0, 0, 0, 0.9) !important; 
     color: #ffffff !important;
-    border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important; /* White/70 depth effect */
-    border-radius: 50px !important; /* Pill shape */
-    padding: 6px 16px !important; /* Low Y padding, High X padding */
+    border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important; 
+    border-radius: 50px !important; 
+    padding: 6px 16px !important; 
     font-size: 13px;
     font-weight: 500;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important; /* Drop shadow for depth */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important; 
     letter-spacing: 0.3px;
-    white-space: nowrap; /* Keeps the text on one line for the pill look */
+    white-space: nowrap; 
   }
 
-  /* Hide the default triangle tip to maintain the clean floating pill look */
   .maplibregl-popup-tip {
     display: none !important;
   }
@@ -129,7 +129,6 @@ const createMarkerElement = (type = "black", name = "") => {
     container.appendChild(ripple);
   }
 
-  // Tooltip label
   if (name) {
     const label = document.createElement("div");
     label.className = "marker-label";
@@ -144,7 +143,7 @@ const createMarkerElement = (type = "black", name = "") => {
 export const useMarkerManager = (mapRef) => {
   const targetPosition = useSelector((state) => state.map.flyToPosition);
   const markersList = useSelector((state) => state.map.markers); 
-  const dispatch = useDispatch(); // Available in case you want to dispatch Redux actions on click
+  const dispatch = useDispatch(); 
 
   const mainMarkerRef = useRef(null); 
   const redMarkersRef = useRef([]); 
@@ -157,10 +156,8 @@ export const useMarkerManager = (mapRef) => {
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // 1. Determine if red markers exist
     const hasRedMarkers = Array.isArray(markersList) && markersList.length > 0;
     
-    // 2. Determine if black marker should show (Target exists AND No Red markers)
     const shouldShowBlack = targetPosition?.lat !== undefined && 
                             targetPosition?.lng !== undefined && 
                             !hasRedMarkers;
@@ -171,7 +168,6 @@ export const useMarkerManager = (mapRef) => {
       if (!mainMarkerRef.current) {
         const el = createMarkerElement('black');
         
-        // CLICK EVENT LISTENER added here
         el.addEventListener('click', (e) => {
           e.stopPropagation(); 
           console.log(`Black Marker Clicked - Lng: ${lng}, Lat: ${lat}`);
@@ -182,13 +178,11 @@ export const useMarkerManager = (mapRef) => {
           .addTo(mapRef.current);
       } else {
         mainMarkerRef.current.setLngLat([lng, lat]);
-        // Ensure it is on the map if it was previously removed
         if (!mainMarkerRef.current.getElement().parentElement) {
             mainMarkerRef.current.addTo(mapRef.current);
         }
       }
     } else {
-      // 3. Remove black marker if conditions aren't met
       if (mainMarkerRef.current) {
         mainMarkerRef.current.remove();
         mainMarkerRef.current = null;
@@ -196,9 +190,7 @@ export const useMarkerManager = (mapRef) => {
     }
   }, [mapRef, targetPosition, markersList]); 
 
-  
-
-    // --- Array of Red Markers ---
+  // --- Array of Red Markers ---
   useEffect(() => {
     if (!mapRef.current) return;
     
@@ -209,45 +201,89 @@ export const useMarkerManager = (mapRef) => {
 
         if (redMarkersRef.current[index]) {
             // Update existing marker
-            redMarkersRef.current[index].setLngLat([coord.lng, coord.lat]);
+            const marker = redMarkersRef.current[index];
+            marker.setLngLat([coord.lng, coord.lat]);
             
-            // Update popup text if location changes
-            const popup = redMarkersRef.current[index].getPopup();
+            // Extract the custom popup we attached during creation
+            const popup = marker.customPopup;
             if (popup) {
               popup.setText(coord.location || `Location: ${coord.lng.toFixed(4)}, ${coord.lat.toFixed(4)}`);
+              popup.setLngLat([coord.lng, coord.lat]); 
             }
         } else {
             // Create New Marker
             const el = createMarkerElement('red');
             
-            // 1. Create a simple MapLibre Popup (Text Box)
+            // 1. Create the Popup (Text Box)
             const popup = new maplibregl.Popup({ 
-              offset: 15, // pushes the text a bit away from the center of the dot
-              closeButton: false, // hides the little 'x' button for a cleaner look
-              closeOnClick: true 
+              offset: 15, 
+              closeButton: false, 
+              closeOnClick: true,
+              autoPan: false // STOPS MAP MOVEMENT ON OPEN
             }).setText(coord.location || `Location: ${coord.lng.toFixed(4)}, ${coord.lat.toFixed(4)}`);
 
-            // 2. Attach the Popup to the Marker
+            // 2. Attach the Marker manually 
             const newMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
                 .setLngLat([coord.lng, coord.lat])
-                .setPopup(popup) // <--- This connects the text to the marker!
                 .addTo(mapRef.current);
             
-            // 3. Handle the click to open/close the text safely
+            // Attach the popup to the marker instance manually for future updates
+            newMarker.customPopup = popup;
+
+            // 3. Event Listeners (Fixed for Touchscreen Phantom Clicks)
+            el.isPinned = false; 
+
+            // --- Hover Logic (Desktop Mouse Only) ---
+            el.addEventListener('pointerenter', (e) => {
+              if (e.pointerType === 'mouse' && !el.isPinned) {
+                popup.setLngLat([coord.lng, coord.lat]).addTo(mapRef.current);
+              }
+            });
+
+            el.addEventListener('pointerleave', (e) => {
+              if (e.pointerType === 'mouse' && !el.isPinned) {
+                popup.remove();
+              }
+            });
+
+            // --- Block MapLibre Gestures ---
+            // These stop the globe from panning or closing the popup immediately on touch
+            el.addEventListener('mousedown', (e) => e.stopPropagation());
+            el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: false });
+            el.addEventListener('dblclick', (e) => e.stopPropagation());
+
+            // --- The Click/Tap Handler ---
             el.addEventListener('click', (e) => {
-              e.stopPropagation(); // Prevents map from swallowing the click
-              newMarker.togglePopup(); // Shows/hides the text
+              e.stopPropagation(); // Stops the phantom click from hitting the globe
+              e.preventDefault(); 
+
+              el.isPinned = !el.isPinned; // Toggle pin state
+
+              if (el.isPinned) {
+                popup.setLngLat([coord.lng, coord.lat]).addTo(mapRef.current);
+              } else {
+                popup.remove();
+              }
+            });
+
+            // --- Reset State on Map Click ---
+            // If the user taps the map background to dismiss the popup, unpin it
+            popup.on('close', () => {
+              el.isPinned = false;
             });
 
             redMarkersRef.current[index] = newMarker;
         }
     });
 
-    // Cleanup extra markers
+    // Cleanup extra markers & their popups
     if (redMarkersRef.current.length > currentList.length) {
         for (let i = currentList.length; i < redMarkersRef.current.length; i++) {
             if (redMarkersRef.current[i]) {
                 redMarkersRef.current[i].remove();
+                if (redMarkersRef.current[i].customPopup) {
+                  redMarkersRef.current[i].customPopup.remove();
+                }
             }
         }
         redMarkersRef.current.length = currentList.length;

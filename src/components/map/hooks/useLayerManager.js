@@ -104,7 +104,7 @@ export const useLayerManager = (map, customLayers) => {
           const handlePopup = (e) => {
              new maplibregl.Popup({ closeButton: false })
                 .setLngLat(e.lngLat)
-                .setHTML(`<div style="color:black; padding:4px; font-weight:bold;">${layer.name}</div>`)
+                .setHTML(`<div style="color:white; padding:4px; font-weight:bold;">${layer.name}</div>`)
                 .addTo(map.current);
           };
           if (!map.current._clickBound) map.current._clickBound = {};
