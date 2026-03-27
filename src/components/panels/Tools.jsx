@@ -328,7 +328,7 @@ const Tools = ({
                 `}
                 title={tool.label}
               >
-                <div className="w-[70%] h-[70%] flex items-center justify-center [&_svg]:w-full [&_svg]:h-full">
+                <div className={`flex items-center justify-center [&_svg]:w-full [&_svg]:h-full ${tool.id === 'pencil' ? 'w-[90%] h-[90%]' : 'w-[70%] h-[70%]'}`}>
                   <tool.icon />
                 </div>
               </button>
@@ -434,7 +434,7 @@ const Tools = ({
                       className="z-40 flex items-center justify-center hover:scale-110 transition-transform pointer-events-auto drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]"
                     >
                       {activePopup === 'pencil' && w.opt.isTool && (
-                        <div className="w-[70%] h-[70%] flex items-center justify-center [&_svg]:w-full [&_svg]:h-full text-white/90">
+                        <div className={`flex items-center justify-center [&_svg]:w-full [&_svg]:h-full text-white/90 ${w.opt.id === 'pencil' ? 'w-[90%] h-[90%]' : 'w-[70%] h-[70%]'}`}>
                           <w.opt.icon />
                         </div>
                       )}
