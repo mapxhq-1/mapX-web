@@ -778,18 +778,19 @@ User query (for context only):
     <div className={`w-full ${isLandscapeMobile ? 'h-[40px]' : 'h-[48px]'} pointer-events-none`} />
 
     {/* Shutter Mechanism anchored to bottom - Static Wrapper */}
-    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end">
+    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end group">
       
       {/* 1. Handle - ONLY this animates the dip on close */}
       <motion.div
         initial={false}
-        animate={gradeOpen ? { y: 0 } : { y: [0, 8, 0] }}
+        animate={gradeOpen ? { y: 0, opacity: 0, height: 0, marginBottom: 0 } : { y: [0, 8, 0], opacity: 1, height: "auto", marginBottom: -12 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
         onClick={() => { setGradeOpen(!gradeOpen); setLangOpen(false); }}
-        className="w-full flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity z-0 -mb-4"
+        className="w-full flex flex-col items-center cursor-pointer transition-opacity z-0 overflow-hidden pointer-events-auto px-2"
+        style={gradeOpen ? { pointerEvents: 'none' } : {}}
       >
-        <div className="w-full h-8 bg-white border border-[#e9edef] border-b-0 rounded-t-2xl flex justify-center pt-2 shadow-[0_-2px_6px_rgba(0,0,0,0.03)]">
-          <div className="w-6 h-1 bg-[#8696a0] rounded-full" />
+        <div className="w-full h-5 bg-white group-hover:bg-[#DCFCD6] transition-colors rounded-t-2xl flex justify-center pt-1">
+          <div className="w-4.5 h-0.5 bg-[#8696a0] rounded-full" />
         </div>
       </motion.div>
 
@@ -831,7 +832,7 @@ User query (for context only):
         {/* Base Pill (Selected Text) */}
         <div
           onClick={() => { setGradeOpen(!gradeOpen); setLangOpen(false); }}
-          className={`w-full flex justify-center items-center text-center truncate cursor-pointer font-medium text-[#111b21] hover:bg-gray-50 transition-colors shrink-0 ${isLandscapeMobile ? 'h-[40px] text-xs' : 'h-[48px] text-sm'}`}
+          className={`w-full flex justify-center items-center text-center truncate cursor-pointer font-medium text-[#111b21] transition-colors shrink-0 ${isLandscapeMobile ? 'h-[40px] text-xs' : 'h-[48px] text-sm'}`}
         >
           {selectedGrade === 0 ? "No Grade" : selectedGrade === null ? "All Grades" : selectedGrade}
         </div>
@@ -845,18 +846,19 @@ User query (for context only):
     <div className={`w-full ${isLandscapeMobile ? 'h-[40px]' : 'h-[48px]'} pointer-events-none`} />
 
     {/* Shutter Mechanism anchored to bottom - Static Wrapper */}
-    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end">
+    <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col justify-end group">
       
       {/* 1. Handle - ONLY this animates the dip on close */}
       <motion.div
         initial={false}
-        animate={langOpen ? { y: 0 } : { y: [0, 8, 0] }}
+        animate={langOpen ? { y: 0, opacity: 0, height: 0, marginBottom: 0 } : { y: [0, 8, 0], opacity: 1, height: "auto", marginBottom: -12 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
         onClick={() => { setLangOpen(!langOpen); setGradeOpen(false); }}
-        className="w-full flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity z-0 -mb-4"
+        className="w-full flex flex-col items-center cursor-pointer transition-opacity z-0 overflow-hidden pointer-events-auto px-2"
+        style={langOpen ? { pointerEvents: 'none' } : {}}
       >
-        <div className="w-full h-8 bg-white border border-[#e9edef] border-b-0 rounded-t-2xl flex justify-center pt-2 shadow-[0_-2px_6px_rgba(0,0,0,0.03)]">
-          <div className="w-6 h-1 bg-[#8696a0] rounded-full" />
+        <div className="w-full h-5 bg-white group-hover:bg-[#DCFCD6] transition-colors rounded-t-2xl flex justify-center pt-1">
+          <div className="w-4.5 h-0.5 bg-[#8696a0] rounded-full" />
         </div>
       </motion.div>
 
@@ -901,7 +903,7 @@ User query (for context only):
         {/* Base Pill (Selected Text) */}
         <div
           onClick={() => { setLangOpen(!langOpen); setGradeOpen(false); }}
-          className={`w-full flex justify-center items-center text-center truncate cursor-pointer font-medium text-[#111b21] hover:bg-gray-50 transition-colors shrink-0 ${isLandscapeMobile ? 'h-[40px] text-xs' : 'h-[48px] text-sm'}`}
+          className={`w-full flex justify-center items-center text-center truncate cursor-pointer font-medium text-[#111b21] transition-colors shrink-0 ${isLandscapeMobile ? 'h-[40px] text-xs' : 'h-[48px] text-sm'}`}
         >
           {[
             { val: "en-IN", label: "English (India)" },
