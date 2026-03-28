@@ -69,7 +69,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
   const ToolIcons = {
     SelectSvg: () => <img src={selectIcon} alt="Select" className={`object-contain ${styles.toolIconSize}`} />,
     HandSvg: () => <img src={handIcon} alt="Hand" className={`object-contain ${styles.toolIconSize}`} />,
-    PencilSvg: () => <img src={pencilIcon} alt="Pencil" className={`object-contain ${isCompact ? "w-[16px] h-[16px]" : "w-[30px] h-[30px]"}`} />,
+    PencilSvg: () => <img src={pencilIcon} alt="Pencil" className="w-full h-full object-contain" />,
     HighlighterSvg: () => <img src={highlighterIcon} alt="Highlighter" className={`object-contain ${styles.toolIconSize} rotate-180`} />,
     EraserSvg: () => <img src={eraserIcon} alt="Eraser" className={`object-contain ${isCompact ? "w-[16px] h-[16px]" : "w-[30px] h-[30px]"}`} />,
     NoteSvg: () => <img src={noteIcon} alt="Notes" className={`object-contain ${styles.toolIconSize}`} />,
