@@ -20,3 +20,26 @@
   height: 0;
 }
 
+/* Css for the toast */
+
+.transparent-small-toast {
+  /* Semi-transparent black background */
+  background-color: rgba(0, 0, 0, 0.15) !important; 
+  
+  /* Perfect pill shape */
+  border-radius: 9999px !important; 
+
+  /* Size & layout */
+  box-shadow: none !important; 
+  width: 250px !important; 
+  min-height: 45px !important; 
+  padding: 8px 20px !important; /* Increased side padding for the pill curve */
+  margin: 0 auto 10px !important; 
+}
+
+:root {
+  /* The default is usually 0.3s. 
+     Lowering it to 0.2s makes the slide-in a bit snappier, 
+     which often feels better for a quick 1-second notification. */
+  --toastify-transition-duration: 0.2s; 
+}

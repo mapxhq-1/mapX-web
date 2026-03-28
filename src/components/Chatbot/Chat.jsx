@@ -5,10 +5,9 @@ import { useNavigate } from "react-router-dom";
 import { setYear, setFlyToPosition, setMarkers } from "../../store/mapSlice";
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from "framer-motion";
 import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish } from "../api/chatService";
+import TypingMarkdown from './TypingMarkdown'
 
 export default function Chat() {
   const dispatch = useDispatch();
@@ -298,7 +297,9 @@ User query (for context only):
   const isListeningRef = useRef(listening);
   useEffect(() => { isListeningRef.current = listening; }, [listening]);
 
-  const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); };
+  const scrollToBottom = (behavior = "smooth") => { 
+    messagesEndRef.current?.scrollIntoView({ behavior }); 
+  };  
   useEffect(() => { scrollToBottom(); }, [messages, loading]);
 
   useEffect(() => {
@@ -519,6 +520,12 @@ User query (for context only):
         const sortedHistory = data.history.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
         const newUiMessages = [];
         sortedHistory.forEach(h => newUiMessages.push(...mapHistoryToUi(h)));
+        for (let i = newUiMessages.length - 1; i >= 0; i--) {
+          if (newUiMessages[i].role === "assistant") {
+            newUiMessages[i].isNew = true;
+            break;
+          }
+        }
         
         setMessages(newUiMessages);
 
@@ -689,10 +696,14 @@ User query (for context only):
                   <div className={`flex-initial max-w-[85%] min-w-0 ${isLandscapeMobile ? 'p-2 px-3' : 'p-3 px-4.5'} rounded-t-2xl ${msg.role === "user" ? "bg-[#d9fdd3] text-[#111b21] rounded-bl-2xl shadow-md" : "bg-transparent text-[#111b21] rounded-br-2xl shadow-none"}`}>
 
                     <div className={`${isLandscapeMobile ? 'text-sm leading-snug' : 'text-base leading-relaxed'}`}>
-                      <ReactMarkdown
-                        children={msg.content}
-                        remarkPlugins={[remarkGfm]}
+                      {/* Replace <ReactMarkdown ... /> with our new component */}
+                    <div className={`${isLandscapeMobile ? 'text-sm leading-snug' : 'text-base leading-relaxed'}`}>
+                      <TypingMarkdown
+                        content={msg.content}
+                        isNew={msg.isNew}
+                        scrollToBottom={scrollToBottom}
                         components={{
+                          // Keep your exact existing custom components here!
                           p: ({ node, ...props }) => <p className="mb-2.5 last:mb-0" {...props} />,
                           ul: ({ node, ...props }) => <ul className="mb-2.5 pl-6 list-disc" {...props} />,
                           ol: ({ node, ...props }) => <ol className="mb-2.5 pl-6 list-decimal" {...props} />,
@@ -707,6 +718,7 @@ User query (for context only):
                           code: ({ node, inline, className, children, ...props }) => inline ? <code className="px-1 py-0.5 rounded text-[90%] font-mono bg-black/5" {...props}>{children}</code> : <code className="block bg-[#f0f2f5] text-[#111b21] p-3 rounded-lg overflow-x-auto mb-2.5 font-mono text-[13px]" {...props}>{children}</code>
                         }}
                       />
+                    </div>
                     </div>
 
                     {((msg.citations && msg.citations.length > 0) || msg.empire_match) && (

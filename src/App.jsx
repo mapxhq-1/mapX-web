@@ -3,7 +3,7 @@ import DemoLayout from "./components/layout/DemoLayout";
 import Projects from "./components/ProjectComponents/Projects";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Routes, Route, useLocation } from "react-router-dom"; // <-- Added useLocation
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer,Slide } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -40,7 +40,15 @@ export default function App() {
           <Route path="/*" element={<Projects />} />
           <Route path="/map/:id" element={<ProtectedRoute><MainLayout /></ProtectedRoute>} />
         </Routes>
-        <ToastContainer draggable theme="dark"/>
+        <ToastContainer 
+        draggable 
+        theme="dark" 
+        autoClose={500} 
+        closeButton={false} 
+        hideProgressBar={true} /* Removes the frantic 1-second timer line */
+        transition={Slide}     /* Swaps the harsh Bounce for a smooth Slide */
+        toastClassName="transparent-small-toast"
+        />
       </QueryClientProvider>
     </>
   );

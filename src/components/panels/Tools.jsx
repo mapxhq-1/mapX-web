@@ -127,6 +127,21 @@ const Tools = ({
     return () => window.removeEventListener("resize", checkSize);
   }, []);
 
+  // --- Right-click to disable the current tool ---
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      if (selectedMode) {
+        e.preventDefault(); 
+        handleToolClick(null); 
+        if (handleShapeClick) handleShapeClick(null);
+        setActivePopup(null);
+      }
+    };
+
+    document.addEventListener("contextmenu", handleContextMenu);
+    return () => document.removeEventListener("contextmenu", handleContextMenu);
+  }, [selectedMode, handleToolClick, handleShapeClick]);
+
   const PRIMARY_TOOLS = [
     { id: 'note', icon: Icons.NoteSvg, label: 'Note' },
     { id: 'hyperlink', icon: Icons.HyperlinkSvg, label: 'Link' },
@@ -142,13 +157,10 @@ const Tools = ({
   const sliceAngle = (2 * Math.PI) / numTools;
   const sliceDegrees = 360 / numTools;
 
-  // --- UPDATED ACTIVE INDEX LOGIC ---
-  // This correctly maps sub-tools (like specific shapes or eraser) back to their parent category index
   const activeIndex = PRIMARY_TOOLS.findIndex(tool => {
-    if (activePopup === tool.id) return true; // Matches when the popup menu for this tool is open
-    if (selectedMode === tool.id) return true; // Exact match (e.g. 'text', 'hand')
+    if (activePopup === tool.id) return true;
+    if (selectedMode === tool.id) return true;
 
-    // Map sub-tools back to their parent
     if (tool.id === 'pencil' && ['eraser', 'highlight'].includes(selectedMode)) return true;
     if (tool.id === 'shapes' && SHAPE_OPTIONS.includes(selectedMode)) return true;
     if (tool.id === 'note' && NOTE_OPTIONS.some(opt => opt.id === selectedMode)) return true;
@@ -158,7 +170,18 @@ const Tools = ({
 
   const onMainToolClick = (toolId) => {
     if (isDemo) return;
-    if (['pencil', 'note', 'shapes'].includes(toolId)) {
+
+    const isCurrentlyActive = 
+      selectedMode === toolId ||
+      (toolId === 'pencil' && ['eraser', 'highlight'].includes(selectedMode)) ||
+      (toolId === 'shapes' && SHAPE_OPTIONS.includes(selectedMode)) ||
+      (toolId === 'note' && NOTE_OPTIONS.some(opt => opt.id === selectedMode));
+
+    if (isCurrentlyActive) {
+      handleToolClick(null);
+      if (handleShapeClick) handleShapeClick(null);
+      setActivePopup(null);
+    } else if (['pencil', 'note', 'shapes'].includes(toolId)) {
       setActivePopup(activePopup === toolId ? null : toolId);
     } else {
       handleToolClick(toolId);
@@ -174,7 +197,7 @@ const Tools = ({
   const MENU_SIZE = isCompact ? 300 : 380;
   const CENTER = MENU_SIZE / 2;
 
-  const CLOSED_BUTTON_SIZE = isCompact ? 60:70;
+  const CLOSED_BUTTON_SIZE = isCompact ? 60 : 70;
   const OPEN_BUTTON_SIZE = isCompact ? 50 : 60;
 
   const INNER_RADIUS = OPEN_BUTTON_SIZE / 2;
@@ -213,29 +236,28 @@ const Tools = ({
         style={{ width: MENU_SIZE, height: MENU_SIZE }}
       >
 
-        {/* --- 1. MAIN MENU LAYER 1: STATIC GLASS (FADE ONLY) --- */}
+        {/* --- 1. MAIN MENU LAYER 1: STRICTLY POINTER EVENTS NONE --- */}
         <motion.div
           initial={false}
           animate={{ opacity: isMenuOpen ? 1 : 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute inset-0 z-0 flex items-center justify-center"
-          style={{ pointerEvents: isMenuOpen ? "auto" : "none" }}
+          className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none"
         >
           <div
-            className="shadow-2xl overflow-hidden"
+            className="shadow-2xl overflow-hidden pointer-events-none"
             style={{
               width: MAIN_OUTER_RADIUS * 2,
               height: MAIN_OUTER_RADIUS * 2,
               borderRadius: "50%"
             }}
           >
-            <div className="w-[110%] h-[110%] -ml-[5%] -mt-[5%]">
+            <div className="w-[110%] h-[110%] -ml-[5%] -mt-[5%] pointer-events-none">
               <LiquidGlass />
             </div>
           </div>
         </motion.div>
 
-        {/* --- 1. MAIN MENU LAYER 2: ICONS & BORDERS (SCALE & SPIN) --- */}
+        {/* --- 1. MAIN MENU LAYER 2: WRAPPER IS NONE, CHILDREN ARE AUTO ONLY IF OPEN --- */}
         <motion.div
           initial={false}
           animate={{
@@ -244,8 +266,8 @@ const Tools = ({
             rotate: isMenuOpen ? 0 : -180
           }}
           transition={smoothSpin}
-          className="absolute inset-0 z-10"
-          style={{ transformOrigin: "center center", pointerEvents: isMenuOpen ? "auto" : "none" }}
+          className="absolute inset-0 z-10 pointer-events-none"
+          style={{ transformOrigin: "center center" }}
         >
           <svg width={MENU_SIZE} height={MENU_SIZE} className="absolute inset-0 overflow-visible pointer-events-none">
             <defs>
@@ -261,7 +283,6 @@ const Tools = ({
               </filter>
             </defs>
 
-            {/* --- SMOOTH ROTATING HIGHLIGHT WEDGE --- */}
             {activeIndex !== -1 && (
               <motion.g
                 initial={false}
@@ -269,18 +290,15 @@ const Tools = ({
                 transition={{ type: "spring", stiffness: 200, damping: 22 }}
                 style={{ originX: 0.5, originY: 0.5 }}
               >
-                {/* INVISIBLE ANCHOR */}
-                <circle cx={CENTER} cy={CENTER} r={MENU_SIZE / 2} fill="transparent" stroke="none" pointerEvents="none" />
+                <circle cx={CENTER} cy={CENTER} r={MENU_SIZE / 2} fill="transparent" stroke="none" className="pointer-events-none" />
                 
-                {/* LAYER 1: BACKGROUND FILL (No Glow Filter) */}
                 <path 
                   d={describeArc(CENTER, CENTER, INNER_RADIUS, MAIN_OUTER_RADIUS, -Math.PI / 2, -Math.PI / 2 + sliceAngle)} 
                   fill="url(#pressed-state)" 
                   stroke="none" 
-                  className="pointer-events-auto" 
+                  className={isMenuOpen ? "pointer-events-auto" : "pointer-events-none"} 
                 />
 
-                {/* LAYER 2: GLOWING BORDER (No Fill) */}
                 <path 
                   d={describeArc(CENTER, CENTER, INNER_RADIUS, MAIN_OUTER_RADIUS, -Math.PI / 2, -Math.PI / 2 + sliceAngle)} 
                   fill="none" 
@@ -292,8 +310,8 @@ const Tools = ({
               </motion.g>
             )}
 
-            <circle cx={CENTER} cy={CENTER} r={MAIN_OUTER_RADIUS - 1} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-            <circle cx={CENTER} cy={CENTER} r={INNER_RADIUS + 1} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
+            <circle cx={CENTER} cy={CENTER} r={MAIN_OUTER_RADIUS - 1} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" className="pointer-events-none"/>
+            <circle cx={CENTER} cy={CENTER} r={INNER_RADIUS + 1} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" className="pointer-events-none"/>
 
             {[...Array(numTools)].map((_, i) => {
               const angle = -Math.PI / 2 + (i * sliceAngle);
@@ -301,7 +319,7 @@ const Tools = ({
               const y1 = CENTER + INNER_RADIUS * Math.sin(angle);
               const x2 = CENTER + MAIN_OUTER_RADIUS * Math.cos(angle);
               const y2 = CENTER + MAIN_OUTER_RADIUS * Math.sin(angle);
-              return <line key={`line-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.2)" strokeWidth="2" />;
+              return <line key={`line-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.2)" strokeWidth="2" className="pointer-events-none"/>;
             })}
           </svg>
 
@@ -322,13 +340,14 @@ const Tools = ({
                   width: iconSize, height: iconSize,
                 }}
                 className={`
-                  z-50 flex items-center justify-center rounded-lg transition-transform hover:scale-110 pointer-events-auto
+                  z-50 flex items-center justify-center rounded-lg transition-transform hover:scale-110 
                   drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]
                   ${isActive ? "text-[#ffffff] opacity-100 scale-95" : "text-white hover:text-[#d4d4d8]"}
+                  ${isMenuOpen ? "pointer-events-auto" : "pointer-events-none"}
                 `}
                 title={tool.label}
               >
-                <div className="w-[70%] h-[70%] flex items-center justify-center [&_svg]:w-full [&_svg]:h-full">
+                <div className="w-[70%] h-[70%] flex items-center justify-center [&_svg]:w-full [&_svg]:h-full pointer-events-none">
                   <tool.icon />
                 </div>
               </button>
@@ -336,7 +355,6 @@ const Tools = ({
           })}
         </motion.div>
 
-        {/* --- 2. POPUP SUB-MENU --- */}
         <AnimatePresence>
           {isMenuOpen && activePopup && (() => {
             const toolIndex = PRIMARY_TOOLS.findIndex(t => t.id === activePopup);
@@ -377,6 +395,7 @@ const Tools = ({
 
             return (
               <React.Fragment key={`sub-menu-wrap-${activePopup}`}>
+                {/* STRICTLY POINTER EVENTS NONE ON BACKGROUND EFFECTS */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9, rotate: -30 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
@@ -386,7 +405,7 @@ const Tools = ({
                   style={{ transformOrigin: "center center" }}
                 >
                   <div
-                    className="absolute inset-0 pointer-events-auto"
+                    className="absolute inset-0 pointer-events-none"
                     style={{
                       clipPath: `path('${popupBgPath}')`,
                       WebkitClipPath: `path('${popupBgPath}')`,
@@ -394,7 +413,7 @@ const Tools = ({
                       willChange: 'transform'
                     }}
                   >
-                    <div className="absolute inset-0 w-full h-full">
+                    <div className="absolute inset-0 w-full h-full pointer-events-none">
                       <LiquidGlass />
                     </div>
                   </div>
@@ -410,7 +429,7 @@ const Tools = ({
                 >
                   <svg width={MENU_SIZE} height={MENU_SIZE} className="absolute inset-0 pointer-events-none overflow-visible">
                     {wedgeData.map((w) => (
-                      <path key={`stroke-${w.key}`} d={w.d} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" className="pointer-events-auto" />
+                      <path key={`stroke-${w.key}`} d={w.d} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" className="pointer-events-none" />
                     ))}
                   </svg>
 
@@ -419,12 +438,22 @@ const Tools = ({
                       key={`btn-${w.key}`}
                       onPointerDown={handlePointerDown}
                       onClick={(e) => executeIfClick(e, () => {
-                        if (activePopup === 'shapes') handleShapeClick(w.opt);
-                        else if (activePopup === 'pencil') {
-                          if (w.opt.isTool) handleToolClick(w.opt.id);
-                          if (w.opt.isHighlight) handleToolClick('highlight', w.opt.color);
+                        const isToolActive = 
+                          selectedMode === w.opt || 
+                          selectedMode === w.opt.id || 
+                          (activePopup === 'pencil' && w.opt.isHighlight && selectedMode === 'highlight');
+
+                        if (isToolActive) {
+                          if (activePopup === 'shapes') handleShapeClick(null);
+                          else handleToolClick(null);
+                        } else {
+                          if (activePopup === 'shapes') handleShapeClick(w.opt);
+                          else if (activePopup === 'pencil') {
+                            if (w.opt.isTool) handleToolClick(w.opt.id);
+                            if (w.opt.isHighlight) handleToolClick('highlight', w.opt.color);
+                          }
+                          else handleToolClick(activePopup, w.opt.color || w.opt.id);
                         }
-                        else handleToolClick(activePopup, w.opt.color || w.opt.id);
                         setActivePopup(null);
                       })}
                       style={{
@@ -434,16 +463,16 @@ const Tools = ({
                       className="z-40 flex items-center justify-center hover:scale-110 transition-transform pointer-events-auto drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]"
                     >
                       {activePopup === 'pencil' && w.opt.isTool && (
-                        <div className="w-[70%] h-[70%] flex items-center justify-center [&_svg]:w-full [&_svg]:h-full text-white/90">
+                        <div className="w-[70%] h-[70%] flex items-center justify-center [&_svg]:w-full [&_svg]:h-full text-white/90 pointer-events-none">
                           <w.opt.icon />
                         </div>
                       )}
                       {activePopup === 'pencil' && w.opt.isHighlight && (
-                        <img src={w.opt.src} alt="highlight" className="w-[70%] h-[70%] object-contain rotate-135" />
+                        <img src={w.opt.src} alt="highlight" className="w-[70%] h-[70%] object-contain rotate-135 pointer-events-none" />
                       )}
-                      {activePopup === 'note' && <img src={w.opt.src} alt="note" className="w-[80%] h-[80%] object-contain" />}
+                      {activePopup === 'note' && <img src={w.opt.src} alt="note" className="w-[80%] h-[80%] object-contain pointer-events-none" />}
                       {activePopup === 'shapes' && (
-                        <div className="w-[70%] h-[70%] text-white/90">
+                        <div className="w-[70%] h-[70%] text-white/90 pointer-events-none">
                           {w.opt === 'line' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="2" y1="22" x2="22" y2="2" /></svg>}
                           {w.opt === 'arrow' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>}
                           {w.opt === 'circle' && <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /></svg>}
@@ -458,7 +487,6 @@ const Tools = ({
           })()}
         </AnimatePresence>
 
-        {/* --- 3. CENTRAL BUTTON — glassmorphism + conic arc border --- */}
         <motion.button
           onPointerDown={handlePointerDown}
           onClick={(e) => executeIfClick(e, () => {
@@ -479,7 +507,6 @@ const Tools = ({
           }}
           className="relative rounded-full flex items-center justify-center z-[55] cursor-pointer pointer-events-auto overflow-hidden active:scale-95"
         >
-          {/* Conic-gradient arc border — top-left bright, bottom-right soft */}
           <div style={{
             position: 'absolute',
             inset: 0,
@@ -505,11 +532,10 @@ const Tools = ({
             zIndex: 10,
           }} />
 
-          {/* Center image */}
           <div className={`z-10 w-[100%] h-[100%] flex items-center justify-center pointer-events-none transition-all duration-300
             ${isMenuOpen ? "drop-shadow-[0_0_12px_rgba(255,255,255,1)]" : "drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]"}
           `}>
-            <img src={centerImage} alt="Center tool icon" className="w-[80%] h-[80%] object-contain opacity-80" />
+            <img src={centerImage} alt="Center tool icon" className="w-[80%] h-[80%] object-contain opacity-80 pointer-events-none" />
           </div>
         </motion.button>
 

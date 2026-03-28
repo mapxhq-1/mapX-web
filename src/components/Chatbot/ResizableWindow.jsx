@@ -19,14 +19,21 @@ const ResizableWindow = ({
   const [isDragging, setIsDragging] = useState(false);
   const [prevBounds, setPrevBounds] = useState(null);
   const [isCompact, setIsCompact] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
 
   const CLOSED_BUTTON_SIZE = isCompact ? 60 : 70;
 
-  const isDraggingRef = useRef(false);
   const headerStartRef = useRef({ x: 0, y: 0 });
-  const bubbleStartRef = useRef({ x: 0, y: 0 });
+
+  // Manual touch drag state (used for both bubble and open-window header on touch)
+  const touchDraggingRef = useRef(false);
+  const touchStartPosRef = useRef({ x: 0, y: 0 });
+  const touchStartWindowPosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
+    const touchCheck = window.matchMedia("(pointer: coarse)").matches || 'ontouchstart' in window;
+    setIsTouch(touchCheck);
+
     const handleResize = () => {
       const isPortraitMobile = window.innerWidth < 768;
       const isLandscapeMobile = window.innerHeight < 600;
@@ -58,11 +65,9 @@ const ResizableWindow = ({
   const getSafePosition = (x, y, targetWidth, targetHeight) => {
     const w = typeof targetWidth === 'string' ? parseInt(targetWidth) : targetWidth;
     const h = typeof targetHeight === 'string' ? parseInt(targetHeight) : targetHeight;
-    
     const padding = 10;
     const maxX = Math.max(0, window.innerWidth - w - padding);
     const maxY = Math.max(0, window.innerHeight - h - padding);
-    
     return {
       x: Math.max(padding, Math.min(x, maxX)),
       y: Math.max(padding, Math.min(y, maxY))
@@ -70,51 +75,122 @@ const ResizableWindow = ({
   };
 
   const performMaximize = () => {
-    if (isMinimized) { 
+    if (isMinimized) {
       const safePos = getSafePosition(position.x, position.y, size.width, size.height);
       setPosition(safePos);
-      setIsMinimized(false); 
-      return; 
+      setIsMinimized(false);
+      return;
     }
     if (!isMaximized) {
       setPrevBounds({ x: position.x, y: position.y, width: size.width, height: size.height });
       setIsMaximized(true);
     } else {
-      if (prevBounds) { 
+      if (prevBounds) {
         const safePos = getSafePosition(prevBounds.x, prevBounds.y, prevBounds.width, prevBounds.height);
-        setPosition(safePos); 
-        setSize({ width: prevBounds.width, height: prevBounds.height }); 
+        setPosition(safePos);
+        setSize({ width: prevBounds.width, height: prevBounds.height });
       }
       setIsMaximized(false);
     }
   };
 
-  const handleHeaderPointerDown = (e) => { headerStartRef.current = { x: e.clientX, y: e.clientY }; };
+  // ─── Mouse-only header (click to maximize) ───────────────────────────────
+  const handleHeaderPointerDown = (e) => {
+    if (e.pointerType === 'touch') return;
+    headerStartRef.current = { x: e.clientX, y: e.clientY };
+  };
   const handleHeaderPointerUp = (e) => {
-    const deltaX = Math.abs(e.clientX - headerStartRef.current.x);
-    const deltaY = Math.abs(e.clientY - headerStartRef.current.y);
-    if (deltaX < 5 && deltaY < 5) performMaximize();
+    if (e.pointerType === 'touch') return;
+    const dx = Math.abs(e.clientX - headerStartRef.current.x);
+    const dy = Math.abs(e.clientY - headerStartRef.current.y);
+    if (dx < 5 && dy < 5) performMaximize();
   };
 
-  const handleBubblePointerDown = (e) => { bubbleStartRef.current = { x: e.clientX, y: e.clientY }; };
+  // ─── Shared manual touch drag logic ──────────────────────────────────────
+  const startTouchDrag = (touch, currentPos, currentSize) => {
+    touchDraggingRef.current = false;
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    touchStartWindowPosRef.current = { x: currentPos.x, y: currentPos.y };
+  };
+
+  const moveTouchDrag = (e, currentSize) => {
+    e.stopPropagation();
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartPosRef.current.x;
+    const dy = touch.clientY - touchStartPosRef.current.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      touchDraggingRef.current = true;
+      setIsDragging(true);
+      const w = typeof currentSize.width === 'string' ? parseInt(currentSize.width) : currentSize.width;
+      const h = typeof currentSize.height === 'string' ? parseInt(currentSize.height) : currentSize.height;
+      const safe = getSafePosition(
+        touchStartWindowPosRef.current.x + dx,
+        touchStartWindowPosRef.current.y + dy,
+        w, h
+      );
+      setPosition(safe);
+    }
+  };
+
+  const endTouchDrag = (onTap) => {
+    setIsDragging(false);
+    if (!touchDraggingRef.current) onTap?.();
+    touchDraggingRef.current = false;
+  };
+
+  // ─── Bubble (minimized) touch handlers ───────────────────────────────────
+  const handleBubbleTouchStart = (e) => {
+    startTouchDrag(e.touches[0], position, { width: CLOSED_BUTTON_SIZE, height: CLOSED_BUTTON_SIZE });
+  };
+  const handleBubbleTouchMove = (e) => {
+    moveTouchDrag(e, { width: CLOSED_BUTTON_SIZE, height: CLOSED_BUTTON_SIZE });
+  };
+  const handleBubbleTouchEnd = () => {
+    endTouchDrag(() => {
+      const safePos = getSafePosition(position.x, position.y, size.width, size.height);
+      setPosition(safePos);
+      setIsMinimized(false);
+    });
+  };
+
+  // Mouse-only bubble open
+  const handleBubblePointerDown = (e) => {
+    if (e.pointerType === 'touch') return;
+    headerStartRef.current = { x: e.clientX, y: e.clientY };
+  };
   const handleBubblePointerUp = (e) => {
-    const deltaX = Math.abs(e.clientX - bubbleStartRef.current.x);
-    const deltaY = Math.abs(e.clientY - bubbleStartRef.current.y);
-    if (deltaX < 5 && deltaY < 5) {
+    if (e.pointerType === 'touch') return;
+    const dx = Math.abs(e.clientX - headerStartRef.current.x);
+    const dy = Math.abs(e.clientY - headerStartRef.current.y);
+    if (dx < 5 && dy < 5) {
       const safePos = getSafePosition(position.x, position.y, size.width, size.height);
       setPosition(safePos);
       setIsMinimized(false);
     }
   };
 
+  // ─── Open window header touch drag ───────────────────────────────────────
+  const handleWindowHeaderTouchStart = (e) => {
+    if (isMaximized) return;
+    startTouchDrag(e.touches[0], position, size);
+  };
+  const handleWindowHeaderTouchMove = (e) => {
+    if (isMaximized) return;
+    moveTouchDrag(e, size);
+  };
+  const handleWindowHeaderTouchEnd = () => {
+    endTouchDrag(null); // no tap action on header (maximize is mouse-only)
+  };
+
+  // ─── Buttons ──────────────────────────────────────────────────────────────
   const toggleMinimize = (e) => {
     e.stopPropagation();
     if (isMaximized) {
       setIsMaximized(false);
-      if (prevBounds) { 
+      if (prevBounds) {
         const safePos = getSafePosition(prevBounds.x, prevBounds.y, prevBounds.width, prevBounds.height);
-        setPosition(safePos); 
-        setSize({ width: prevBounds.width, height: prevBounds.height }); 
+        setPosition(safePos);
+        setSize({ width: prevBounds.width, height: prevBounds.height });
       }
     } else if (isMinimized) {
       const safePos = getSafePosition(position.x, position.y, size.width, size.height);
@@ -123,9 +199,9 @@ const ResizableWindow = ({
     setIsMinimized(!isMinimized);
   };
 
-  const toggleMaximizeButton = (e) => { 
-    e.stopPropagation(); 
-    performMaximize(); 
+  const toggleMaximizeButton = (e) => {
+    e.stopPropagation();
+    performMaximize();
   };
 
   const getTargetSize = () => {
@@ -139,9 +215,13 @@ const ResizableWindow = ({
     return position;
   };
 
-  const transitionClass = isDragging 
-    ? "!transition-none" 
+  const transitionClass = isDragging
+    ? "!transition-none"
     : "transition-all duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]";
+
+  // Rnd dragging: fully disabled on touch (we handle it manually above)
+  // so content taps can never trigger it
+  const disableRndDragging = isTouch || (isMaximized && !isMinimized);
 
   return (
     <Rnd
@@ -150,11 +230,10 @@ const ResizableWindow = ({
       maxWidth="100vw"
       maxHeight="100vh"
       cancel=".no-drag"
-      onDragStart={() => { setIsDragging(true); isDraggingRef.current = true; }}
+      onDragStart={() => { setIsDragging(true); }}
       onDragStop={(e, d) => {
         setIsDragging(false);
         if (!isMaximized) setPosition({ x: d.x, y: d.y });
-        setTimeout(() => { isDraggingRef.current = false; }, 100);
       }}
       onResizeStart={() => setIsDragging(true)}
       onResizeStop={(e, dir, ref, delta, pos) => {
@@ -178,7 +257,7 @@ const ResizableWindow = ({
         bottomLeft: `${HANDLE_CORNER} !bottom-0 !left-0 cursor-sw-resize`,
         topLeft: `${HANDLE_CORNER} !top-0 !left-0 cursor-nw-resize`,
       }}
-      disableDragging={isMaximized && !isMinimized}
+      disableDragging={disableRndDragging}
       enableResizing={!isMaximized && !isMinimized}
       className={`fixed flex flex-col box-border z-[999999] overflow-hidden ${isMinimized ? "rounded-full" : "rounded-2xl"} ${isMaximized && !isMinimized ? "!rounded-none" : ""} ${transitionClass}`}
     >
@@ -187,10 +266,14 @@ const ResizableWindow = ({
           className="drag-handle w-full h-full rounded-full cursor-pointer relative flex items-center justify-center"
           onPointerDown={handleBubblePointerDown}
           onPointerUp={handleBubblePointerUp}
+          onTouchStart={handleBubbleTouchStart}
+          onTouchMove={handleBubbleTouchMove}
+          onTouchEnd={handleBubbleTouchEnd}
           style={{
             background: 'rgba(255, 255, 255, 0.12)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
+            touchAction: 'none',
           }}
         >
           <div style={{
@@ -205,7 +288,6 @@ const ResizableWindow = ({
             pointerEvents: 'none',
             zIndex: 10,
           }} />
-
           <img
             src={dyno}
             alt=""
@@ -223,16 +305,20 @@ const ResizableWindow = ({
       ) : (
         <LiquidGlass>
           <div className="flex flex-col h-full w-full relative">
+            {/* Header: mouse drag via Rnd (disabled on touch), touch drag manually */}
             <div
               className="drag-handle flex justify-between items-center px-3 h-[34px] border-b border-white/20 cursor-move shrink-0 select-none bg-white/10 z-20"
               onPointerDown={handleHeaderPointerDown}
               onPointerUp={handleHeaderPointerUp}
+              onTouchStart={handleWindowHeaderTouchStart}
+              onTouchMove={handleWindowHeaderTouchMove}
+              onTouchEnd={handleWindowHeaderTouchEnd}
+              style={{ touchAction: 'none' }}
             >
               <div className="flex items-center gap-2">
                 <span className="text-white dark:text-white text-[13px] potta-one">Happy Dyno</span>
               </div>
-              {/* THE FIX: Isolate pointer events within the button container */}
-              <div 
+              <div
                 className="no-drag flex gap-1.5"
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerUp={(e) => e.stopPropagation()}
@@ -249,7 +335,15 @@ const ResizableWindow = ({
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 w-full relative p-2 z-20 overflow-auto">
+
+            {/* Content: block ALL touch events so Rnd never sees them */}
+            <div
+              className="no-drag flex-1 min-h-0 w-full relative p-2 z-20 overflow-auto"
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              style={{ touchAction: 'auto' }}
+            >
               {children}
             </div>
           </div>
