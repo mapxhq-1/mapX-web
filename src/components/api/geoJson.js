@@ -67,6 +67,31 @@ export async function searchGeoLayers(layerType = null){
         },params: {layerType}
       }
     );
+    // console.log("search",res.data.response);
+    return res.data.response; 
+  } catch (err) {
+    console.error("Error fetching empire details:", err);
+    throw err;
+  }
+}
+
+export async function fetchLayerFiles(geoJsonFileId){
+  if (!geoJsonFileId) {
+    throw new Error("geoJsonFileId is required to fetch layer files.");
+  }
+  const token = localStorage.getItem('bearerToken');
+  const queryParams = { geoJsonFileId };
+  try {
+    const res = await axios.get(
+      BASE_URL+`/fetch-layer-files`,
+      {
+        params: queryParams,
+        headers: {
+          client_name: "mapdesk",
+          "Authorization": `Bearer ${token}`
+        }
+      }
+    );
     // console.log(res.data.response);
     return res.data.response; 
   } catch (err) {

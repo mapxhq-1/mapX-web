@@ -6,7 +6,7 @@ import { setYear, setFlyToPosition, setMarkers } from "../../store/mapSlice";
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from "framer-motion";
-import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish } from "../api/chatService";
+import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish, transcribeAudio, getThinkingText } from "../api/chatService";
 import TypingMarkdown from './TypingMarkdown'
 
 export default function Chat() {
@@ -96,7 +96,7 @@ export default function Chat() {
         
         if (shouldTranscribeRef.current) {
           setIsProcessingAudio(true);
-          await transcribeAudio(audioBlob);
+          await handleTranscription(audioBlob);
           setIsProcessingAudio(false);
         }
         
@@ -135,22 +135,13 @@ export default function Chat() {
     else await startRecording();
   };
 
-  const transcribeAudio = async (audioBlob) => {
+  const handleTranscription = async (audioBlob) => {
     try {
-      const formData = new FormData();
-      formData.append("file", audioBlob, "audio.webm");
-      formData.append("model", "saaras:v3");
-      formData.append("mode", "transcribe"); 
-
-      const res = await fetch("https://api.sarvam.ai/speech-to-text", {
-        method: "POST",
-        headers: { "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY },
-        body: formData
-      });
-
-      if (!res.ok) throw new Error(await res.text());
-
-      const data = await res.json();
+      // Create a File object from the Blob (required by your new API service)
+      const file = new File([audioBlob], "audio.webm", { type: "audio/webm" });
+      
+      // Call the imported API function
+      const data = await transcribeAudio(file);
       
       if (data.language_code) {
         setVoiceLanguage(data.language_code);
@@ -164,57 +155,44 @@ export default function Chat() {
     }
   };
 
-  async function fetchThinkingText(query) {
-    const res = await fetch(
-      "https://api.sarvam.ai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY
-        },
-        body: JSON.stringify({
-          model: "sarvam-m",
-          temperature: 0.7,
-          top_p: 1,
-          max_tokens: 80,
-          messages: [
-            {
-              role: "user",
-              content: `You are generating background “thinking” status text for an AI assistant.
-The assistant answers questions ONLY about:
-- History
-- Ancient and medieval empires
-- Civilizations
-- Geography and the globe
-- Historical timelines and places
-Generate exactly 5 short thinking status messages.
-Each message:
-- 2 to 6 words only
-- Neutral and analytical tone
-- Related to historical or geographical reasoning
-- No answers, No facts, No explanations, No sports, No modern events, No emojis, No punctuation
-- Use the user query and think in that context
-- No preamble like "Here are 5 lines".
-User query (for context only):
-"${query}"`
-            }
-          ]
-        })
+async function fetchThinkingText(query) {
+    try {
+      const data = await getThinkingText(query);
+      
+      // 1. Check for your exact backend structure: data.thinking_messages
+      if (data.thinking_messages && Array.isArray(data.thinking_messages)) {
+        // Filter out any empty strings just to be safe
+        return data.thinking_messages.filter(t => t.trim().length > 0);
       }
-    );
 
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    return data.choices[0].message.content
-    .split("\n")
-    .map(t => {
-      return t
-        .replace(/<think>|<\/think>/gi, "") 
-        .replace(/^\s*(\d+\.|[-•*])\s*/, "") 
-        .trim();
-    })
-    .filter(t => t.length > 0 && !t.toLowerCase().includes("here are")); 
+      // 2. Fallbacks just in case the backend format changes later
+      if (Array.isArray(data)) return data.filter(t => t.length > 0);
+      if (data.texts && Array.isArray(data.texts)) return data.texts;
+
+      let rawContent = "";
+      if (data.choices && data.choices[0]?.message?.content) {
+        rawContent = data.choices[0].message.content;
+      } else if (typeof data === "string") {
+        rawContent = data;
+      }
+
+      if (rawContent) {
+        return rawContent
+          .split("\n")
+          .map(t => {
+            return t
+              .replace(/<think>|<\/think>/gi, "") 
+              .replace(/^\s*(\d+\.|[-•*])\s*/, "") 
+              .trim();
+          })
+          .filter(t => t.length > 0 && !t.toLowerCase().includes("here are"));
+      }
+
+      return ["Thinking..."];
+    } catch (error) {
+      console.error("Error fetching thinking text", error);
+      return ["Thinking..."]; 
+    }
   }
   
   const [messages, setMessages] = useState([]);
@@ -569,7 +547,7 @@ User query (for context only):
     return () => clearInterval(id);
   }, [loading, thinkingTexts]);
 
-  useEffect(() => {
+useEffect(() => {
     const handleKnowMoreTrigger = (e) => {
       const { query } = e.detail || {};
       if (query) {
@@ -578,8 +556,19 @@ User query (for context only):
       }
     };
     window.addEventListener('trigger-know-more', handleKnowMoreTrigger);
+
+    const pendingQuery = localStorage.getItem("pendingDynoQuery");
+    
+    if (pendingQuery && !loading) {
+      localStorage.removeItem("pendingDynoQuery"); // Clear it so it doesn't fire twice
+      
+      setTimeout(() => {
+        sendMessage(pendingQuery, -1, false, true, false);
+      }, 150);
+    }
+
     return () => window.removeEventListener('trigger-know-more', handleKnowMoreTrigger);
-  }, [sendMessage]);
+  }, [sendMessage, loading]); // Important: We added 'loading' to the dependency array
 
   useEffect(() => {
     const onKeyDown = (e) => {

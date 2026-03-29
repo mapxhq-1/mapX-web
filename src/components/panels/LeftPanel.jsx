@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -103,7 +103,8 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
       exit={{ opacity: 0, x: -20 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
-      <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${isCompact?"rounded-2xl":"rounded-4xl"} shadow-2xl bg-[#18181b]/95 backdrop-blur-2xl border-r border-white/5`}>
+      {/* FIX 1: Changed 'overflow-hidden' to 'overflow-visible' here so the databox can escape the panel */}
+      <div className={`w-full h-full flex flex-col justify-between overflow-visible ${isCompact?"rounded-2xl":"rounded-4xl"} shadow-2xl bg-[#18181b]/95 backdrop-blur-2xl border-r border-white/5`}>
         
         {/* --- 1. HEADER & MAP LAYERS TITLE --- */}
         <div className="flex flex-col shrink-0">
@@ -120,11 +121,6 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
               </button>
             </div>
           </div>
-
-             <div className={`px-4 ${isCompact ? "m-2 py-1.5" : "m-3 py-2"}`}>
-                <label className={`${styles.labelSize} uppercase tracking-wider font-semibold text-zinc-400`}>Current Layer</label>
-                <h2 className={`${styles.titleSize} font-medium mt-1 truncate text-white`}>{selectedType === "ALL"?"All Layers":selectedType}</h2>
-            </div>
         </div>
 
         <div className={`px-6 flex items-center justify-between border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]`}></div>
@@ -143,7 +139,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
              </div>
         </div>
 
-        <div className={`px-3 pb-3 bg-[#18181b] shrink-0 relative z-30`}>
+        <div className={`px-3 pb-3 bg-[#18181b] shrink-0 relative z-30 ${isCompact ? "rounded-b-2xl" : "rounded-b-4xl"}`}>
            <div className={`w-full h-px bg-white/5 ${styles.dividerMargin}`} />
            <div
             className={`flex ${styles.sectionPadding} items-center justify-center gap-2 cursor-pointer relative overflow-hidden group bg-zinc-800 text-white border-t-2 border-white/10 rounded-full`}

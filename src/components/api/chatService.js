@@ -146,6 +146,7 @@ export const translateToEnglish = async (text, sourceLangCode = "ta-IN") => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "client_name":"mapx",
         "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY
       },
       body: JSON.stringify({
@@ -170,5 +171,72 @@ export const translateToEnglish = async (text, sourceLangCode = "ta-IN") => {
   } catch (error) {
     console.error("Failed to execute translateToEnglish:", error);
     return text;
+  }
+};
+/**
+ * 6. TRANSCRIBE AUDIO
+ */
+export const transcribeAudio = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Fetch headers but remove Content-Type so the browser can auto-set 
+    // it to multipart/form-data with the correct boundary
+    const headers = getHeaders();
+    delete headers["Content-Type"];
+
+    const response = await fetch(`${BASE_URL}/transcribe`, {
+      method: "POST",
+      headers: headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server Error ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        errorMessage = errorJson.error || errorMessage;
+      } catch (e) {
+        errorMessage = await response.text();
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error transcribing audio:", error);
+    throw error;
+  }
+};
+
+/**
+ * 7. GET THINKING TEXT
+ */
+export const getThinkingText = async (query) => {
+  try {
+    const params = new URLSearchParams();
+    if (query) params.append("query", query);
+
+    const response = await fetch(`${BASE_URL}/think?${params.toString()}`, {
+      method: "GET",
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server Error ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        errorMessage = errorJson.error || errorMessage;
+      } catch (e) {
+        errorMessage = await response.text();
+      }
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching thinking text:", error);
+    throw error;
   }
 };
