@@ -180,7 +180,7 @@ function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
         <div className="flex-1 overflow-y-auto no-scrollbar">
           
           {/* TOP HEADER ROW */}
-          <div className={`${styles.padding} flex justify-between items-center border-b border-white/5`}>
+          <div className={`${styles.padding} flex justify-between items-center `}>
             {/* Close Button */}
             <div
               className={`${STYLES.iconHover} ${styles.iconSize}`}
@@ -224,6 +224,7 @@ function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
               </div>
             ) : null}
           </div>
+            <div className={`px-6 flex items-center justify-between border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]`}></div>
 
           <div className={`${isCompact ? "pt-1 pb-2" : "pt-3 pb-6"}`}>
             <div className={`px-4 ${isCompact ? "mb-2" : "mb-6"}`}>
@@ -231,7 +232,7 @@ function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
                 <h2 className={`${styles.titleSize} font-medium mt-1 truncate ${STYLES.textHighContrast}`}>{originalProjName}</h2>
             </div>
 
-            <div className={`w-full ${isCompact ? "mb-2" : "mb-6"} border-b border-white/5`}></div>
+            <div className={`px-6 mb-3 flex items-center justify-between border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]`}></div>
             
             <div className="px-4 overflow-hidden shadow-inner">
               <RightPanelData isDemo={isDemo} /> {/* Passed isDemo down in case RightPanelData needs it */}

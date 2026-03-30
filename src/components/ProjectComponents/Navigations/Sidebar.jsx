@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import confetti from 'canvas-confetti';
+import CreditWidget from './CreditWidget';
 
 import { setHeading, setEmail, setUserToken } from '../../../store/projectSlice';
 import { getUserProfile, getProfilePhoto } from '../../api/auth';
@@ -311,6 +312,7 @@ const Sidebar = () => {
                                 </div>
                             </a>
                         </div>
+                        
 
                         {/* Feedback — separate card with inset depth effect */}
                         <div className={`mt-2 px-2`}>
@@ -336,6 +338,9 @@ const Sidebar = () => {
                             </div>
                         </div>
                     </div>
+                        <div className="px-2 mt-4 mb-2">
+                            <CreditWidget />
+                        </div>
 
                     {/* BOTTOM SECTION (Profile) */}
                     <div className={`${isCompact ? 'p-2' : 'p-4'}`}>

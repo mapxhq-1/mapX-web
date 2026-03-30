@@ -63,6 +63,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
     
     // GET REAL USER ID/EMAIL FROM REDUX
     const userEmail = useSelector((state) => state.project?.ownerEmail) || "guest_user"; 
+    const [prevSearch, setPrevSearch] = useState("");
     
     const [typesList, setTypesList] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -103,6 +104,28 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, [activeDataLayer]);
+    
+    useEffect(() => {
+        const isNowSearching = searchQuery && searchQuery.trim().length > 0;
+        
+        // If the search query changed and it's not empty
+        if (isNowSearching && searchQuery !== prevSearch) {
+            
+            // 1. Wipe the category selection so the UI knows we are in "Global Search" mode
+            if (selectedType) {
+                setSelectedType("");
+            }
+
+            // 2. Turn off ALL globally visible layers so the map starts fresh for the new search
+            layers.forEach(layer => {
+                if (layer.visible) {
+                    dispatch(toggleLayerVisibility(layer.id));
+                }
+            });
+        }
+
+        setPrevSearch(searchQuery || "");
+    }, [searchQuery, prevSearch, layers, selectedType, setSelectedType, dispatch]);
 
     // --- 1. INITIAL LOAD ---
     useEffect(() => {
@@ -220,14 +243,6 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
         if (!layer.visible && window.mapxFlyToLayer) {
             window.mapxFlyToLayer(layer.data);
         }
-    };
-
-    const handleTurnOffAll = () => {
-        layers.forEach(layer => {
-            if (layer.metadata?.type === selectedType && layer.visible) {
-                dispatch(toggleLayerVisibility(layer.id));
-            }
-        });
     };
 
     // --- 5. ANIMATION HANDLERS ---
@@ -372,29 +387,48 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
         window.dispatchEvent(event);
     };
 
-    // --- 7. SORT & FILTER ---
+    const isSearching = searchQuery && searchQuery.trim().length > 0;
+
     const displayedLayers = useMemo(() => {
-        const typeFiltered = layers.filter(layer => layer.metadata?.type === selectedType);
+        if (isSearching) {
+            const lowerQuery = searchQuery.toLowerCase();
+            return layers.filter(layer => 
+                layer.name.toLowerCase().includes(lowerQuery)
+            );
+        }
 
-        if (!searchQuery) return typeFiltered;
+        // DEFAULT: Standard category filtering
+        if (!selectedType) return [];
+        return layers.filter(layer => layer.metadata?.type === selectedType);
+    }, [layers, selectedType, searchQuery, isSearching]);
 
-        const lowerQuery = searchQuery.toLowerCase();
-        return [...typeFiltered].sort((a, b) => {
-            const matchA = a.name.toLowerCase().includes(lowerQuery);
-            const matchB = b.name.toLowerCase().includes(lowerQuery);
-            if (matchA && !matchB) return -1;
-            if (!matchA && matchB) return 1;
-            return 0;
+    const handleTurnOffAll = () => {
+        const isSearching = searchQuery && searchQuery.trim().length > 0;
+        const lowerQuery = isSearching ? searchQuery.toLowerCase() : "";
+
+        layers.forEach(layer => {
+            let matchesCurrentView = false;
+
+            // 1. If searching, check if the layer matches the search text
+            if (isSearching) {
+                matchesCurrentView = layer.name.toLowerCase().includes(lowerQuery);
+            } 
+            // 2. If not searching, check if the layer matches the current category
+            else {
+                matchesCurrentView = layer.metadata?.type === selectedType;
+            }
+
+            // 3. If it matches the current view AND is turned on, turn it off
+            if (matchesCurrentView && layer.visible) {
+                dispatch(toggleLayerVisibility(layer.id));
+                
+                // If your map logic requires an explicit hide command, uncomment the line below:
+                // if (window.mapxHideLayer) window.mapxHideLayer(layer.data);
+            }
         });
-    }, [layers, selectedType, searchQuery]);
-
-    const filteredCategories = useMemo(() => {
-        if (!searchQuery) return typesList;
-        return typesList.filter(type => type.toLowerCase().includes(searchQuery.toLowerCase()));
-    }, [typesList, searchQuery]);
-
+    };
+    
     const activeLayersCount = displayedLayers.filter(l => l.visible).length;
-
     const textSize = isCompact ? "text-[10px]" : "text-xs";
 
     return (
@@ -404,7 +438,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                 {/* ========================================= */}
                 {/* VIEW 1: CATEGORY SELECTOR                 */}
                 {/* ========================================= */}
-                {showCategorySelector ? (
+                {(!isSearching && showCategorySelector) ? (
                     <motion.div 
                         key="category-grid"
                         initial={{ opacity: 0, x: -20 }}
@@ -413,13 +447,13 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                         transition={{ duration: 0.2 }}
                         className="overflow-y-auto cool-scrollbar pr-2 flex-1"
                     >
-                        {filteredCategories.length === 0 ? (
+                        {typesList.length === 0 ? (
                             <div className="text-center text-zinc-400 mt-10 text-sm">
-                                {typesList.length === 0 ? "Loading Categories..." : "No categories match your search."}
+                                Loading Categories...
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 gap-3">
-                                {filteredCategories.map((type) => (
+                                {typesList.map((type) => (
                                     <motion.div
                                         key={type}
                                         whileHover={{ scale: 1.02 }}
@@ -451,7 +485,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                 ) : (
                     
                 /* ========================================= */
-                /* VIEW 2: LAYER LIST (GLOW CARDS)           */
+                /* VIEW 2: LAYER LIST (GLOBAL OR CATEGORY)   */
                 /* ========================================= */
                     <motion.div 
                         key="layer-list"
@@ -464,25 +498,28 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                         {/* Compact Sub-header and Separation Line */}
                         <div className="px-1 shrink-0 mb-3 flex flex-col items-center">
                             
-                            {/* Small Active Info Box */}
-                            <div className="flex items-center justify-between w-full bg-zinc-900/60 backdrop-blur-sm border border-black/50 shadow-[inset_0_1px_4px_rgba(0,0,0,0.6),0_1px_2px_rgba(255,255,255,0.05)] rounded-full px-3 py-1.5 text-[10px] text-zinc-400 relative overflow-hidden mb-3">
+                            <div className="flex items-center justify-between w-full bg-zinc-900/60 backdrop-blur-sm border border-black/50 shadow-[inset_0_1px_4px_rgba(0,0,0,0.6),0_1px_2px_rgba(255,255,255,0.05)] rounded-full px-3 py-1.5 text-[10px] text-zinc-400 relative overflow-hidden mb-2">
                                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30 pointer-events-none" />
                                 
                                 <div className="flex items-center gap-2 relative z-10">
-                                    <button 
-                                        onClick={handleBackClick} 
-                                        className="hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors group"
-                                        title="Go Back"
-                                    >
-                                        <BackIcon size={12} className="group-hover:-translate-x-0.5 transition-transform" />
-                                    </button>
-                                    
-                                    <div className="w-px h-3 bg-zinc-700/80"></div>
+                                    {/* Hide back button if we are doing a global search */}
+                                    {!isSearching && (
+                                        <>
+                                            <button 
+                                                onClick={handleBackClick} 
+                                                className="hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors group"
+                                                title="Go Back"
+                                            >
+                                                <BackIcon size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+                                            </button>
+                                            <div className="w-px h-3 bg-zinc-700/80"></div>
+                                        </>
+                                    )}
                                     
                                     <div className="flex items-center gap-1.5 ml-1">
                                         <div className={`w-1.5 h-1.5 rounded-full ${activeLayersCount > 0 ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-zinc-600'}`}></div>
                                         <span className={activeLayersCount > 0 ? "text-green-400 font-semibold" : "text-zinc-500"}>
-                                            {activeLayersCount} layers on
+                                            {isSearching ? `Found ${displayedLayers.length}` : `${activeLayersCount} layers on`}
                                         </span>
                                     </div>
                                 </div>
@@ -503,31 +540,33 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                                 </AnimatePresence>
                             </div>
 
-                            {/* User's custom separation line */}
                             <div className={`px-6 flex items-center justify-between border-b-2 border-black shadow-[0_1px_0_rgba(255,255,255,0.05)] w-[112%]`}></div>
                         </div>
 
-                        {/* Layer Grid */}
+                        {/* Layer Grid with Shifting Animation */}
                         <div className="overflow-y-auto cool-scrollbar pr-2 flex-1 pb-4">
-                            {loading && (
+                            {loading && !isSearching && (
                                 <div className="text-center text-zinc-400 mt-2 mb-4 text-xs animate-pulse">
                                     Loading layer data...
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <motion.div layout className="grid grid-cols-2 gap-4">
                                 <AnimatePresence mode="popLayout">
                                     {displayedLayers.map((layer) => {
                                         const isDataReady = !!layer.data; 
                                         return (
                                             <motion.div 
-                                                layout 
+                                                layout="position"
                                                 key={layer.id}
-                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                initial={{ opacity: 0, scale: 0.8 }}
                                                 animate={{ opacity: 1, scale: 1 }}
-                                                exit={{ opacity: 0, scale: 0.95 }}
-                                                transition={{ duration: 0.2 }}
-                                                className={`group relative flex flex-col rounded-xl overflow-hidden bg-zinc-800 border-[1.5px] cursor-pointer transition-all duration-300
+                                                exit={{ opacity: 0, scale: 0.8 }}
+                                                transition={{ 
+                                                    layout: { type: "spring", stiffness: 350, damping: 25 },
+                                                    opacity: { duration: 0.15 }
+                                                }}
+                                                className={`group relative flex flex-col rounded-xl overflow-hidden bg-zinc-800 border-[1.5px] cursor-pointer transition-colors duration-300
                                                     ${layer.visible 
                                                         ? 'border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.6)] z-10' 
                                                         : 'border-white/10 shadow-md hover:border-green-400/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.2)] z-0'
@@ -547,22 +586,22 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                                                 </div>
 
                                                 {/* Floating Right Icons */}
-                                                <div className="absolute top-2 right-2 flex flex-col gap-2 z-10">
+                                                <div className={`absolute top-2 right-2 flex flex-col gap-1.5 z-10 transition-opacity duration-200 ${layer.visible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                                     {/* Checkbox Icon */}
-                                                    <div className="w-7 h-7 rounded-full bg-black/10 backdrop-blur-md border-b-2 border-white/20 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.5)] transition-transform hover:scale-110">
+                                                    <div className="w-6 h-6 rounded-full bg-black/10 backdrop-blur-md border-b border-white/20 flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-transform hover:scale-110">
                                                         {loading && !isDataReady ? (
-                                                            <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-green-500 rounded-full animate-spin"></div>
+                                                            <div className="w-3 h-3 border-2 border-white/20 border-t-green-500 rounded-full animate-spin"></div>
                                                         ) : (
-                                                            layer.visible ? <CheckSquareFilled size={14} /> : <CheckSquareOutline size={14} className="text-white/80" />
+                                                            layer.visible ? <CheckSquareFilled size={12} /> : <CheckSquareOutline size={12} className="text-white/80" />
                                                         )}
                                                     </div>
 
                                                     {/* Info / Databox Icon */}
                                                     <button 
                                                         onClick={(e) => openDataBox(layer, e)}
-                                                        className="w-7 h-7 rounded-full bg-black/10 backdrop-blur-md border-b-2 border-white/20 flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.5)] text-white/90 hover:text-white transition-all hover:scale-110 hover:bg-white/20"
+                                                        className="w-6 h-6 rounded-full bg-black/10 backdrop-blur-md border-b border-white/20 flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.5)] text-white/90 hover:text-white transition-all hover:scale-110 hover:bg-white/20"
                                                     >
-                                                        <InfoBoxIcon size={14} />
+                                                        <InfoBoxIcon size={12} />
                                                     </button>
                                                 </div>
 
@@ -576,11 +615,11 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                                         );
                                     })}
                                 </AnimatePresence>
-                            </div>
+                            </motion.div>
                             
                             {!loading && displayedLayers.length === 0 && (
                                 <div className="text-center text-zinc-500 mt-10 text-sm">
-                                    No layers found for {selectedType}.
+                                    {isSearching ? "No layers match your search." : `No layers found for ${selectedType}.`}
                                 </div>
                             )}
                         </div>

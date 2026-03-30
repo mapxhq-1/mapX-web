@@ -63,7 +63,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
     labelSize: isCompact ? "text-[8px]" : "text-xs",
     inputClass: isCompact 
       ? "bg-white/5 border border-white/10 rounded-xl px-2 py-1 text-[9px] text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 transition-colors w-full pl-6" 
-      : "bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 transition-colors w-full pl-10",
+      : "bg-white/5 border border-white/10 rounded-full px-4 py-1 text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/10 transition-colors w-full pl-10",
   };
 
   const ToolIcons = {
@@ -126,18 +126,43 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
         <div className={`px-6 flex items-center justify-between border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]`}></div>
         
         {/* Added flex-col to keep the search bar above the layers list */}
-        <div className={`flex-1 no-scrollbar ${styles.sectionPadding} min-h-0 relative flex flex-col`}>
-             
-             {/* Search moved above the layers (filter) */}
-             <div className="relative mb-3 shrink-0">
-                <svg className={`absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 ${styles.iconSize}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" placeholder="Search layers..." className={styles.inputClass} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-             </div>
+        <div className={`flex-1 no-scrollbar px-3 pb-3 pt-2 min-h-0 relative flex flex-col`}>
+    {/* Search moved above the layers (filter) */}
+    <div className="relative shrink-0">
+        <svg className={`absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500 w-4 h-4`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        
+        <input 
+            type="text" 
+            placeholder="Search layers" 
+            // Note: You may need to add 'pr-8' or similar to your styles.inputClass 
+            // so the text doesn't type underneath the 'x' button!
+            className={styles.inputClass} 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+        />
 
-             <div className={`h-[90%] ${isCompact ? 'pt-1' : 'pt-3'}`}>
-               <Layers selectedType={selectedType} setSelectedType={setSelectedType} searchQuery={searchQuery} isDemo={isDemo} />
-             </div>
-        </div>
+        {/* Clear Button - Only visible when text exists */}
+        {searchQuery && (
+            <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 flex items-center justify-center"
+                aria-label="Clear search"
+            >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        )}
+    </div>
+
+    <div className={`h-[90%] ${isCompact ? 'pt-1' : 'pt-3'}`}>
+        <Layers selectedType={selectedType} setSelectedType={setSelectedType} searchQuery={searchQuery} isDemo={isDemo} />
+    </div>
+</div>
 
         <div className={`px-3 pb-3 bg-[#18181b] shrink-0 relative z-30 ${isCompact ? "rounded-b-2xl" : "rounded-b-4xl"}`}>
            <div className={`w-full h-px bg-white/5 ${styles.dividerMargin}`} />
