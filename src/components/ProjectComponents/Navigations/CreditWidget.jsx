@@ -246,7 +246,7 @@ export function CreditPopup({
                     {isClaimed ? (
                       <CheckIcon className="w-4 h-4 text-zinc-500" />
                     ) : (
-                      <img src="/icons8-wrapped%20gift-emoji-32.png" alt="Gift" className="w-5 h-5 object-contain drop-shadow-md" />
+                      <img src="/gift.png" alt="Gift" className="w-5 h-5 object-contain drop-shadow-md" />
                     )}
                   </div>
                   <div>
@@ -320,7 +320,7 @@ export const CreditBar = forwardRef(({ onClick, isOpen, isClaimed, quotaData }, 
                     opacity: { duration: 0.2 },
                     scale: { duration: 0.2 }
                   }}
-                  src="/icons8-wrapped%20gift-emoji-32.png" 
+                  src="/gift.png" 
                   alt="Gift waiting" 
                   className="w-4 h-4 ml-2 object-contain drop-shadow-md" 
                 />
