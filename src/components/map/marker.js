@@ -111,8 +111,20 @@ const injectMarkerStyles = () => {
 };
 
 const createMarkerElement = (type = "black", name = "") => {
+  // 1. The Code B Ghost Anchor
+  const anchorContainer = document.createElement("div");
+  anchorContainer.style.position = "relative";
+  anchorContainer.style.width = "1px";
+  anchorContainer.style.height = "1px";
+  anchorContainer.style.pointerEvents = "none";
+
+  // 2. Your actual visual container
   const container = document.createElement("div");
   container.className = "custom-marker-container";
+  container.style.position = "absolute"; 
+  // Offset the 24x24 container so its exact center hits the 1x1 grid point
+  container.style.left = "-12px"; 
+  container.style.bottom = "-12px";
 
   const dot = document.createElement("div");
   dot.className = type === "red" ? "marker-dot-red" : "marker-dot";
@@ -136,7 +148,8 @@ const createMarkerElement = (type = "black", name = "") => {
     container.appendChild(label);
   }
 
-  return container;
+  anchorContainer.appendChild(container);
+  return anchorContainer; 
 };
 
 // --- Main Hook ---
@@ -200,10 +213,14 @@ export const useMarkerManager = (mapRef) => {
         if (!coord || coord.lat === undefined || coord.lng === undefined) return;
 
         if (redMarkersRef.current[index]) {
-            // Update existing marker
             const marker = redMarkersRef.current[index];
-            marker.setLngLat([coord.lng, coord.lat]);
+            const currentLngLat = marker.getLngLat();
             
+            // ONLY update if the coordinates actually changed in state.
+            // This stops React from interrupting MapLibre's smooth panning engine!
+            if (!currentLngLat || currentLngLat.lng !== coord.lng || currentLngLat.lat !== coord.lat) {
+                marker.setLngLat([coord.lng, coord.lat]);
+            }
             // Extract the custom popup we attached during creation
             const popup = marker.customPopup;
             if (popup) {
@@ -223,7 +240,12 @@ export const useMarkerManager = (mapRef) => {
             }).setText(coord.location || `Location: ${coord.lng.toFixed(4)}, ${coord.lat.toFixed(4)}`);
 
             // 2. Attach the Marker manually 
-            const newMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
+            const newMarker = new maplibregl.Marker({ 
+                element: el, 
+                anchor: 'center',
+                pitchAlignment: 'map',
+                rotationAlignment: 'map'
+            })
                 .setLngLat([coord.lng, coord.lat])
                 .addTo(mapRef.current);
             
