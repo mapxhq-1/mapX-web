@@ -338,12 +338,12 @@ const Sidebar = () => {
                             </div>
                         </div>
                     </div>
-                        <div className="px-2 mt-4 mb-2">
+                        <div className="px-2 mt-2 mx-2.5">
                             <CreditWidget />
                         </div>
 
                     {/* BOTTOM SECTION (Profile) */}
-                    <div className={`${isCompact ? 'p-2' : 'p-4'}`}>
+                    <div className={`${isCompact ? 'pb-2 px-2 pt-1' : 'pb-4 px-4 pt-2.5'}`}>
                         <div className={`bg-black/30 rounded-[24px] ${isCompact ? 'p-2' : 'p-4'} border border-zinc-900`}>
                             <div className={`flex items-center gap-3 ${isCompact ? 'mb-2' : 'mb-4'} pl-1`}>
                                 <img className={`${isCompact ? 'h-6 w-6' : 'h-10 w-10'} object-cover rounded-full ring-2 ring-zinc-800`} src={profilePictureUrl} alt="Profile" />
