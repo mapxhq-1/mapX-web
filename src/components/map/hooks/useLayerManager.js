@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
+import { setLayerPlaying } from "../../../store/layerSlice"; 
 
-export const useLayerManager = (map, customLayers) => {
+export const useLayerManager = (map, customLayers, dispatch) => {
   const animationRef = useRef(null);
   const layerStates = useRef({});
 
@@ -19,12 +20,10 @@ export const useLayerManager = (map, customLayers) => {
       const validData = layer.data || { type: "FeatureCollection", features: [] };
       const layerType = layer.metadata?.type || "";
       
-      // --- CHANGED LOGIC: Only animate Trade Routes ---
       const shouldAnimate = 
          layerType.includes("Trade") || 
          layerType.includes("Route");
 
-      // Initialize Animation State (ONLY for Trade Routes)
       if (shouldAnimate && layer.data && !layerStates.current[layer.id]) {
           const emptyGeoJSON = JSON.parse(JSON.stringify(validData));
           
@@ -41,13 +40,10 @@ export const useLayerManager = (map, customLayers) => {
               displayData: emptyGeoJSON, 
               speed: 0,
               isFinished: false,
-              pauseCounter: 0,
-              lastRestartTrigger: layer.restartTrigger || 0
+              pauseCounter: 0
           };
       }
 
-      // Add Source
-      // If animating, start empty. If River (static), start full.
       const initialData = (shouldAnimate && layerStates.current[layer.id]) 
           ? layerStates.current[layer.id].displayData 
           : validData;
@@ -55,11 +51,9 @@ export const useLayerManager = (map, customLayers) => {
       if (!map.current.getSource(sourceId)) {
         map.current.addSource(sourceId, { type: "geojson", data: initialData });
       } else if (!shouldAnimate) {
-        // Force update static layers (Rivers) to full data immediately
         map.current.getSource(sourceId).setData(validData);
       }
 
-      // Add Line Layer
       if (!map.current.getLayer(lineId)) {
         map.current.addLayer({
           id: lineId,
@@ -82,7 +76,6 @@ export const useLayerManager = (map, customLayers) => {
         map.current.setPaintProperty(lineId, "line-color", layer.color || "#0080ff");
       }
 
-      // Add Fill
       if (!map.current.getLayer(fillId)) {
         map.current.addLayer({
           id: fillId,
@@ -99,7 +92,6 @@ export const useLayerManager = (map, customLayers) => {
         map.current.setLayoutProperty(fillId, "visibility", isVisible);
       }
       
-      // Popup
       if (!map.current._clickBound?.[layer.id]) {
           const handlePopup = (e) => {
              new maplibregl.Popup({ closeButton: false })
@@ -130,19 +122,18 @@ export const useLayerManager = (map, customLayers) => {
 
             if (!layerConfig || !layerConfig.visible) return;
 
-            // Handle Restart
-            if (layerConfig.restartTrigger > state.lastRestartTrigger) {
+            // FIX 1: Auto-Restart if the user clicks Play on a finished animation
+            if (layerConfig.isPlaying && state.isFinished) {
                 state.displayData.features.forEach(f => {
                     if (f.geometry.type === "LineString") f.geometry.coordinates = [];
                     if (f.geometry.type === "MultiLineString") f.geometry.coordinates.forEach(a => a.length = 0);
                 });
-                state.isFinished = false;
-                state.lastRestartTrigger = layerConfig.restartTrigger;
+                state.isFinished = false; // Reset finished state
+                
                 const sourceId = `custom-source-${layerId}`;
                 if (map.current.getSource(sourceId)) {
                     map.current.getSource(sourceId).setData(state.displayData);
                 }
-                return;
             }
 
             if (!layerConfig.isPlaying || state.isFinished) return;
@@ -182,8 +173,12 @@ export const useLayerManager = (map, customLayers) => {
                 map.current.getSource(sourceId).setData(state.displayData);
             }
 
-            if (animationComplete) {
+            // FIX 2: Tell Redux the animation is done so the button flips back to Play
+            if (animationComplete && !state.isFinished) {
                 state.isFinished = true;
+                if (dispatch) {
+                    dispatch(setLayerPlaying({ id: layerConfig.id, isPlaying: false }));
+                }
             }
         });
 
@@ -198,5 +193,5 @@ export const useLayerManager = (map, customLayers) => {
         isActive = false;
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [customLayers]);
+  }, [customLayers, dispatch]); // Added dispatch to dependency array
 };

@@ -1369,7 +1369,7 @@ const htmlContent = `
   }, [leftOffset, rightOffset]);
 
   const customLayers = useSelector((state) => state.layers.layers);
-  useLayerManager(map, customLayers);
+  useLayerManager(map, customLayers,dispatch);
 // Effect to handle the "Ask Dyno" event dispatch
   useEffect(() => {
     window.handleAskDyno = () => {

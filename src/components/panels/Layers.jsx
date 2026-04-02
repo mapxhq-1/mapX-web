@@ -71,6 +71,9 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
 
     // --- DATABOX STATE ---
     const [activeDataLayer, setActiveDataLayer] = useState(null);
+    const liveActiveLayer = activeDataLayer 
+    ? layers.find(l => l.id === activeDataLayer.id) || activeDataLayer 
+    : null;
     const [dataCache, setDataCache] = useState({});
     
     // Create a ref for the Databox to handle outside clicks
@@ -693,43 +696,36 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                             </div>
 
                             {/* Footer Section - Controls */}
-                            <div className="mt-3 pt-3 border-t border-zinc-300 flex justify-between items-end pb-1">
-                                <button 
-                                    onClick={() => handleLikeToggle(activeDataLayer.id)}
-                                    className="flex items-center gap-1.5 group active:scale-90 transition-transform"
-                                >
-                                    {dataCache[activeDataLayer.id]?.isLiked ? (
-                                        <HeartFilled size={26} />
-                                    ) : (
-                                        <HeartOutline size={26} className="text-zinc-600 group-hover:text-red-500 transition-colors" />
-                                    )}
-                                    <span className="font-bold text-sm text-zinc-800">
-                                        {/* The string is pre-formatted as '110M' from your backend directly! */}
-                                        {dataCache[activeDataLayer.id]?.likes || 0}
-                                    </span>
-                                </button>
+<div className="mt-3 pt-3 border-t border-zinc-300 flex justify-between items-end pb-1">
+    <button 
+        onClick={() => handleLikeToggle(activeDataLayer.id)}
+        className="flex items-center gap-1.5 group active:scale-90 transition-transform"
+    >
+        {dataCache[activeDataLayer.id]?.isLiked ? (
+            <HeartFilled size={26} />
+        ) : (
+            <HeartOutline size={26} className="text-zinc-600 group-hover:text-red-500 transition-colors" />
+        )}
+        <span className="font-bold text-sm text-zinc-800">
+            {dataCache[activeDataLayer.id]?.likes || 0}
+        </span>
+    </button>
 
-                                <div className="flex items-center gap-3 text-zinc-700">
-                                    <button 
-                                        onClick={() => handlePlay(activeDataLayer)}
-                                        className={`hover:text-[#075e54] transition-colors ${activeDataLayer.isPlaying ? 'text-[#075e54]' : ''}`}
-                                    >
-                                        <PlayIcon size={16} />
-                                    </button>
-                                    <button 
-                                        onClick={() => handlePause(activeDataLayer)}
-                                        className="hover:text-zinc-900 transition-colors"
-                                    >
-                                        <PauseIcon size={16} />
-                                    </button>
-                                    <button 
-                                        onClick={() => handleRepeat(activeDataLayer)}
-                                        className="hover:text-zinc-900 transition-colors"
-                                    >
-                                        <RepeatIcon size={16} />
-                                    </button>
-                                </div>
-                            </div>
+    {/* MERGED PLAY/PAUSE BUTTON */}
+<div className="flex items-center gap-3 text-zinc-700">
+    <button 
+        onClick={() => liveActiveLayer.isPlaying ? handlePause(liveActiveLayer) : handlePlay(liveActiveLayer)}
+        className={`transition-colors p-1 ${
+            liveActiveLayer.isPlaying 
+                ? 'text-[#075e54] hover:text-[#054a42]' 
+                : 'text-zinc-700 hover:text-[#075e54]'
+        }`}
+        title={liveActiveLayer.isPlaying ? "Pause" : "Play"}
+    >
+        {liveActiveLayer.isPlaying ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
+    </button>
+</div>
+</div>
 
                         </div>
                     </motion.div>

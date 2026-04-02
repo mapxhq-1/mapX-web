@@ -15,7 +15,7 @@ const layerSlice = createSlice({
           data: null,      
           visible: false, // Start unchecked
           isLoading: false,
-          isPlaying: true,      
+          isPlaying: false,      
           restartTrigger: 0     
         });
       }

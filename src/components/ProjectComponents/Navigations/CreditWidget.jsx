@@ -19,6 +19,19 @@ import { toast } from 'react-toastify'
 // Adjust this import path if your api folder is located elsewhere
 import { getQuotaStatus, claimDailyReward } from '../../api/credits'
 
+// Helper to determine the story text based on usage
+const getTreasureText = (used) => {
+  if (used >= 500) return null; 
+  if (used >= 450) return "Almost there, grab your chair… 🪑";
+  if (used >= 400) return "Great going! The Treasure Box is glowing ✨";
+  if (used >= 350) return "The Treasure Box is loosening… 🔑";
+  if (used >= 300) return "Getting closer… can you feel it? 💫";
+  if (used >= 200) return "Treasure on the way… ✨";
+  if (used >= 150) return "Something's warming up inside 🔥";
+  if (used >= 100) return "You're onto something… 👣";
+  return "Treasure hunt begins… 🕵️";
+};
+
 // --- 1. The Popup Component ---
 export function CreditPopup({ 
   isOpen, 
@@ -44,6 +57,7 @@ export function CreditPopup({
   // --- TRUE 3D TREASURE CHEST CALCULATION ---
   const maxQueriesForChest = 500;
   const chestProgress = Math.max(0, Math.min(1, totalCreditsUsed / maxQueriesForChest));
+  const isFullyOpen = chestProgress >= 1;
   
   // 3D Chest Dimensions
   const w = 110;   // Width
@@ -109,6 +123,8 @@ export function CreditPopup({
   const woodPlank = <div className="w-full h-[1px] bg-amber-950/60" />;
   const GoldStrap = ({ left }) => <div className={`absolute top-0 bottom-0 w-2.5 bg-gradient-to-b from-yellow-500 to-yellow-600 border-x border-yellow-700 ${left ? 'left-3' : 'right-3'}`} />;
 
+  const currentMessage = getTreasureText(totalCreditsUsed);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -136,8 +152,7 @@ export function CreditPopup({
 
             <div className="px-5 pb-5">
               
-              {/* --- TRUE 3D TREASURE CHEST --- */}
-              <div className="flex justify-center mt-10 mb-6 relative h-[140px]" style={{ perspective: '800px' }}>
+              <div className="flex justify-center mt-6 mb-2 relative h-[140px]" style={{ perspective: '800px' }}>
                 
                 {/* Background Ambient Glow */}
                 <motion.div
@@ -161,10 +176,13 @@ export function CreditPopup({
                   {/* --- THE BASE --- */}
                   <div style={{ position: 'absolute', top: lidH, left: 0, width: w, height: h, transformStyle: 'preserve-3d' }}>
                     
-                    {/* Floor inside chest */}
-                    <div style={{ width: w, height: d, top: h/2 - d/2, left: 0, transform: `translateY(${h/2}px) rotateX(-90deg)`, position: 'absolute' }}>
+                    {/* Inner Floor inside chest */}
+                    <div style={{ width: w, height: d, top: h/2 - d/2, left: 0, transform: `translateY(${h/2 - 1}px) rotateX(-90deg)`, position: 'absolute' }}>
                        <div className="w-full h-full bg-yellow-600 shadow-[inset_0_0_30px_rgba(120,53,15,0.8)] border-4 border-amber-950" />
                     </div>
+
+                    {/* Outer Floor sealing the bottom */}
+                    <div className={woodInner} style={{ width: w, height: d, top: h/2 - d/2, left: 0, transform: `translateY(${h/2 + 1}px) rotateX(90deg)` }} />
                     
                     {/* Base Walls (Back, Left, Right) */}
                     <div className={woodInner} style={{ width: w, height: h, top: 0, left: 0, transform: `translateZ(-${d/2}px) rotateY(180deg)` }} />
@@ -174,13 +192,14 @@ export function CreditPopup({
                     {/* 💰 REAL VOLUMETRIC TREASURE MOUND 💰 */}
                     <motion.div 
                       className="absolute" 
-                      // Lifted y: -12 to prevent any clipping through the 3D floor
                       style={{ width: w, height: h, top: 0, left: 0, transformStyle: 'preserve-3d', transformOrigin: 'bottom center' }}
-                      initial={{ scaleY: 0.1, opacity: 0, y: -12 }}
+                      // SIMPLY MOVED EVERYTHING UP using y: -20
+                      initial={{ scale: 0.4, opacity: 0, y: -20, z: -10 }}
                       animate={{ 
-                        scaleY: 0.3 + chestProgress * 0.7, 
-                        opacity: chestProgress > 0.05 ? 1 : 0,
-                        y: -12
+                        scale: 0.5 + chestProgress * 0.5, 
+                        opacity: chestProgress > 0.02 ? 1 : 0,
+                        y: -20 - chestProgress * 15, // Starts high (-20) and goes even higher as it opens
+                        z: -10 + chestProgress * 15
                       }}
                       transition={{ duration: 0.6, ease: "easeOut" }}
                     >
@@ -192,7 +211,7 @@ export function CreditPopup({
                         transition={{ repeat: Infinity, duration: 2 }}
                       />
 
-                      {/* Topographical Gold Layers (lifted bottoms slightly) */}
+                      {/* Topographical Gold Layers */}
                       <div className="absolute bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-t-full border border-yellow-700/50" style={{ width: 90, height: 45, bottom: 4, left: 10, transform: 'translateZ(-10px)' }} />
                       <div className="absolute bg-gradient-to-b from-yellow-400 to-yellow-500 rounded-t-full shadow-[0_0_20px_#facc15] border border-yellow-500/50" style={{ width: 80, height: 35, bottom: 4, left: 15, transform: 'translateZ(2px)' }} />
                       <div className="absolute bg-gradient-to-b from-yellow-300 to-yellow-400 rounded-t-full shadow-[0_0_15px_#fef08a] border border-yellow-300/50" style={{ width: 60, height: 25, bottom: 4, left: 25, transform: 'translateZ(15px)' }} />
@@ -223,7 +242,53 @@ export function CreditPopup({
                              <div className="w-2 h-2 bg-yellow-500 rounded-full" />
                          </div>
                       </div>
+
+                      {/* --- 🎉 EXTRA GOLD INSIDE AT 500 QUERIES 🎉 --- */}
+                      <AnimatePresence>
+                        {isFullyOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 30, scale: 0 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ type: 'spring', bounce: 0.6, delay: 0.2 }}
+                            className="absolute w-full h-full"
+                            style={{ transformStyle: 'preserve-3d' }}
+                          >
+                            <div className="absolute w-10 h-10 bg-yellow-300 border border-yellow-500 rounded-full shadow-[0_0_20px_#fde047]" style={{ bottom: 10, left: w/2 - 20, transform: 'translateZ(28px)' }}>
+                               <div className="absolute inset-1 border-2 border-yellow-400 rounded-full opacity-50" />
+                            </div>
+                            <div className="absolute w-8 h-8 bg-purple-500 border-2 border-purple-300 rounded-full shadow-[0_0_15px_#c084fc]" style={{ bottom: 15, left: 10, transform: 'translateZ(24px)' }} />
+                            <div className="absolute w-7 h-7 bg-blue-400 border-2 border-blue-200 shadow-[0_0_15px_#60a5fa] rotate-12" style={{ bottom: 20, right: 10, transform: 'translateZ(26px)' }} />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
                     </motion.div>
+
+                    {/* --- 🎉 SCATTERED GOLD AROUND CHEST AT 500 QUERIES 🎉 --- */}
+                    <AnimatePresence>
+                      {isFullyOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -40, scale: 0 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ type: 'spring', bounce: 0.5, delay: 0.4 }}
+                          className="absolute"
+                          style={{ width: w, height: h, top: 0, left: 0, transformStyle: 'preserve-3d' }}
+                        >
+                          {/* Left side spilled coins */}
+                          <div className="absolute w-6 h-6 bg-yellow-400 border border-yellow-600 rounded-full drop-shadow-lg" style={{ bottom: -2, left: -30, transform: 'translateZ(10px) rotateX(70deg)' }} />
+                          <div className="absolute w-5 h-5 bg-yellow-300 border border-yellow-500 rounded-full drop-shadow-lg" style={{ bottom: 5, left: -45, transform: 'translateZ(-5px) rotateX(75deg)' }} />
+                          
+                          {/* Right side spilled coins */}
+                          <div className="absolute w-7 h-7 bg-yellow-400 border border-yellow-600 rounded-full drop-shadow-lg" style={{ bottom: -5, right: -35, transform: 'translateZ(20px) rotateX(65deg)' }} />
+                          <div className="absolute w-4 h-4 bg-yellow-300 border border-yellow-500 rounded-full drop-shadow-lg" style={{ bottom: 15, right: -25, transform: 'translateZ(5px) rotateX(80deg)' }} />
+
+                          {/* Front spilled gems & coins */}
+                          <div className="absolute w-6 h-6 bg-yellow-300 border border-yellow-500 rounded-full drop-shadow-lg" style={{ bottom: -15, left: 20, transform: 'translateZ(45px) rotateX(60deg)' }} />
+                          <div className="absolute w-6 h-6 bg-emerald-400 border border-emerald-600 rounded-sm drop-shadow-lg" style={{ bottom: -10, left: 50, transform: 'translateZ(50px) rotateX(50deg) rotateZ(30deg)' }} />
+                          <div className="absolute w-5 h-5 bg-yellow-400 border border-yellow-600 rounded-full drop-shadow-lg" style={{ bottom: -18, left: 70, transform: 'translateZ(40px) rotateX(70deg)' }} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {/* Sparkles erupting from inside */}
                     <AnimatePresence>
@@ -239,7 +304,7 @@ export function CreditPopup({
                       ))}
                     </AnimatePresence>
 
-                    {/* Front Base Face (Renders last to properly occlude treasure inside) */}
+                    {/* Front Base Face (Renders last to properly occlude base of treasure inside) */}
                     <div className={woodFace} style={{ width: w, height: h, top: 0, left: 0, transform: `translateZ(${d/2}px)` }}>
                       {woodPlank}{woodPlank}{woodPlank}
                       <GoldStrap left /><GoldStrap />
@@ -286,6 +351,22 @@ export function CreditPopup({
                 </motion.div>
               </div>
               {/* --- END TRUE 3D TREASURE CHEST --- */}
+              <div className="h-5 relative w-full flex justify-center mb-1">
+                <AnimatePresence mode="wait">
+                  {currentMessage && (
+                    <motion.div
+                      key={currentMessage}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.3 }}
+                      className="absolute text-xs font-medium text-amber-300/90 tracking-wide text-center drop-shadow-md"
+                    >
+                      {currentMessage}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-2 mb-5">
