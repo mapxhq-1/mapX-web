@@ -1,52 +1,57 @@
-import {useState,useEffect} from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-const TypingMarkdown = ({ content, isNew, components, scrollToBottom }) => {
+
+const TypingMarkdown = ({ content, isNew, components }) => {
   const [displayedContent, setDisplayedContent] = useState(isNew ? "" : content);
-  const [isTyping, setIsTyping] = useState(isNew);
 
   useEffect(() => {
-    // If it's an old message from history, just show it instantly
+    // If it's an old message, render the whole thing immediately
     if (!isNew) {
       setDisplayedContent(content);
-      setIsTyping(false);
       return;
     }
 
-    let i = 0;
-    setIsTyping(true);
+    let currentIndex = 0;
     
     const interval = setInterval(() => {
-      // Reveal 2 characters at a time for smoother rendering
-      setDisplayedContent(content.slice(0, i));
-      i += 2; 
+      // Slicing 3 characters at a time simulating the token-by-token speed
+      currentIndex += 3; 
       
-      if (i > content.length) {
+      if (currentIndex >= content.length) {
         setDisplayedContent(content);
-        setIsTyping(false);
         clearInterval(interval);
+      } else {
+        setDisplayedContent(content.slice(0, currentIndex));
       }
-    }, 15); // 15ms per tick creates a natural, fast typing speed
+    }, 10); // Ultra-fast 10ms tick
 
     return () => clearInterval(interval);
   }, [content, isNew]);
 
-  useEffect(() => {
-    // Auto-scroll as the text expands the container
-    if (isTyping) {
-      scrollToBottom("auto"); // "auto" prevents the jitter caused by "smooth" during rapid updates
-    }
-  }, [displayedContent, isTyping, scrollToBottom]);
-
-  // Add the classic AI blinking cursor block while typing
-  const renderContent = isTyping ? displayedContent + " ▍" : displayedContent;
-
   return (
-    <ReactMarkdown
-      children={renderContent}
-      remarkPlugins={[remarkGfm]}
-      components={components}
-    />
+    <div 
+      // Triggers the fade-in only on new messages
+      style={{
+        animation: isNew ? "ai-reveal 0.6s ease-out forwards" : "none"
+      }}
+    >
+      {/* Inline CSS keyframe for the fade + slight blur. 
+        It softens the harshness of the rapid text slicing.
+      */}
+      <style>{`
+        @keyframes ai-reveal {
+          0% { opacity: 0; filter: blur(4px); transform: translateY(4px); }
+          100% { opacity: 1; filter: blur(0px); transform: translateY(0px); }
+        }
+      `}</style>
+      
+      <ReactMarkdown
+        children={displayedContent}
+        remarkPlugins={[remarkGfm]}
+        components={components}
+      />
+    </div>
   );
 };
 
