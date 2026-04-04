@@ -1,102 +1,72 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 
-// --- Updated CSS Constants with Pill Popup Styles ---
+// --- Updated CSS Constants ---
 const MARKER_STYLES = `
-  .custom-marker-container {
-    width: 24px;  /* Hitbox for easier tapping on mobile */
-    height: 24px; 
+  /* The Ghost Anchor - MapLibre tracks this 1x1 pixel */
+  .ghost-anchor {
     position: relative;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  /* The actual clickable pin container */
+  .custom-marker-container {
+    position: absolute;
+    bottom: 0px; 
+    left: -16px; 
+    width: 32px; 
+    height: 32px;
     display: flex;
     justify-content: center;
-    align-items: center;
+    cursor: pointer;
     pointer-events: auto;
-    cursor: pointer; 
-    overflow: visible; 
-  }
-  
-  /* --- Black Marker --- */
-  .marker-dot {
-    width: 14px;
-    height: 14px;
-    background-color: #ff3333; 
-    border: 2px solid #ffffff; 
-    border-radius: 50%;
-    box-shadow: 0 0 4px rgba(0,0,0,0.5); 
-    z-index: 10;
-    position: absolute; 
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
   }
 
-  .marker-ripple {
+  .map-pin-icon {
+    width: 32px;
+    height: 32px;
+    filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.4));
+    transition: transform 0.2s ease;
+    transform-origin: bottom center; 
+  }
+
+  .custom-marker-container:hover .map-pin-icon {
+    transform: scale(1.15); 
+  }
+
+  /* --- Pill-Shaped Glassmorphism Label --- */
+  .glass-label {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background-color: rgba(255, 51, 51, 0.5);
-    z-index: 1;
-    animation: ripple-scale-anim 2s infinite cubic-bezier(0.25, 1, 0.5, 1);
-  }
-
-  /* --- Red Marker --- */
-  .marker-dot-red {
-    width: 10px;
-    height: 10px;
-    background-color: #ff3333; 
-    border: 1.5px solid #ffffff; 
-    border-radius: 50%;
-    box-shadow: 0 0 3px rgba(0,0,0,0.5);
-    z-index: 10;
-    position: absolute; 
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
-
-  .marker-ripple-red {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: rgba(255, 51, 51, 0.5);
-    z-index: 1;
-    animation: ripple-scale-anim 2s infinite cubic-bezier(0.25, 1, 0.5, 1);
-  }
-
-  @keyframes ripple-scale-anim {
-    0% {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 0.8;
-    }
-    100% {
-      transform: translate(-50%, -50%) scale(2.5);
-      opacity: 0;
-    }
-  }
-
-  /* --- MapLibre Custom Pill Popup --- */
-  .maplibregl-popup-content {
-    background-color: rgba(0, 0, 0, 0.9) !important; 
-    color: #ffffff !important;
-    border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important; 
-    border-radius: 50px !important; 
-    padding: 6px 16px !important; 
-    font-size: 13px;
-    font-weight: 500;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important; 
+    bottom: 36px; 
+    left: 50%; 
+    transform: translateX(-50%);
+    
+    /* 1. The Pill Shape */
+    border-radius: 50px;
+    padding: 5px 14px; 
+    
+    /* 2. True Glassmorphism (Slight dark tint for contrast) */
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    
+    /* 3. Subtle Depth Effect */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-bottom: 1.5px solid rgba(255, 255, 255, 0.5); /* Soft white highlight on bottom */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    
+    /* Text Styles */
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+    font-size: 11.5px; 
+    font-weight: 600;
     letter-spacing: 0.3px;
-    white-space: nowrap; 
-  }
-
-  .maplibregl-popup-tip {
-    display: none !important;
+    white-space: nowrap;
+    pointer-events: none; 
+    z-index: 11;
   }
 `;
 
@@ -110,100 +80,52 @@ const injectMarkerStyles = () => {
   }
 };
 
-const createMarkerElement = (type = "black", name = "") => {
-  // 1. The Code B Ghost Anchor
-  const anchorContainer = document.createElement("div");
-  anchorContainer.style.position = "relative";
-  anchorContainer.style.width = "1px";
-  anchorContainer.style.height = "1px";
-  anchorContainer.style.pointerEvents = "none";
+const createPinElement = (name = "") => {
+  // 1. The 1x1 Ghost Anchor (This is what MapLibre touches)
+  const ghostAnchor = document.createElement("div");
+  ghostAnchor.className = "ghost-anchor";
 
-  // 2. Your actual visual container
+  // 2. The Pin Container
   const container = document.createElement("div");
   container.className = "custom-marker-container";
-  container.style.position = "absolute"; 
-  // Offset the 24x24 container so its exact center hits the 1x1 grid point
-  container.style.left = "-12px"; 
-  container.style.bottom = "-12px";
 
-  const dot = document.createElement("div");
-  dot.className = type === "red" ? "marker-dot-red" : "marker-dot";
-  container.appendChild(dot);
+  const pin = document.createElement("div");
+  pin.className = "map-pin-icon";
+  pin.innerHTML = `
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+  <path d="M 16 19 L 17.5 19 L 16.6 30.5 C 16.4 31.5 16 32 16 32 Z" fill="#94a3b8" />
+  <path d="M 16 19 L 14.5 19 L 15.4 30.5 C 15.6 31.5 16 32 16 32 Z" fill="#cbd5e1" />
+  <line x1="15.2" y1="20" x2="15.6" y2="28" stroke="#f8fafc" stroke-width="0.8" stroke-linecap="round" />
 
-  const rippleCount = 3;
-  const duration = 2;
+  <circle cx="16" cy="11" r="9" fill="#b91c1c" />
+  <circle cx="15.2" cy="10.2" r="8.5" fill="#ef4444" />
+  <path d="M 10 9 A 5.5 5.5 0 0 1 13.5 5.5" fill="none" stroke="#fca5a5" stroke-width="2.5" stroke-linecap="round" />
+</svg>
+  `;
+  container.appendChild(pin);
 
-  for (let i = 0; i < rippleCount; i++) {
-    const ripple = document.createElement("div");
-    ripple.className = type === "red" ? "marker-ripple-red" : "marker-ripple";
-    const delay = (i * duration) / rippleCount;
-    ripple.style.animationDelay = `-${delay}s`;
-    container.appendChild(ripple);
-  }
+  // 3. Glassmorphism Name Label
+  const label = document.createElement("div");
+  label.className = "glass-label";
+  label.innerText = name;
 
-  if (name) {
-    const label = document.createElement("div");
-    label.className = "marker-label";
-    label.innerText = name;
-    container.appendChild(label);
-  }
+  // Append both the pin and the label directly to the ghost anchor
+  ghostAnchor.appendChild(container);
+  ghostAnchor.appendChild(label);
 
-  anchorContainer.appendChild(container);
-  return anchorContainer; 
+  return { ghostAnchor, container };
 };
 
 // --- Main Hook ---
 export const useMarkerManager = (mapRef) => {
-  const targetPosition = useSelector((state) => state.map.flyToPosition);
   const markersList = useSelector((state) => state.map.markers); 
-  const dispatch = useDispatch(); 
-
-  const mainMarkerRef = useRef(null); 
-  const redMarkersRef = useRef([]); 
+  const markersRef = useRef([]); 
 
   useEffect(() => {
     injectMarkerStyles();
   }, []);
 
-  // --- Single Black Marker (Conditional) ---
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    const hasRedMarkers = Array.isArray(markersList) && markersList.length > 0;
-    
-    const shouldShowBlack = targetPosition?.lat !== undefined && 
-                            targetPosition?.lng !== undefined && 
-                            !hasRedMarkers;
-
-    if (shouldShowBlack) {
-      const { lng, lat } = targetPosition;
-
-      if (!mainMarkerRef.current) {
-        const el = createMarkerElement('black');
-        
-        el.addEventListener('click', (e) => {
-          e.stopPropagation(); 
-          console.log(`Black Marker Clicked - Lng: ${lng}, Lat: ${lat}`);
-        });
-
-        mainMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([lng, lat])
-          .addTo(mapRef.current);
-      } else {
-        mainMarkerRef.current.setLngLat([lng, lat]);
-        if (!mainMarkerRef.current.getElement().parentElement) {
-            mainMarkerRef.current.addTo(mapRef.current);
-        }
-      }
-    } else {
-      if (mainMarkerRef.current) {
-        mainMarkerRef.current.remove();
-        mainMarkerRef.current = null;
-      }
-    }
-  }, [mapRef, targetPosition, markersList]); 
-
-  // --- Array of Red Markers ---
+  // --- Array of Red Location Markers ---
   useEffect(() => {
     if (!mapRef.current) return;
     
@@ -212,103 +134,58 @@ export const useMarkerManager = (mapRef) => {
     currentList.forEach((coord, index) => {
         if (!coord || coord.lat === undefined || coord.lng === undefined) return;
 
-        if (redMarkersRef.current[index]) {
-            const marker = redMarkersRef.current[index];
+        const displayName = coord.location || `${coord.lng.toFixed(3)}, ${coord.lat.toFixed(3)}`;
+
+        if (markersRef.current[index]) {
+            const marker = markersRef.current[index];
             const currentLngLat = marker.getLngLat();
             
-            // ONLY update if the coordinates actually changed in state.
-            // This stops React from interrupting MapLibre's smooth panning engine!
             if (!currentLngLat || currentLngLat.lng !== coord.lng || currentLngLat.lat !== coord.lat) {
                 marker.setLngLat([coord.lng, coord.lat]);
             }
-            // Extract the custom popup we attached during creation
-            const popup = marker.customPopup;
-            if (popup) {
-              popup.setText(coord.location || `Location: ${coord.lng.toFixed(4)}, ${coord.lat.toFixed(4)}`);
-              popup.setLngLat([coord.lng, coord.lat]); 
-            }
-        } else {
-            // Create New Marker
-            const el = createMarkerElement('red');
-            
-            // 1. Create the Popup (Text Box)
-            const popup = new maplibregl.Popup({ 
-              offset: 15, 
-              closeButton: false, 
-              closeOnClick: true,
-              autoPan: false // STOPS MAP MOVEMENT ON OPEN
-            }).setText(coord.location || `Location: ${coord.lng.toFixed(4)}, ${coord.lat.toFixed(4)}`);
 
-            // 2. Attach the Marker manually 
+            const labelEl = marker.getElement().querySelector('.glass-label');
+            if (labelEl && labelEl.innerText !== displayName) {
+                labelEl.innerText = displayName;
+            }
+
+        } else {
+            // Create New Ghost Anchor & Container
+            const { ghostAnchor, container } = createPinElement(displayName);
+            
+            // Block gestures on the clickable container
+            container.addEventListener('mousedown', (e) => e.stopPropagation());
+            container.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: false });
+            container.addEventListener('dblclick', (e) => e.stopPropagation());
+            
+            container.addEventListener('click', (e) => {
+              e.stopPropagation(); 
+              e.preventDefault(); 
+              console.log("Clicked Pin:", displayName);
+            });
+
+            // --- Attach MapLibre to the 1x1 Ghost Anchor ---
             const newMarker = new maplibregl.Marker({ 
-                element: el, 
-                anchor: 'center',
+                element: ghostAnchor, 
+                anchor: 'center', 
                 pitchAlignment: 'map',
                 rotationAlignment: 'map'
             })
                 .setLngLat([coord.lng, coord.lat])
                 .addTo(mapRef.current);
             
-            // Attach the popup to the marker instance manually for future updates
-            newMarker.customPopup = popup;
-
-            // 3. Event Listeners (Fixed for Touchscreen Phantom Clicks)
-            el.isPinned = false; 
-
-            // --- Hover Logic (Desktop Mouse Only) ---
-            el.addEventListener('pointerenter', (e) => {
-              if (e.pointerType === 'mouse' && !el.isPinned) {
-                popup.setLngLat([coord.lng, coord.lat]).addTo(mapRef.current);
-              }
-            });
-
-            el.addEventListener('pointerleave', (e) => {
-              if (e.pointerType === 'mouse' && !el.isPinned) {
-                popup.remove();
-              }
-            });
-
-            // --- Block MapLibre Gestures ---
-            // These stop the globe from panning or closing the popup immediately on touch
-            el.addEventListener('mousedown', (e) => e.stopPropagation());
-            el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: false });
-            el.addEventListener('dblclick', (e) => e.stopPropagation());
-
-            // --- The Click/Tap Handler ---
-            el.addEventListener('click', (e) => {
-              e.stopPropagation(); // Stops the phantom click from hitting the globe
-              e.preventDefault(); 
-
-              el.isPinned = !el.isPinned; // Toggle pin state
-
-              if (el.isPinned) {
-                popup.setLngLat([coord.lng, coord.lat]).addTo(mapRef.current);
-              } else {
-                popup.remove();
-              }
-            });
-
-            // --- Reset State on Map Click ---
-            // If the user taps the map background to dismiss the popup, unpin it
-            popup.on('close', () => {
-              el.isPinned = false;
-            });
-
-            redMarkersRef.current[index] = newMarker;
+            markersRef.current[index] = newMarker;
         }
     });
 
-    // Cleanup extra markers & their popups
-    if (redMarkersRef.current.length > currentList.length) {
-        for (let i = currentList.length; i < redMarkersRef.current.length; i++) {
-            if (redMarkersRef.current[i]) {
-                redMarkersRef.current[i].remove();
-                if (redMarkersRef.current[i].customPopup) {
-                  redMarkersRef.current[i].customPopup.remove();
-                }
+    // Cleanup removed markers
+    if (markersRef.current.length > currentList.length) {
+        for (let i = currentList.length; i < markersRef.current.length; i++) {
+            if (markersRef.current[i]) {
+                markersRef.current[i].remove();
             }
         }
-        redMarkersRef.current.length = currentList.length;
+        markersRef.current.length = currentList.length;
     }
 
   }, [mapRef, markersList]);

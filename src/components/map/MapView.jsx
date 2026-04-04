@@ -1680,19 +1680,27 @@ useEffect(() => {
   >
     <LiquidGlass>
       <div style={{ position: 'relative' }}>
-        {/* subtle dark tint */}
+        {/* Persistent subtle red tint */}
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0,0,0,0.18)',
+          // Constant low-opacity red (12%)
+          background: 'rgba(239, 68, 68, 0.20)', 
           borderRadius: '999px',
           pointerEvents: 'none',
           zIndex: 0,
         }} />
+        
         <button
           onClick={handleClear}
           className="cursor-pointer px-4 py-2 text-white text-sm font-medium"
-          style={{ background: 'none', border: 'none', whiteSpace: 'nowrap', position: 'relative', zIndex: 1 }}
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            whiteSpace: 'nowrap', 
+            position: 'relative', 
+            zIndex: 1 
+          }}
         >
           Clear Markers
         </button>
