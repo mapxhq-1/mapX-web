@@ -188,7 +188,7 @@ const ProjectCard = ({ data }) => {
           rounded-xl lg:rounded-2xl">
           <img
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-            src="https://media.sciencephoto.com/c0/27/58/65/c0275865-800px-wm.jpg"
+            src="/map.png"
             alt={data.projectName}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />

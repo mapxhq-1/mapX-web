@@ -2,9 +2,41 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { setLayerPlaying } from "../../../store/layerSlice"; 
 
+// Foolproof Bounds Calculator to find the edges of ANY shape
+const calculateBounds = (data) => {
+  if (!data) return null;
+  const bounds = new maplibregl.LngLatBounds();
+  let hasPoints = false;
+
+  const processCoords = (arr) => {
+    if (!Array.isArray(arr)) return;
+    if (typeof arr[0] === 'number') {
+      bounds.extend([arr[0], arr[1]]);
+      hasPoints = true;
+    } else {
+      arr.forEach(processCoords);
+    }
+  };
+
+  const processGeometry = (geom) => {
+    if (geom && geom.coordinates) processCoords(geom.coordinates);
+  };
+
+  if (data.type === "FeatureCollection" && data.features) {
+    data.features.forEach(f => processGeometry(f.geometry));
+  } else if (data.type === "Feature") {
+    processGeometry(data.geometry);
+  } else if (data.coordinates) {
+    processGeometry(data); 
+  }
+
+  return hasPoints ? bounds : null;
+};
+
 export const useLayerManager = (map, customLayers, dispatch) => {
   const animationRef = useRef(null);
   const layerStates = useRef({});
+  const hasFlownTo = useRef({});
 
   // --- 1. RENDER & INITIALIZE ---
   useEffect(() => {
@@ -27,13 +59,15 @@ export const useLayerManager = (map, customLayers, dispatch) => {
       if (shouldAnimate && layer.data && !layerStates.current[layer.id]) {
           const emptyGeoJSON = JSON.parse(JSON.stringify(validData));
           
-          emptyGeoJSON.features.forEach(f => {
-              if (f.geometry.type === "LineString") {
-                  f.geometry.coordinates = []; 
-              } else if (f.geometry.type === "MultiLineString") {
-                  f.geometry.coordinates = f.geometry.coordinates.map(() => []);
-              }
-          });
+          if (emptyGeoJSON.features) {
+              emptyGeoJSON.features.forEach(f => {
+                  if (f.geometry?.type === "LineString") {
+                      f.geometry.coordinates = []; 
+                  } else if (f.geometry?.type === "MultiLineString") {
+                      f.geometry.coordinates = f.geometry.coordinates.map(() => []);
+                  }
+              });
+          }
 
           layerStates.current[layer.id] = {
               fullData: validData,       
@@ -48,12 +82,14 @@ export const useLayerManager = (map, customLayers, dispatch) => {
           ? layerStates.current[layer.id].displayData 
           : validData;
 
+      // 1. Setup Data Source
       if (!map.current.getSource(sourceId)) {
         map.current.addSource(sourceId, { type: "geojson", data: initialData });
       } else if (!shouldAnimate) {
         map.current.getSource(sourceId).setData(validData);
       }
 
+      // 2. Setup Line Layer
       if (!map.current.getLayer(lineId)) {
         map.current.addLayer({
           id: lineId,
@@ -76,6 +112,7 @@ export const useLayerManager = (map, customLayers, dispatch) => {
         map.current.setPaintProperty(lineId, "line-color", layer.color || "#0080ff");
       }
 
+      // 3. Setup Fill Layer
       if (!map.current.getLayer(fillId)) {
         map.current.addLayer({
           id: fillId,
@@ -91,7 +128,48 @@ export const useLayerManager = (map, customLayers, dispatch) => {
       } else {
         map.current.setLayoutProperty(fillId, "visibility", isVisible);
       }
+
+      // --- 4. DYNAMIC FLY TO IMPLEMENTATION ---
+      if (layer.visible && validData.features && validData.features.length > 0 && !hasFlownTo.current[layer.id]) {
+          const bounds = calculateBounds(validData);
+          
+          if (bounds) {
+              hasFlownTo.current[layer.id] = true;
+
+              const camera = map.current.cameraForBounds(bounds, {
+                  padding: 150, // INCREASED PADDING: Gives the shape more breathing room
+                  maxZoom: 12   // LOWERED MAX ZOOM: Prevents zooming in too close on tiny features
+              });
+
+              if (camera) {
+                  // MANUAL PULLBACK: Subtract 1 from whatever zoom MapLibre thinks is perfect
+                  const targetZoom = camera.zoom ; 
+                  const targetLng = camera.center.lng;
+                  const targetLat = camera.center.lat;
+
+                  setTimeout(() => {
+                      try {
+                          if (window.mapxFlyTo && Number.isFinite(targetLat) && Number.isFinite(targetLng)) {
+                              window.mapxFlyTo({ lng: targetLng, lat: targetLat, zoom: targetZoom });
+                          } else if (Number.isFinite(targetLat) && Number.isFinite(targetLng)) {
+                              map.current.flyTo({
+                                  center: [targetLng, targetLat],
+                                  zoom: targetZoom,
+                                  speed: 0.7,
+                                  curve: 1.5,
+                                  easing: (t) => 1 - Math.pow(1 - t, 2),
+                                  essential: false,
+                              });
+                          }
+                      } catch (e) {
+                          console.error("FlyTo Failed", e);
+                      }
+                  }, 150); 
+              }
+          }
+      }
       
+      // 5. Setup Popups
       if (!map.current._clickBound?.[layer.id]) {
           const handlePopup = (e) => {
              new maplibregl.Popup({ closeButton: false })
@@ -122,13 +200,14 @@ export const useLayerManager = (map, customLayers, dispatch) => {
 
             if (!layerConfig || !layerConfig.visible) return;
 
-            // FIX 1: Auto-Restart if the user clicks Play on a finished animation
             if (layerConfig.isPlaying && state.isFinished) {
-                state.displayData.features.forEach(f => {
-                    if (f.geometry.type === "LineString") f.geometry.coordinates = [];
-                    if (f.geometry.type === "MultiLineString") f.geometry.coordinates.forEach(a => a.length = 0);
-                });
-                state.isFinished = false; // Reset finished state
+                if (state.displayData.features) {
+                    state.displayData.features.forEach(f => {
+                        if (f.geometry?.type === "LineString") f.geometry.coordinates = [];
+                        if (f.geometry?.type === "MultiLineString") f.geometry.coordinates.forEach(a => a.length = 0);
+                    });
+                }
+                state.isFinished = false; 
                 
                 const sourceId = `custom-source-${layerId}`;
                 if (map.current.getSource(sourceId)) {
@@ -144,36 +223,38 @@ export const useLayerManager = (map, customLayers, dispatch) => {
 
             let animationComplete = true;
 
-            state.fullData.features.forEach((fullFeature, fIndex) => {
-                const displayFeature = state.displayData.features[fIndex];
-                
-                if (fullFeature.geometry.type === "LineString") {
-                    const full = fullFeature.geometry.coordinates;
-                    const current = displayFeature.geometry.coordinates;
+            if (state.fullData.features) {
+                state.fullData.features.forEach((fullFeature, fIndex) => {
+                    const displayFeature = state.displayData.features[fIndex];
+                    if (!displayFeature) return;
+                    
+                    if (fullFeature.geometry?.type === "LineString") {
+                        const full = fullFeature.geometry.coordinates;
+                        const current = displayFeature.geometry.coordinates;
 
-                    if (current.length < full.length) {
-                        current.push(full[current.length]);
-                        animationComplete = false; 
-                    }
-                } 
-                else if (fullFeature.geometry.type === "MultiLineString") {
-                    fullFeature.geometry.coordinates.forEach((fullLine, lineIdx) => {
-                        const currentLine = displayFeature.geometry.coordinates[lineIdx];
-                        
-                        if (currentLine.length < fullLine.length) {
-                            currentLine.push(fullLine[currentLine.length]);
-                            animationComplete = false;
+                        if (current.length < full.length) {
+                            current.push(full[current.length]);
+                            animationComplete = false; 
                         }
-                    });
-                }
-            });
+                    } 
+                    else if (fullFeature.geometry?.type === "MultiLineString") {
+                        fullFeature.geometry.coordinates.forEach((fullLine, lineIdx) => {
+                            const currentLine = displayFeature.geometry.coordinates[lineIdx];
+                            
+                            if (currentLine && currentLine.length < fullLine.length) {
+                                currentLine.push(fullLine[currentLine.length]);
+                                animationComplete = false;
+                            }
+                        });
+                    }
+                });
+            }
 
             const sourceId = `custom-source-${layerId}`;
             if (map.current.getSource(sourceId)) {
                 map.current.getSource(sourceId).setData(state.displayData);
             }
 
-            // FIX 2: Tell Redux the animation is done so the button flips back to Play
             if (animationComplete && !state.isFinished) {
                 state.isFinished = true;
                 if (dispatch) {
@@ -193,5 +274,5 @@ export const useLayerManager = (map, customLayers, dispatch) => {
         isActive = false;
         if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [customLayers, dispatch]); // Added dispatch to dependency array
+  }, [customLayers, dispatch]); 
 };

@@ -235,7 +235,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
 
                     dispatch(updateLayerData({ id: layer.id, data: cleanData }));
                     dispatch(toggleLayerVisibility(layer.id));
-                    if (window.mapxFlyToLayer) window.mapxFlyToLayer(cleanData);
+                    // if (window.mapxFlyToLayer) window.mapxFlyToLayer(cleanData);
                 }
             } catch(e) { console.error(e); }
             setLoading(false);
