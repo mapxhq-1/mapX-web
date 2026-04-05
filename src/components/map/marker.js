@@ -49,7 +49,7 @@ const MARKER_STYLES = `
     padding: 5px 14px; 
     
     /* 2. True Glassmorphism (Slight dark tint for contrast) */
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.05);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     
