@@ -192,52 +192,59 @@ export class PhotonSearchControl {
         let aborter = null;
         let debounceId = null;
 
-        const clearList = () => {
+     const clearList = () => {
             list.innerHTML = "";
             list.style.display = "none";
         };
 
-        const renderResults = (features) => {
+        const renderResults = (suggestions) => {
             clearList();
-            features.forEach((f) => {
+            
+            suggestions.forEach((suggestion) => {
                 const item = document.createElement("button");
                 item.type = "button";
+                item.className = "search-item-google"; 
                 item.style.display = "block";
                 item.style.width = "100%";
                 item.style.textAlign = "left";
-                item.style.padding = "6px 8px";
+                item.style.padding = "8px 10px";
                 item.style.fontSize = "12px";
                 item.style.cursor = "pointer";
                 item.style.border = "none";
+                item.style.borderBottom = "1px solid #eee";
                 item.style.background = "#fff";
-                item.onmouseenter = () => (item.style.background = "#f3f4f6");
-                item.onmouseleave = () => (item.style.background = "#fff");
-                const props = f.properties || {};
-                const label = [props.name, props.city, props.state, props.country]
-                    .filter(Boolean)
-                    .join(", ");
-                item.textContent = label || "Unknown";
-                item.addEventListener("click", () => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    const type = props.osm_value || props.type || "";
-                    const targetZoom =
-                        type === "house" || type === "building" ? 15 : 11;
-                    this._map.flyTo({
-                        center: [lon, lat],
-                        zoom: Math.max(this._map.getZoom(), targetZoom),
-                        speed: 0.7,
-                        curve: 1.5,
-                        easing: (t) => 1 - Math.pow(1 - t, 2),
-                        essential: false,
-                    });
-                    clearList();
-                    if (window.innerWidth < 600 || window.innerHeight < 500) {
-                         input.style.display = "none";
+                
+                // New API: Use suggestion.placePrediction.text.text
+                const prediction = suggestion.placePrediction;
+                item.textContent = prediction.text.text;
+
+                item.addEventListener("click", async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // New API: Instantiate a Place object using the Place ID
+                    const { Place } = await google.maps.importLibrary("places");
+                    const place = new Place({ id: prediction.placeId });
+
+                    // Fetch only the location (Geometry) to keep costs down
+                    await place.fetchFields({ fields: ['location'] });
+
+                    if (place.location) {
+                        this._map.flyTo({
+                            center: [place.location.lng(), place.location.lat()],
+                            zoom: 10,
+                            speed: 1.2,
+                            essential: true
+                        });
+                        
+                        clearList();
+                        input.value = ""; 
+                        input.style.display = "none";
                     }
                 });
                 list.appendChild(item);
             });
-            if (features.length > 0) list.style.display = "block";
+            if (suggestions.length > 0) list.style.display = "block";
         };
 
         const search = async (q) => {
@@ -245,21 +252,28 @@ export class PhotonSearchControl {
                 clearList();
                 return;
             }
-            if (aborter) aborter.abort();
-            aborter = new AbortController();
-            const c = this._map.getCenter();
-            const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-                q
-            )}&limit=6&lat=${c.lat}&lon=${c.lng}`;
+
             try {
-                const r = await fetch(url, {
-                    signal: aborter.signal,
-                    headers: { Accept: "application/json" },
-                });
-                if (!r.ok) return;
-                const data = await r.json();
-                renderResults((data && data.features) || []);
-            } catch (_) {
+                // Import the places library for the New API
+                const { AutocompleteSuggestion } = await google.maps.importLibrary("places");
+
+                const request = {
+                    input: q,
+                    locationBias: this._map.getCenter(), // Use map center for better local results
+                    language: 'en'
+                };
+
+                // New API method for suggestions
+                const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
+
+                if (suggestions && suggestions.length > 0) {
+                    renderResults(suggestions);
+                } else {
+                    clearList();
+                }
+            } catch (err) {
+                console.error("New Places API Error:", err);
+                clearList();
             }
         };
 
