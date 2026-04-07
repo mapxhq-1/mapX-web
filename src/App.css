@@ -43,3 +43,35 @@
      which often feels better for a quick 1-second notification. */
   --toastify-transition-duration: 0.2s; 
 }
+
+/* Override the default solid white popup container */
+.glass-popup .maplibregl-popup-content {
+    background: rgba(255, 255, 255, 0.15) !important; /* Semi-transparent background */
+    backdrop-filter: blur(12px) !important; /* The frosted glass effect */
+    -webkit-backdrop-filter: blur(12px) !important; /* Safari support */
+    border: 1px solid rgba(255, 255, 255, 0.3) !important; /* Subtle reflective edge */
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2) !important; /* Soft depth shadow */
+    border-radius: 30px !important; /* Rounded edges */
+    padding: 8px 16px !important;
+}
+
+/* Style the little arrow pointing down to the map */
+.glass-popup .maplibregl-popup-tip {
+    /* Match the tip color to the glass background */
+    border-top-color: rgba(255, 255, 255, 0.2) !important; 
+    
+    /* OPTIONAL: Uncomment the line below to hide the arrow entirely for a cleaner floating pill look */
+    /* display: none !important; */
+}
+
+/* Style the actual text inside */
+.glass-popup-text {
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 14px;
+    font-family: system-ui, -apple-system, sans-serif;
+    letter-spacing: 0.5px;
+    /* Adding a subtle text shadow makes white text readable even if the glass is over a light map area */
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6); 
+    text-align: center;
+}

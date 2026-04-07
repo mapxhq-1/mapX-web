@@ -172,9 +172,13 @@ export const useLayerManager = (map, customLayers, dispatch) => {
       // 5. Setup Popups
       if (!map.current._clickBound?.[layer.id]) {
           const handlePopup = (e) => {
-             new maplibregl.Popup({ closeButton: false })
+             new maplibregl.Popup({ 
+                 closeButton: false,
+                 className: 'glass-popup' // <-- 1. Add custom class here
+             })
                 .setLngLat(e.lngLat)
-                .setHTML(`<div style="color:white; padding:4px; font-weight:bold;">${layer.name}</div>`)
+                // 2. Simplify the HTML and rely on CSS
+                .setHTML(`<div class="glass-popup-text">${layer.name}</div>`) 
                 .addTo(map.current);
           };
           if (!map.current._clickBound) map.current._clickBound = {};

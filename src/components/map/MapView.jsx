@@ -1675,34 +1675,24 @@ useEffect(() => {
 
       {markerOn && (
   <div 
-    className="absolute top-30 left-1/2 -translate-x-1/2 z-[1000]" 
+    className="absolute bottom-45 left-1/2 -translate-x-1/2 z-[1000]" 
     style={{ width: 'fit-content', borderRadius: '999px', overflow: 'hidden' }}
   >
     <LiquidGlass>
       <div style={{ position: 'relative' }}>
-        {/* Persistent subtle red tint */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          // Constant low-opacity red (12%)
-          background: 'rgba(239, 68, 68, 0.20)', 
-          borderRadius: '999px',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }} />
         
         <button
           onClick={handleClear}
-          className="cursor-pointer px-4 py-2 text-white text-sm font-medium"
+          className="cursor-pointer px-4 py-2 text-white text-sm font-medium text-shadow-zinc-700 text-shadow-sm"
           style={{ 
             background: 'none', 
             border: 'none', 
             whiteSpace: 'nowrap', 
             position: 'relative', 
-            zIndex: 1 
+            zIndex: 1 ,
           }}
         >
-          Clear Markers
+          Clear Locations
         </button>
       </div>
     </LiquidGlass>

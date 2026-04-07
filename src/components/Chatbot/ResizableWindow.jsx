@@ -270,7 +270,7 @@ const ResizableWindow = ({
           onTouchMove={handleBubbleTouchMove}
           onTouchEnd={handleBubbleTouchEnd}
           style={{
-            background: 'rgba(255, 255, 255, 0.12)',
+            background: 'rgba(0, 0, 0, 0.15)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
             touchAction: 'none',

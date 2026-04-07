@@ -501,7 +501,7 @@ const Tools = ({
           style={{
             position: 'absolute', left: CENTER, top: CENTER,
             x: "-50%", y: "-50%",
-            background: 'rgba(255, 255, 255, 0.12)',
+            background: 'rgba(0, 0, 0, 0.15)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
           }}

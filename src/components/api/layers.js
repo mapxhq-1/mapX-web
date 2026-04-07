@@ -18,7 +18,7 @@ export async function getLayerLikes(layerId, userId) {
     });
     return res.data;
   } catch (err) {
-    console.error("❌😁 Failed to fetch layer likes:", err);
+    console.error("❌ Failed to fetch layer likes:", err);
     throw err;
   }
 }
@@ -45,7 +45,7 @@ export async function toggleLayerLike(layerId, userId) {
     });
     return res.data;
   } catch (err) {
-    console.error("❌😁 Failed to toggle layer like:", err);
+    console.error("❌ Failed to toggle layer like:", err);
     throw err;
   }
 }

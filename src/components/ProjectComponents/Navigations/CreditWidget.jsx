@@ -351,7 +351,7 @@ export function CreditPopup({
                 </motion.div>
               </div>
               {/* --- END TRUE 3D TREASURE CHEST --- */}
-              <div className="h-5 relative w-full flex justify-center mb-1">
+              <div className="h-5 relative w-full flex justify-center mb-1 bottom-4">
                 <AnimatePresence mode="wait">
                   {currentMessage && (
                     <motion.div
