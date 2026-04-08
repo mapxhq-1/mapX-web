@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom"; // <-- Added import for navigation
 
 // Redux Actions
 import { 
@@ -57,8 +58,9 @@ const getColorByType = (type) => {
     return colors[Math.floor(Math.random() * colors.length)];
 };
 
-const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
+const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = false }) => { // <-- Added isDemo
     const dispatch = useDispatch();
+    const navigate = useNavigate(); // <-- Initialize navigate
     const layers = useSelector((state) => state.layers.layers);
     
     // GET REAL USER ID/EMAIL FROM REDUX
@@ -133,6 +135,9 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
     // --- 1. INITIAL LOAD ---
     useEffect(() => {
         const initLayers = async () => {
+            // Short circuit if demo to save unnecessary API calls
+            if (isDemo) return; 
+
             if (layers.length > 0) {
                  const uniqueTypes = [...new Set(layers.map(l => l.metadata?.type).filter(Boolean))];
                  setTypesList(uniqueTypes);
@@ -162,7 +167,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
             }
         };
         initLayers();
-    }, [dispatch, layers.length]); 
+    }, [dispatch, layers.length, isDemo]); 
 
     // --- 2. NAVIGATION HANDLERS ---
     const handleCategoryClick = (type) => {
@@ -179,7 +184,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
 
     // --- 3. DATA FETCH ---
     useEffect(() => {
-        if (!selectedType || showCategorySelector) return;
+        if (!selectedType || showCategorySelector || isDemo) return;
 
         const layersOfType = layers.filter(l => l.metadata?.type === selectedType);
         const allLoaded = layersOfType.length > 0 && layersOfType.every(l => l.data);
@@ -215,7 +220,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
         };
 
         fetchGeoData();
-    }, [selectedType, layers, dispatch, showCategorySelector]);
+    }, [selectedType, layers, dispatch, showCategorySelector, isDemo]);
 
     // --- 4. TOGGLE HANDLER ---
     const handleToggle = async (layer) => {
@@ -228,14 +233,12 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                     const cleanData = { ...found.geoFileContent };
                     delete cleanData.crs;
                     
-                    // ✅ INJECT metaDataContent here as well just in case!
                     if (found.metaDataContent) {
                         cleanData._metaDataContent = found.metaDataContent;
                     }
 
                     dispatch(updateLayerData({ id: layer.id, data: cleanData }));
                     dispatch(toggleLayerVisibility(layer.id));
-                    // if (window.mapxFlyToLayer) window.mapxFlyToLayer(cleanData);
                 }
             } catch(e) { console.error(e); }
             setLoading(false);
@@ -277,37 +280,30 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
 
             try {
                 let metaPoints = [];
-                
-                // 1. First, check if Redux already saved the metaDataContent during the map load
                 let metaData = layer.data?._metaDataContent;
 
-                // 2. If it's missing (rare, but possible if they click info before map loads), fetch it
                 if (!metaData) {
                     const results = await searchGeoLayers(layer.metadata.type);
                     const found = results.find(r => r.id === layer.id);
                     if (found) metaData = found.metaDataContent;
                 }
 
-                // 3. Flexibly parse the JSON into an array of strings for the UI
                 if (metaData) {
                     if (Array.isArray(metaData.points)) {
                         metaPoints = metaData.points;
                     } else if (Array.isArray(metaData.infoPoints)) {
                         metaPoints = metaData.infoPoints;
                     } else if (typeof metaData === 'object') {
-                        // Fallback: If it's just a raw JSON object, turn its keys/values into strings
                         metaPoints = Object.entries(metaData)
                             .map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`)
                             .filter(str => str.length > 3);
                     }
                 }
 
-                // If nothing was found, show a fallback message
                 if (metaPoints.length === 0) {
                     metaPoints = ["No specific metadata available for this layer."];
                 }
 
-                // 4. Fetch the Likes
                 const likesRes = await getLayerLikes(layer.id, userEmail);
 
                 setDataCache(prev => ({
@@ -335,7 +331,6 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
 
         const wasLiked = currentData.isLiked;
         
-        // Optimistic UI Update (Toggle the icon immediately)
         setDataCache(prev => ({
             ...prev,
             [layerId]: {
@@ -345,13 +340,9 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
         }));
 
         try {
-            // Hit the real backend API
             const res = await toggleLayerLike(layerId, userEmail);
-            
-            // Revert to catch block if API fails
             if (!res) throw new Error("Like API failed to respond");
             
-            // Sync with backend truth
             setDataCache(prev => ({
                 ...prev,
                 [layerId]: {
@@ -361,7 +352,6 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                 }
             }));
         } catch (error) {
-            // Revert back to the original state on failure
             setDataCache(prev => ({
                 ...prev,
                 [layerId]: currentData
@@ -400,7 +390,6 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
             );
         }
 
-        // DEFAULT: Standard category filtering
         if (!selectedType) return [];
         return layers.filter(layer => layer.metadata?.type === selectedType);
     }, [layers, selectedType, searchQuery, isSearching]);
@@ -412,27 +401,48 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
         layers.forEach(layer => {
             let matchesCurrentView = false;
 
-            // 1. If searching, check if the layer matches the search text
             if (isSearching) {
                 matchesCurrentView = layer.name.toLowerCase().includes(lowerQuery);
             } 
-            // 2. If not searching, check if the layer matches the current category
             else {
                 matchesCurrentView = layer.metadata?.type === selectedType;
             }
 
-            // 3. If it matches the current view AND is turned on, turn it off
             if (matchesCurrentView && layer.visible) {
                 dispatch(toggleLayerVisibility(layer.id));
-                
-                // If your map logic requires an explicit hide command, uncomment the line below:
-                // if (window.mapxHideLayer) window.mapxHideLayer(layer.data);
             }
         });
     };
     
     const activeLayersCount = displayedLayers.filter(l => l.visible).length;
     const textSize = isCompact ? "text-[10px]" : "text-xs";
+
+    if (isDemo) {
+        return (
+            <div className="w-full h-full flex flex-col relative overflow-hidden rounded-3xl">
+                {/* Glassmorphism Blur Overlay */}
+                <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-xl bg-black/30">
+                    {/* Skeuomorphic Pill */}
+                    <div className="px-8 py-4 rounded-full bg-gradient-to-b from-zinc-800 to-zinc-900 shadow-[inset_0_2px_2px_rgba(255,255,255,0.1),_0_10px_30px_rgba(0,0,0,0.8)] border border-black/80 flex items-center gap-2">
+                        <span 
+                            onClick={() => navigate('/myprojects')} 
+                            className="text-green-400 font-extrabold cursor-pointer text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.4)] hover:drop-shadow-[0_0_12px_rgba(74,222,128,0.8)] transition-all"
+                        >
+                            Login
+                        </span>
+                        <span className="text-zinc-300 font-medium text-sm text-shadow-sm">to access the layers</span>
+                    </div>
+                </div>
+
+                {/* Skeleton Background Grid */}
+                <div className="flex flex-col gap-3 p-2 opacity-30 pointer-events-none h-full">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                        <div key={i} className="w-full h-20 bg-zinc-800 rounded-full animate-pulse border border-white/5 shadow-md"></div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full h-full flex flex-col relative">
@@ -656,7 +666,6 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                                 </div>
                                 
                                 <div className="flex flex-col items-center shrink-0">
-                                    {/* 'To know more' text made much smaller */}
                                     <span className="text-[7px] text-zinc-500 font-bold mb-0.5 uppercase tracking-wider">To know more</span>
                                     <button 
                                         onClick={handleAskDynoClick}
@@ -696,37 +705,36 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType }) => {
                             </div>
 
                             {/* Footer Section - Controls */}
-<div className="mt-3 pt-3 border-t border-zinc-300 flex justify-between items-end pb-1">
-    <button 
-        onClick={() => handleLikeToggle(activeDataLayer.id)}
-        className="flex items-center gap-1.5 group active:scale-90 transition-transform"
-    >
-        {dataCache[activeDataLayer.id]?.isLiked ? (
-            <HeartFilled size={26} />
-        ) : (
-            <HeartOutline size={26} className="text-zinc-600 group-hover:text-red-500 transition-colors" />
-        )}
-        <span className="font-bold text-sm text-zinc-800">
-            {dataCache[activeDataLayer.id]?.likes || 0}
-        </span>
-    </button>
+                            <div className="mt-3 pt-3 border-t border-zinc-300 flex justify-between items-end pb-1">
+                                <button 
+                                    onClick={() => handleLikeToggle(activeDataLayer.id)}
+                                    className="flex items-center gap-1.5 group active:scale-90 transition-transform"
+                                >
+                                    {dataCache[activeDataLayer.id]?.isLiked ? (
+                                        <HeartFilled size={26} />
+                                    ) : (
+                                        <HeartOutline size={26} className="text-zinc-600 group-hover:text-red-500 transition-colors" />
+                                    )}
+                                    <span className="font-bold text-sm text-zinc-800">
+                                        {dataCache[activeDataLayer.id]?.likes || 0}
+                                    </span>
+                                </button>
 
-    {/* MERGED PLAY/PAUSE BUTTON */}
-<div className="flex items-center gap-3 text-zinc-700">
-    <button 
-        onClick={() => liveActiveLayer.isPlaying ? handlePause(liveActiveLayer) : handlePlay(liveActiveLayer)}
-        className={`transition-colors p-1 ${
-            liveActiveLayer.isPlaying 
-                ? 'text-[#075e54] hover:text-[#054a42]' 
-                : 'text-zinc-700 hover:text-[#075e54]'
-        }`}
-        title={liveActiveLayer.isPlaying ? "Pause" : "Play"}
-    >
-        {liveActiveLayer.isPlaying ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
-    </button>
-</div>
-</div>
-
+                                {/* MERGED PLAY/PAUSE BUTTON */}
+                                <div className="flex items-center gap-3 text-zinc-700">
+                                    <button 
+                                        onClick={() => liveActiveLayer.isPlaying ? handlePause(liveActiveLayer) : handlePlay(liveActiveLayer)}
+                                        className={`transition-colors p-1 ${
+                                            liveActiveLayer.isPlaying 
+                                                ? 'text-[#075e54] hover:text-[#054a42]' 
+                                                : 'text-zinc-700 hover:text-[#075e54]'
+                                        }`}
+                                        title={liveActiveLayer.isPlaying ? "Pause" : "Play"}
+                                    >
+                                        {liveActiveLayer.isPlaying ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </motion.div>
                 )}
