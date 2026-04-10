@@ -17,6 +17,59 @@ import {
 import { getAllLayers, searchGeoLayers } from "../api/geoJson"; 
 import { getLayerLikes, toggleLayerLike } from "../api/layers"; 
 
+// --- IMAGE MAPPINGS ---
+// Add your image URLs between the quotes for each layer/category
+const LAYER_IMAGES = {
+    // Layer Types
+    "World Rivers": "",
+    "Trade Routes": "",
+    "Indian Rivers": "",
+
+    // World Rivers
+    "Amezon River": "",
+    "congo river": "",
+    "Mississippi River": "",
+    "Nile River": "",
+    "OB River": "",
+    "para river": "",
+    "Yangtze River": "",
+    "Yellow River": "",
+
+    // Trade Routes
+    "Grand Trunk Road": "",
+    "Harappa Trade Route": "",
+    "Silk Route": "",
+    "Spice Route": "",
+    "Trans Sahara Trade Route": "",
+
+    // Indian Rivers
+    "Bramhaputara River": "",
+    "Ganga Gandak River": "",
+    "Ganga Hooghaly River": "",
+    "Ganga River": "",
+    "Ganga Yamuna Betwa River": "",
+    "Ganga Yamuna Chambal Banas River": "",
+    "Ganga Yamuna Chambal River": "",
+    "Ganga Yamuna River": "",
+    "Godavari Indravati River": "",
+    "Godavari River": "",
+    "Godavari Wainganga River": "",
+    "Indus River": "",
+    "Indus Sutlej River": "",
+    "Kaveri Kollidam River": "",
+    "Kaveri River": "",
+    "Krishna Bhima River": "",
+    "Krishna River": "",
+    "Krishna Tungabhadara River": "",
+    "Luni River": "",
+    "Mahanadi River": "",
+    "Mahanadi Tel River": "",
+    "Mahi River": "",
+    "Narmada River": "",
+    "Sabarmati River": "",
+    "Tapi River": ""
+};
+
 // --- ICONS ---
 const PlayIcon = ({ size = 18 }) => <svg width={size} height={size} viewBox="0 0 52 54" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M45.3965 20.2543C50.7012 23.1391 50.7012 30.6066 45.3965 33.4913L13.3666 50.9091C8.21088 53.7128 1.875 50.0636 1.875 44.2906V9.45505C1.875 3.682 8.21088 0.0328519 13.3665 2.8365L45.3965 20.2543Z" stroke="#1C274C" strokeWidth="3.75"/>
@@ -58,9 +111,9 @@ const getColorByType = (type) => {
     return colors[Math.floor(Math.random() * colors.length)];
 };
 
-const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = false }) => { // <-- Added isDemo
+const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = false }) => { 
     const dispatch = useDispatch();
-    const navigate = useNavigate(); // <-- Initialize navigate
+    const navigate = useNavigate(); 
     const layers = useSelector((state) => state.layers.layers);
     
     // GET REAL USER ID/EMAIL FROM REDUX
@@ -475,8 +528,9 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                                         className="group flex flex-col rounded-xl overflow-hidden cursor-pointer shadow-lg border border-white/10 bg-zinc-800 transition-all hover:border-white/30"
                                     >
                                         <div className="relative w-full aspect-[5/3] bg-zinc-900">
+                                            {/* --- UPDATED CATEGORY IMAGE SRC LOGIC HERE --- */}
                                             <img 
-                                                src={`https://picsum.photos/seed/${encodeURIComponent(type)}/500/300`} 
+                                                src={LAYER_IMAGES[type] || `https://picsum.photos/seed/${encodeURIComponent(type)}/500/300`} 
                                                 alt={type}
                                                 className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-300"
                                                 loading="lazy"
@@ -568,6 +622,8 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                                 <AnimatePresence mode="popLayout">
                                     {displayedLayers.map((layer) => {
                                         const isDataReady = !!layer.data; 
+                                        const layerNameCleaned = layer.name.replace(/_/g, ' ');
+                                        
                                         return (
                                             <motion.div 
                                                 layout="position"
@@ -589,9 +645,10 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                                             >
                                                 {/* Image Background */}
                                                 <div className="relative w-full aspect-[4/3] bg-zinc-900">
+                                                    {/* --- UPDATED INDIVIDUAL LAYER IMAGE SRC LOGIC HERE --- */}
                                                     <img 
-                                                        src={`https://picsum.photos/seed/${layer.id}/500/300`} 
-                                                        alt={layer.name.replace(/_/g, ' ')}
+                                                        src={LAYER_IMAGES[layerNameCleaned] || LAYER_IMAGES[layer.name] || `https://picsum.photos/seed/${layer.id}/500/300`} 
+                                                        alt={layerNameCleaned}
                                                         className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                                                         loading="lazy"
                                                     />
@@ -621,7 +678,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                                                 {/* Layer Title Block */}
                                                 <div className="absolute bottom-0 left-0 w-full p-3 pt-6 pointer-events-none">
                                                     <h3 className="text-white font-semibold text-sm drop-shadow-md truncate">
-                                                        {layer.name.replace(/_/g, ' ')}
+                                                        {layerNameCleaned}
                                                     </h3>
                                                 </div>
                                             </motion.div>
