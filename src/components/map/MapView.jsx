@@ -403,7 +403,17 @@ useEffect(() => {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
+
     }
+    // 1. Find the bottom-most layer of your drawing tools dynamically
+    const allLayers = map.current.getStyle().layers;
+    const lowestDrawingLayer = allLayers.find(layer => 
+      layer.source === LAYER_IDS.LIVE_SOURCE || 
+      layer.source === LAYER_IDS.FINAL_SOURCE
+    );
+    
+    // This is the magical ID we will use to push your polygons underneath!
+    const insertBeforeId = lowestDrawingLayer ? lowestDrawingLayer.id : undefined;
     
     // Subtle glow/shadow layer behind polygons for depth
     if (!map.current.getLayer("polygon-glow")) {
@@ -412,11 +422,11 @@ useEffect(() => {
         type: "fill",
         source: "polygons-source",
         paint: {
-          "fill-color": "#5C4A37", // Darker sepia for more visible shadow
-          "fill-opacity": 0.25, // Increased opacity for better visibility
+          "fill-color": "#5C4A37",
+          "fill-opacity": 0.25,
           "fill-antialias": true,
         }
-      }, "polygon-fill"); // Insert before polygon-fill
+      }, insertBeforeId); // <--- ADD THIS HERE!
     } else {
       // Update existing glow layer properties
       try {
@@ -453,7 +463,7 @@ useEffect(() => {
           "fill-opacity": 0.65, // Increased opacity to show colors clearly while allowing hillshade through
           "fill-antialias": true,
         }
-      });
+      },insertBeforeId);
     } else {
       // Update existing layer properties to ensure opacity is applied
       try {
