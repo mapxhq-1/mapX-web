@@ -1099,8 +1099,11 @@ const onEmpireClick = async (e) => {
                 if (data) {
                     currentMetadataRef.current = data;
                     const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
+                    
+                    // Sanitize the name to prevent quotes from breaking the inline JS
+                    const safeEmpireName = (data.name || empireName || 'this empire').replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-const htmlContent = `
+                    const htmlContent = `
     <style>
         /* Removes MapLibre's default white styling, borders, and the popup arrow tip */
         .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
@@ -1146,7 +1149,13 @@ const htmlContent = `
                 
                 <div class="flex items-center gap-2 shrink-0">
                     <span class="text-[10px] text-[#8c7b6e] font-medium tracking-tight">To know more</span>
-                    <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" onclick="window.handleAskDyno()">
+                    <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" 
+                            onclick="
+                                const q = 'Tell me more about ${safeEmpireName}';
+                                localStorage.setItem('pendingDynoQuery', q);
+                                window.dispatchEvent(new CustomEvent('trigger-know-more', { detail: { query: q } }));
+                                setTimeout(() => localStorage.removeItem('pendingDynoQuery'), 500);
+                            ">
                         Ask Dyno
                     </button>
                 </div>
