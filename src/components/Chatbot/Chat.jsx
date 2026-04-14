@@ -337,7 +337,7 @@ async function fetchThinkingText(query) {
     let empireData = null;
     if (historyItem.flyToPosition && (historyItem.flyToPosition.location || historyItem.flyToPosition.lat)) {
       empireData = {
-        name: historyItem.flyToPosition.location || "Location",
+        location: historyItem.flyToPosition.location || "Location",
         lat: historyItem.flyToPosition.lat,
         lng: historyItem.flyToPosition.lng,
         time: historyItem.flyToPosition.time,
@@ -367,6 +367,7 @@ async function fetchThinkingText(query) {
 
       const data = await getChatHistory(id);
       if (data && data.history) {
+        console.log(data);
         const sortedHistory = data.history.sort((a, b) => {
           const tA = new Date(a.timestamp || 0);
           const tB = new Date(b.timestamp || 0);
@@ -402,9 +403,14 @@ async function fetchThinkingText(query) {
 
   const handleFlyTo = (empireMatch) => {
     if (!empireMatch) return;
-    const { lat, lng, time, markers, zoom } = empireMatch;
+    console.log(empireMatch);
+    var { lat, lng, time, markers, zoom, location } = empireMatch;
 
     if (lat !== undefined && lng !== undefined) flyToIfPossible(lat, lng, zoom);
+    if(markers===undefined){
+      markers=[{lat,lng,location}];
+      console.log(markers);
+    }
     dispatch(setFlyToPosition({ lat, lng }));
     dispatch(setMarkers(markers));
 
