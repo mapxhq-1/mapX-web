@@ -681,8 +681,8 @@ useEffect(() => {
 
               {messages.length === 0 && (
                 <div className="mt-[15%] text-center px-5">
-                  <div className={`font-bold text-[#333] mb-2 ${isLandscapeMobile ? 'text-lg' : 'text-2xl'}`}>Dyno here!!</div>
-                  <div className={`text-[#666] ${isLandscapeMobile ? 'text-sm' : 'text-base'}`}>Ask about history, geography, or specific empires.</div>
+                  <div className={`font-bold text-[#333] mb-2 ${isLandscapeMobile ? 'text-lg' : 'text-2xl'}`}>Dino here!!</div>
+                  <div className={`text-[#666] ${isLandscapeMobile ? 'text-xs' : 'text-sm'}`}>Ask me anything, from rise and fall of the empires to exloring any location!!<br/>Hence since the earth began.</div>
                 </div>
               )}
 

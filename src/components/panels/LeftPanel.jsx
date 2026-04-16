@@ -110,7 +110,12 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
         <div className="flex flex-col shrink-0">
           
           <div className={`${styles.headerPadding} flex items-center justify-between border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]`}>
-            <p className={`font-bold potta-one text-white ${styles.titleSize} tracking-widest`}>Happy Dyno</p>
+          <span
+            className="text-white tracking-[-0.05em] text-2xl"
+            style={{ fontFamily: 'General Sans, sans-serif' }}
+          >
+            Magic Maps
+          </span>
             
             <div className="flex items-center gap-2">
               <button onClick={() => navigate("/myProjects")} className={`${styles.iconBtnSize} flex items-center justify-center rounded-full bg-zinc-800 text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)] border-t border-white/10 hover:bg-zinc-700 transition-all duration-200 active:scale-95`}>

@@ -249,9 +249,12 @@ const Sidebar = () => {
                         
                         {/* Header */}
                         <div className={`${headerPadding} ${headerSize} flex justify-between items-center transition-all`}>
-                            <h1 className="text-zinc-100 tracking-wide drop-shadow-md" style={{ fontFamily: '"Potta One", cursive', fontSize: 'inherit' }}>
-                                Happy Dyno
-                            </h1>
+                            <span
+                                className="text-white tracking-[-0.05em] text-2xl"
+                                style={{ fontFamily: 'General Sans, sans-serif' }}
+                            >
+                                Magic Maps
+                            </span>
                             <button onClick={() => setIsMobileOpen(false)} className="lg:hidden text-zinc-500">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -305,12 +308,12 @@ const Sidebar = () => {
                         {/* Support */}
                         <div>
                             <p className={`${headerPadding} mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600`}>Support</p>
-                            <a href='https://help.happydyno.com' target='_blank' rel="noreferrer">
+                            {/* <a href='https://help.happydyno.com' target='_blank' rel="noreferrer">
                                 <div className={getNavItemClass(false)}>
                                     <Youtube size={18}/>
                                     <span className={`font-medium ${textSize}`}>How to use - Videos</span>
                                 </div>
-                            </a>
+                            </a> */}
                         </div>
                         
 

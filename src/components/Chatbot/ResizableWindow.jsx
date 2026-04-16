@@ -316,7 +316,7 @@ const ResizableWindow = ({
               style={{ touchAction: 'none' }}
             >
               <div className="flex items-center gap-2">
-                <span className="text-white dark:text-white text-[13px] potta-one">Happy Dyno</span>
+                <span className="text-white dark:text-white text-[13px] potta-one">Dino</span>
               </div>
               <div
                 className="no-drag flex gap-1.5"
