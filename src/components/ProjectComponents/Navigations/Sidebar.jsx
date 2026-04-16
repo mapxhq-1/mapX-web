@@ -250,7 +250,7 @@ const Sidebar = () => {
                         {/* Header */}
                         <div className={`${headerPadding} ${headerSize} flex justify-between items-center transition-all`}>
                             <span
-                                className="text-white tracking-[-0.05em] text-2xl"
+                                className="text-white tracking-[-0.05em] text-2xl font-semibold"
                                 style={{ fontFamily: 'General Sans, sans-serif' }}
                             >
                                 Magic Maps

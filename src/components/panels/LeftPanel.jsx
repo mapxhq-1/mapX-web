@@ -111,7 +111,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
           
           <div className={`${styles.headerPadding} flex items-center justify-between border-b border-black shadow-[0_1px_0_rgba(255,255,255,0.05)]`}>
           <span
-            className="text-white tracking-[-0.05em] text-2xl"
+            className="text-white tracking-[-0.05em] text-2xl font-semibold"
             style={{ fontFamily: 'General Sans, sans-serif' }}
           >
             Magic Maps
