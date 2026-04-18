@@ -17,57 +17,64 @@ import {
 import { getAllLayers, searchGeoLayers } from "../api/geoJson"; 
 import { getLayerLikes, toggleLayerLike } from "../api/layers"; 
 
-// --- IMAGE MAPPINGS ---
-// Add your image URLs between the quotes for each layer/category
 const LAYER_IMAGES = {
     // Layer Types
-    "World Rivers": "",
-    "Trade Routes": "",
-    "Indian Rivers": "",
+    "World Rivers": "/Layer images/world riviers/main world river.jpg",
+    "Trade Routes": "/Layer images/Trade Route/main trade route image.jpg",
+    "Indian Rivers": "/Layer images/Indian rivers/main indian river.jpg",
+    "Explorer Routes": "/Layer images/Explorer routes/main explorere route photo.jpg",
+
+    "Christopher Columbus": "/Layer images/Explorer routes/Christopher_Columbus.jpg",
+    "Ernest Shackleton": "/Layer images/Explorer routes/ernest-shackleton.jpg",
+    "Fa-hsien": "/Layer images/Explorer routes/Fa-hsien.jpg",
+    "Hiuen Tsang": "/Layer images/Explorer routes/Hiuen Tsang.jpg",
+    "Ibn Battuta": "/Layer images/Explorer routes/Ibn Battuta.jpg",
+    "Marco Polo": "/Layer images/Explorer routes/Marco-Polo.jpg",
+    "Vasco da Gama": "/Layer images/Explorer routes/vasco da gama 1,2,3.png",
 
     // World Rivers
-    "Amezon River": "",
-    "congo river": "",
-    "Mississippi River": "",
-    "Nile River": "",
-    "OB River": "",
-    "para river": "",
-    "Yangtze River": "",
-    "Yellow River": "",
+    "Amezon River": "/Layer images/world riviers/Amazon_River.jpg",
+    "congo river": "/Layer images/world riviers/congo river.jpg",
+    "Mississippi River": "/Layer images/world riviers/mississippi rivier.jpg",
+    "Nile River": "/Layer images/world riviers/Nile-River-Egypt.jpg",
+    "OB River": "/Layer images/world riviers/ob river.jpg",
+    "Paraná River": "/Layer images/world riviers/parana river.jpg",
+    "Yangtze River": "/Layer images/world riviers/yantze-river.jpg",
+    "Yellow River": "/Layer images/world riviers/yellow river.jpg",
 
     // Trade Routes
-    "Grand Trunk Road": "",
-    "Harappa Trade Route": "",
-    "Silk Route": "",
-    "Spice Route": "",
-    "Trans Sahara Trade Route": "",
+    "Grand_Trunk_Road": "/Layer images/Trade Route/Grand Trunk Road.jpg",
+    "Harappa_Trade_Route": "/Layer images/Trade Route/harrapa civilization trade route.jpg",
+    "Silk_Route": "/Layer images/Trade Route/silk route.jpg",
+    "Spice_Route": "/Layer images/Trade Route/spice route.jpg",
+    "Trans_Sahara_Trade_Route": "/Layer images/Trade Route/trance sahara trade route.jpg",
 
     // Indian Rivers
-    "Bramhaputara River": "",
-    "Ganga Gandak River": "",
-    "Ganga Hooghaly River": "",
-    "Ganga River": "",
-    "Ganga Yamuna Betwa River": "",
-    "Ganga Yamuna Chambal Banas River": "",
-    "Ganga Yamuna Chambal River": "",
-    "Ganga Yamuna River": "",
-    "Godavari Indravati River": "",
-    "Godavari River": "",
-    "Godavari Wainganga River": "",
-    "Indus River": "",
-    "Indus Sutlej River": "",
-    "Kaveri Kollidam River": "",
-    "Kaveri River": "",
-    "Krishna Bhima River": "",
-    "Krishna River": "",
-    "Krishna Tungabhadara River": "",
-    "Luni River": "",
-    "Mahanadi River": "",
-    "Mahanadi Tel River": "",
-    "Mahi River": "",
-    "Narmada River": "",
-    "Sabarmati River": "",
-    "Tapi River": ""
+    "Bramhaputara_River": "/Layer images/Indian rivers/Brahmaputra river.jpg",
+    "Gandak_River": "/Layer images/Indian rivers/gandak river.jpg",
+    "Hooghaly_River": "/Layer images/Indian rivers/hooghly river.jpg",
+    "Ganga_River": "/Layer images/Indian rivers/ganga river.jpg",
+    "Betwa_River": "/Layer images/Indian rivers/betwa river.jpg",
+    "Banas_River": "/Layer images/Indian rivers/banas river.jpg",
+    "Chambal_River": "/Layer images/Indian rivers/Chambal-river.jpg",
+    "Yamuna_River": "/Layer images/Indian rivers/yamuna river.jpg",
+    "Indravati_River": "/Layer images/Indian rivers/indravati rievr.jpg",
+    "Godavari_River": "/Layer images/Indian rivers/godavari river.jpg",
+    "Wainganga_River": "/Layer images/Indian rivers/Wainganga-river.png",
+    "Indus_River": "/Layer images/Indian rivers/Indus River.jpg",
+    "Sutlej_River": "/Layer images/Indian rivers/sutlej river.jpg",
+    "Kollidam_River": "/Layer images/Indian rivers/kollidam river.jpg",
+    "Kaveri_River": "/Layer images/Indian rivers/kaveri river.jpg",
+    "Bhima_River": "/Layer images/Indian rivers/bhima river.jpg",
+    "Krishna_River": "/Layer images/Indian rivers/krishna river.jpg",
+    "Tungabhadara_River": "/Layer images/Indian rivers/tungabhadra river.jpg",
+    "Luni_River": "/Layer images/Indian rivers/luni-river.jpg",
+    "Mahanadi_River": "/Layer images/Indian rivers/Mahanadi river.jpg",
+    "Tel_River": "/Layer images/Indian rivers/tel river.jpg",
+    "Mahi_River": "/Layer images/Indian rivers/mahi river.jpg",
+    "Narmada_River": "/Layer images/Indian rivers/Narmada river.jpg",
+    "Sabarmati_River": "/Layer images/Indian rivers/sabarmati river.jpg",
+    "Tapi_River": "/Layer images/Indian rivers/tapi river.jpg"
 };
 
 // --- ICONS ---
@@ -649,7 +656,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                                                     <img 
                                                         src={LAYER_IMAGES[layerNameCleaned] || LAYER_IMAGES[layer.name] || `https://picsum.photos/seed/${layer.id}/500/300`} 
                                                         alt={layerNameCleaned}
-                                                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                                                        className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                                                         loading="lazy"
                                                     />
                                                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/30 pointer-events-none" />

@@ -29,7 +29,7 @@ export async function getEmpireDetailsById(id) {
       }
     );
     res.data.content=JSON.parse(atob(res.data.content));
-    console.log(res.data.content);
+    // console.log(res.data.content);
     return res.data; // full empire details including content
   } catch (err) {
     console.error("Error fetching empire details:", err);
