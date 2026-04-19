@@ -1457,8 +1457,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
       // ====================================================================
       // 1. INITIALIZE MAPX VECTOR TILE WORKER & PROTOCOL
       // ====================================================================
-      workerRef.current = new Worker(new URL('../../workers/mapxWorker.js', import.meta.url), { type: 'module' });
-      
+      workerRef.current = new MapxWorker();      
       workerRef.current.onmessage = (e) => {
           const { type, requestKey, buffer, labels } = e.data;
           

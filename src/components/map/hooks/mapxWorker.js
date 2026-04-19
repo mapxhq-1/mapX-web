@@ -1,6 +1,6 @@
 import geojsonvt from 'geojson-vt';
 import vtpbf from 'vt-pbf';
-import { colorPolygonsFourColor } from '../utils/polygonColoring';
+import { colorPolygonsFourColor } from '../../../utils/polygonColoring';
 import { buildEmpireLabelPoints } from '../utils/textToolHelpers'; 
 
 let tileIndex = null;
