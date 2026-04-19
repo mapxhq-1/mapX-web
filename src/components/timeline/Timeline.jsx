@@ -106,6 +106,7 @@ const formatYear = (year) => {
   return "1 CE";
 };
 
+
 export default function Timeline() {
   const dispatch = useDispatch();
   const globalYear = useSelector((state) => state.map.year);
@@ -142,6 +143,33 @@ export default function Timeline() {
     checkSize();
     window.addEventListener("resize", checkSize);
     return () => window.removeEventListener("resize", checkSize);
+  }, []);
+  // --- DEBOUNCE LOGIC ---
+  const dispatchTimeoutRef = useRef(null);
+
+  // Use this for continuous motion (dragging, inertia, holding)
+  const debouncedSetYear = useMemo(() => {
+    return (year) => {
+      if (dispatchTimeoutRef.current) clearTimeout(dispatchTimeoutRef.current);
+      dispatchTimeoutRef.current = setTimeout(() => {
+        dispatch(setYear(year));
+      }, 150); // 150ms is short enough to feel snappy, long enough to batch frames
+    };
+  }, [dispatch]);
+
+  // Use this for explicit actions (clicks, hitting Enter, releasing drag)
+  const immediateSetYear = useMemo(() => {
+    return (year) => {
+      if (dispatchTimeoutRef.current) clearTimeout(dispatchTimeoutRef.current);
+      dispatch(setYear(year));
+    };
+  }, [dispatch]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (dispatchTimeoutRef.current) clearTimeout(dispatchTimeoutRef.current);
+    };
   }, []);
 
   // --- DYNAMIC STYLES ---
@@ -297,7 +325,7 @@ export default function Timeline() {
       }
     }
 
-    if (finalYear !== globalYear) dispatch(setYear(finalYear));
+    if (finalYear !== globalYear) immediateSetYear(finalYear);
 
     buttonOffsetRef.current = 0;
     if (sliderRef.current) {
@@ -311,7 +339,7 @@ export default function Timeline() {
         const next = getNextValidYear(finalYear, dir);
         if (next !== finalYear) {
           setLocalYear(next);
-          if (next !== globalYear) dispatch(setYear(next));
+          if (next !== globalYear) immediateSetYear(next);
         }
       }
     }
@@ -392,7 +420,7 @@ const speedLookup = useMemo(() => {
 
           if (current !== localYear) {
             setLocalYear(current);
-            dispatch(setYear(current));
+            debouncedSetYear(current);
           }
           dragAccumulatorRef.current -= steps;
         }
@@ -413,7 +441,7 @@ const speedLookup = useMemo(() => {
 
           if (current !== localYear) {
             setLocalYear(current);
-            dispatch(setYear(current));
+            debouncedSetYear(current);
           }
         }
         velocityRef.current *= friction;
@@ -468,7 +496,7 @@ const speedLookup = useMemo(() => {
 
         if (current !== localYear) {
           setLocalYear(current);
-          dispatch(setYear(current));
+          debouncedSetYear(current);
         }
       }
       holdRafRef.current = requestAnimationFrame(loop);
@@ -480,7 +508,7 @@ const speedLookup = useMemo(() => {
     const next = getNextValidYear(localYear, dir);
     if (next !== localYear) {
       setLocalYear(next);
-      if (next !== globalYear) dispatch(setYear(next));
+      if (next !== globalYear) immediateSetYear(next);
     }
   };
 
@@ -502,7 +530,7 @@ const speedLookup = useMemo(() => {
         if (snapped !== null) {
           const year = maBinToYear(snapped);
           setLocalYear(year);
-          if (year !== globalYear) dispatch(setYear(year));
+          if (year !== globalYear) immediateSetYear(next);
           setInputValue(formatYear(year));
           setShowGoButton(false);
           return;
@@ -523,7 +551,7 @@ const speedLookup = useMemo(() => {
       if (parsedYear === 0) parsedYear = 1;
       const clampedYear = clampYear(parsedYear);
       setLocalYear(clampedYear);
-      if (clampedYear !== globalYear) dispatch(setYear(clampedYear));
+      if (clampedYear !== globalYear) immediateSetYear(clampedYear);
       setInputValue(formatYear(clampedYear));
       setShowGoButton(false);
     } else {

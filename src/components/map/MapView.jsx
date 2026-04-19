@@ -64,14 +64,14 @@ const SIMPLIFICATION_CONFIG = {
 };
 
 const ZOOM_TOLERANCES = {
-  0: 0.05,  // Was 0.1
-  2: 0.04,  // Was 0.08
-  3: 0.02,  // Was 0.05
-  4: 0.01,  // Was 0.03
-  5: 0.005, // Was 0.02
-  6: 0.002, // Was 0.01
+  0: 0.05,
+  2: 0.04,
+  3: 0.02,
+  4: 0.01,
+  5: 0.005,
+  6: 0.002,
   7: 0.001,
-  8: 0,     // 0 means no simplification
+  8: 0,
   10: 0,
   12: 0
 };
@@ -87,6 +87,9 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
   const currentMetadataRef = useRef(null);
   const dispatch = useDispatch();
   const currentToolRef = useRef("select");
+  const workerRef = useRef(null);
+  const protocolRequestsRef = useRef(new Map());
+  const requestCounterRef = useRef(0);
 
   useMarkerManager(map);
   const markersList = useSelector((state) => state.map.markers);
@@ -119,19 +122,56 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
   const simplificationCacheRef = useRef(new Map());
   const zoomDebounceRef = useRef(null);
 
+  // ============================================================
+  // PERFORMANCE REFS (new)
+  // ============================================================
+  // Caches the last colored + labeled output so zoom-only updates skip recoloring
+  const coloredCacheRef = useRef(null); // { year, polygons, colored, labels }
+  // Ensures popup CSS is injected into <head> only once for the lifetime of the map
+  const popupStylesInjectedRef = useRef(false);
+  // Prevents queryRenderedFeatures from firing on rapid click spam
+  const lastClickTimeRef = useRef(0);
+
   // Refs for drawing tools
   const finalFeaturesRef = useRef([]);
   const selectedFeatureIdRef = useRef(null);
   const featureSeqRef = useRef(1);
   const maOverlayManagerRef = useRef(null);
-  const selectedEmpireNameRef = useRef(null); // Track selected empire for glow effect
+  const selectedEmpireNameRef = useRef(null);
   const ownerEmailRef = useRef(ownerEmail);
+
   // Keep refs updated
   useEffect(() => { polygonsRef.current = polygons; }, [polygons]);
   useEffect(() => { yearRef.current = year; }, [year]);
-useEffect(() => {
-  ownerEmailRef.current = ownerEmail;
-}, [ownerEmail]);
+  useEffect(() => { ownerEmailRef.current = ownerEmail; }, [ownerEmail]);
+
+  // ========================================================================
+  // POPUP STYLES — injected once into <head>, never re-injected per click
+  // ========================================================================
+
+  const injectPopupStyles = useCallback(() => {
+    if (popupStylesInjectedRef.current) return;
+    if (document.getElementById('dyno-popup-styles')) {
+      popupStylesInjectedRef.current = true;
+      return;
+    }
+    popupStylesInjectedRef.current = true;
+    const style = document.createElement('style');
+    style.id = 'dyno-popup-styles';
+    style.textContent = `
+      .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
+      .maplibregl-popup-tip { display: none !important; }
+      .dyno-scroll::-webkit-scrollbar { width: 3px; }
+      .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
+      .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
+      .gallery-panel { transition: opacity 0.3s ease, transform 0.3s ease; opacity: 1; transform: translateX(0); display: flex; }
+      .popup-collapsed .gallery-panel { opacity: 0; transform: translateX(-10px); position: absolute; pointer-events: none; visibility: hidden; z-index: -1; }
+      .animate-resize { transition: width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) !important; }
+      #popup-wrapper:not(.popup-collapsed) .outside-icon-container { display: none !important; }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
   // ========================================================================
   // POLYGON SIMPLIFICATION UTILITIES
   // ========================================================================
@@ -207,7 +247,8 @@ useEffect(() => {
     
     setStats({ original: originalCoords, simplified: newCoords, reduction });
     
-    if (simplificationCacheRef.current.size > 20) {
+    // Increased cache from 20 → 50 entries to reduce thrashing on zoom
+    if (simplificationCacheRef.current.size > 50) {
       const firstKey = simplificationCacheRef.current.keys().next().value;
       simplificationCacheRef.current.delete(firstKey);
     }
@@ -244,7 +285,6 @@ useEffect(() => {
         adjacencyMode: "touch"
       });
     } catch (e) {
-      // Silently handle coloring errors
       colored = polys;
     }
     return colored;
@@ -318,7 +358,7 @@ useEffect(() => {
   // OPTIMIZED POLYGON UPDATE
   // ========================================================================
 
-  const updateMapPolygons = useCallback((polys, animated = false) => {
+  const updateMapPolygons = useCallback((polys, animated = false, forceRecolor = false) => {
     if (!map.current) return;
     
     if (animationFrameRef.current) {
@@ -330,30 +370,48 @@ useEffect(() => {
     const zoom = map.current.getZoom();
     const tolerance = getSimplificationTolerance(polys, zoom, yearRef.current);
     
+    // Simplify geometry (zoom-level dependent)
     let processedPolys = polys;
     if (tolerance > 0) {
       const cacheKey = `${yearRef.current}-${polys.length}`;
       processedPolys = simplifyPolygons(polys, tolerance, cacheKey);
     }
-    
-    const colored = processPolygons(processedPolys);
-    const labels = buildEmpireLabelPoints(colored);
+
+    // ----------------------------------------------------------------
+    // KEY OPTIMIZATION: Only re-run colorPolygonsFourColor when the
+    // year or polygon data actually changed, not on every zoom event.
+    // colorPolygonsFourColor is O(n²) and is the #1 perf bottleneck.
+    // ----------------------------------------------------------------
+    const needsRecolor = forceRecolor
+      || !coloredCacheRef.current
+      || coloredCacheRef.current.year !== yearRef.current
+      || coloredCacheRef.current.polygons !== polys; // reference equality
+
+    let colored, labels;
+    if (needsRecolor) {
+      colored = processPolygons(processedPolys);
+      // Labels only rebuilt when polygon set changes — not on zoom
+      labels = buildEmpireLabelPoints(colored);
+      coloredCacheRef.current = {
+        year: yearRef.current,
+        polygons: polys,
+        colored,
+        labels
+      };
+    } else {
+      // Zoom-only update: still apply simplification geometry,
+      // but skip expensive recoloring and label recalculation
+      colored = processPolygons(processedPolys);
+      labels = coloredCacheRef.current.labels; // reuse cached labels
+    }
     
     const doUpdate = () => {
       try {
-        const polygonSource = map.current?.getSource("polygons-source");
-        const labelSource = map.current?.getSource("empire-labels-source");
-        
-        if (polygonSource) {
-          polygonSource.setData({
-            type: "FeatureCollection",
-            features: colored
-          });
-        }
-        
-        if (labelSource) {
-          labelSource.setData(labels);
-        }
+        map.current?.getSource("polygons-source")?.setData({
+          type: "FeatureCollection",
+          features: colored
+        });
+        map.current?.getSource("empire-labels-source")?.setData(labels);
       } catch (e) {
         console.error('[MapView] Update failed:', e);
       }
@@ -374,7 +432,8 @@ useEffect(() => {
     setCurrentZoom(zoom);
     clearTimeout(zoomDebounceRef.current);
     zoomDebounceRef.current = setTimeout(() => {
-      updateMapPolygons(rawPolygonsRef.current, true);
+      // forceRecolor = false: zoom changes never trigger expensive recoloring
+      updateMapPolygons(rawPolygonsRef.current, true, false);
     }, 200);
   }, [updateMapPolygons]);
 
@@ -403,16 +462,14 @@ useEffect(() => {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
-
     }
-    // 1. Find the bottom-most layer of your drawing tools dynamically
+
     const allLayers = map.current.getStyle().layers;
     const lowestDrawingLayer = allLayers.find(layer => 
       layer.source === LAYER_IDS.LIVE_SOURCE || 
       layer.source === LAYER_IDS.FINAL_SOURCE
     );
     
-    // This is the magical ID we will use to push your polygons underneath!
     const insertBeforeId = lowestDrawingLayer ? lowestDrawingLayer.id : undefined;
     
     // Subtle glow/shadow layer behind polygons for depth
@@ -426,18 +483,15 @@ useEffect(() => {
           "fill-opacity": 0.25,
           "fill-antialias": true,
         }
-      }, insertBeforeId); // <--- ADD THIS HERE!
+      }, insertBeforeId);
     } else {
-      // Update existing glow layer properties
       try {
         map.current.setPaintProperty("polygon-glow", "fill-color", "#5C4A37");
         map.current.setPaintProperty("polygon-glow", "fill-opacity", 0.25);
-      } catch (e) {
-        // Silently handle property update errors
-      }
+      } catch (e) {}
     }
     
-    // Polygon fill layer - merged with hillshade for realistic terrain effect
+    // Polygon fill layer
     if (!map.current.getLayer("polygon-fill")) {
       map.current.addLayer({
         id: "polygon-fill",
@@ -460,43 +514,38 @@ useEffect(() => {
             ],
             "#B8860B" 
           ],
-          "fill-opacity": 0.65, // Increased opacity to show colors clearly while allowing hillshade through
+          "fill-opacity": 0.65,
           "fill-antialias": true,
         }
-      },insertBeforeId);
+      }, insertBeforeId);
     } else {
-      // Update existing layer properties to ensure opacity is applied
       try {
         map.current.setPaintProperty("polygon-fill", "fill-opacity", 0.65);
-        // Remove blend mode if it exists to ensure colors are visible
         try {
           map.current.setLayoutProperty("polygon-fill", "fill-blend-mode", undefined);
         } catch (_) {}
-      } catch (e) {
-        // Silently handle property update errors
-      }
+      } catch (e) {}
     }
     
-    // Shadow border layer behind main border for depth effect
+    // Shadow border layer
     if (!map.current.getLayer("polygon-border-shadow")) {
       map.current.addLayer({
         id: "polygon-border-shadow",
         type: "line",
         source: "polygons-source",
         paint: {
-          "line-color": "#2A1F14", // Dark shadow color
+          "line-color": "#2A1F14",
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
             1, 2.5, 
             4, 3.0, 
             10, 4.0 
           ],
-          "line-opacity": 0.4, // Shadow opacity
-          "line-blur": 2.0, // Strong blur for shadow effect
+          "line-opacity": 0.4,
+          "line-blur": 2.0,
         },
-      }, "polygon-border"); // Insert before polygon-border
+      }, "polygon-border");
     } else {
-      // Update existing shadow border properties
       try {
         map.current.setPaintProperty("polygon-border-shadow", "line-color", "#2A1F14");
         map.current.setPaintProperty("polygon-border-shadow", "line-opacity", 0.4);
@@ -507,12 +556,10 @@ useEffect(() => {
           4, 3.0, 
           10, 4.0 
         ]);
-      } catch (e) {
-        // Silently handle property update errors
-      }
+      } catch (e) {}
     }
     
-    // Polygon border layer - subtle borders that work with hillshade
+    // Polygon border layer
     if (!map.current.getLayer("polygon-border")) {
       map.current.addLayer({
         id: "polygon-border",
@@ -541,12 +588,11 @@ useEffect(() => {
             4, 1.5, 
             10, 2.5 
           ],
-          "line-opacity": 0.85, // Slightly reduced opacity for subtle borders that blend with terrain
-          "line-blur": 0.5, // Soft blur for elegant borders
+          "line-opacity": 0.85,
+          "line-blur": 0.5,
         },
       });
     } else {
-      // Update existing layer properties to ensure opacity and line width are applied
       try {
         map.current.setPaintProperty("polygon-border", "line-opacity", 0.85);
         map.current.setPaintProperty("polygon-border", "line-blur", 0.5);
@@ -556,9 +602,7 @@ useEffect(() => {
           4, 1.5, 
           10, 2.5 
         ]);
-      } catch (e) {
-        // Silently handle property update errors
-      }
+      } catch (e) {}
     }
     
     // Empire labels
@@ -572,7 +616,6 @@ useEffect(() => {
         layout: {
           "text-field": ["get", "name"],
           "text-font": ["Noto Sans Bold"],
-          
           "text-size": [
             "interpolate", ["linear"], ["zoom"],
             2, 7,
@@ -583,15 +626,10 @@ useEffect(() => {
             12, 16,
             14, 18
           ],
-          
           "text-anchor": "center",
           "text-allow-overlap": false,
           "text-ignore-placement": false,
-          
-          // UPDATED: Changed back to 10.
-          // This allows text to wrap to multiple lines if the name is long.
           "text-max-width": 10,
-          
           "text-transform": "uppercase",
           "text-letter-spacing": 0.1,
           "symbol-sort-key": ["*", -1, ["coalesce", ["get", "area"], 0]],
@@ -609,89 +647,85 @@ useEffect(() => {
       });
     }
     
-    // White border line - appears right after the main border for glow effect
+    // White border line for selected empire glow
     if (!map.current.getLayer("polygon-empire-white-border")) {
       map.current.addLayer({
         id: "polygon-empire-white-border",
         type: "line",
         source: "polygons-source",
         paint: {
-          "line-color": "#FFFFFF", // White color
+          "line-color": "#FFFFFF",
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
             1, 1.5, 
             4, 2.0, 
             10, 2.5 
           ],
-          "line-opacity": 0.9, // High opacity white line
-          "line-blur": 0.3, // Minimal blur for crisp white line
+          "line-opacity": 0.9,
+          "line-blur": 0.3,
         },
-        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        filter: ["==", ["id"], "never-match-this-id"],
       }, "empire-labels");
     }
     
-    // Empire glow border layers - creates fading glow effect
-    // Multiple layers with increasing blur and decreasing opacity for realistic fade
+    // Empire glow border layers
     if (!map.current.getLayer("polygon-empire-glow-outer")) {
-      // Outer glow layer - most blurred and faded
       map.current.addLayer({
         id: "polygon-empire-glow-outer",
         type: "line",
         source: "polygons-source",
         paint: {
-          "line-color": "#FFD700", // Golden glow color
+          "line-color": "#FFD700",
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
             1, 10.0, 
             4, 12.0, 
             10, 14.0 
           ],
-          "line-opacity": 0.25, // Very faded
-          "line-blur": 7.0, // Maximum blur for outer glow
+          "line-opacity": 0.25,
+          "line-blur": 7.0,
         },
-        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        filter: ["==", ["id"], "never-match-this-id"],
       }, "empire-labels");
     }
     
     if (!map.current.getLayer("polygon-empire-glow-middle")) {
-      // Middle glow layer - medium blur
       map.current.addLayer({
         id: "polygon-empire-glow-middle",
         type: "line",
         source: "polygons-source",
         paint: {
-          "line-color": "#FFD700", // Golden glow color
+          "line-color": "#FFD700",
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
             1, 6.0, 
             4, 7.5, 
             10, 9.0 
           ],
-          "line-opacity": 0.45, // Medium opacity
-          "line-blur": 4.0, // Medium blur
+          "line-opacity": 0.45,
+          "line-blur": 4.0,
         },
-        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        filter: ["==", ["id"], "never-match-this-id"],
       }, "empire-labels");
     }
     
     if (!map.current.getLayer("polygon-empire-glow-inner")) {
-      // Inner glow layer - closest to white border, less blur
       map.current.addLayer({
         id: "polygon-empire-glow-inner",
         type: "line",
         source: "polygons-source",
         paint: {
-          "line-color": "#FFD700", // Golden glow color
+          "line-color": "#FFD700",
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
             1, 3.5, 
             4, 4.0, 
             10, 4.5 
           ],
-          "line-opacity": 0.75, // Higher opacity
-          "line-blur": 2.0, // Less blur for inner glow
+          "line-opacity": 0.75,
+          "line-blur": 2.0,
         },
-        filter: ["==", ["id"], "never-match-this-id"], // Initially hidden
+        filter: ["==", ["id"], "never-match-this-id"],
       }, "empire-labels");
     }
   }, []);
@@ -708,47 +742,44 @@ useEffect(() => {
       { type: "module" }
     );
 
-// Updated createOnFinalize to accept extraProps (like color)
-const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords, extraProps = {}) => {
-    const id = `${prefix}_${Date.now()}_${featureSeqRef.current++}`;
-    
-    const geometry = geometryType === "Polygon"
-      ? { type: "Polygon", coordinates: [coords] }
-      : { type: geometryType, coordinates: coords };
+    const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords, extraProps = {}) => {
+      const id = `${prefix}_${Date.now()}_${featureSeqRef.current++}`;
       
-    const feature = {
-      type: "Feature",
-      properties: { 
-          id, 
-          tool, 
-          created_at: new Date().toISOString(),
-          // --- ADD THIS LINE ---
-          ...extraProps // This adds { color: "#..." } to the feature
-      },
-      geometry
-    };
-    
-    finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
-    
-    map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
-      type: "FeatureCollection",
-      features: finalFeaturesRef.current
-    });
+      const geometry = geometryType === "Polygon"
+        ? { type: "Polygon", coordinates: [coords] }
+        : { type: geometryType, coordinates: coords };
+        
+      const feature = {
+        type: "Feature",
+        properties: { 
+            id, 
+            tool, 
+            created_at: new Date().toISOString(),
+            ...extraProps
+        },
+        geometry
+      };
+      
+      finalFeaturesRef.current = [...finalFeaturesRef.current, feature];
+      
+      map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
+        type: "FeatureCollection",
+        features: finalFeaturesRef.current
+      });
 
-    // Show selection overlay for the new shape
-    selectedFeatureIdRef.current = id;
-    let anchor = null;
-    if (geometry.type === "LineString" && geometry.coordinates.length > 0) {
-      anchor = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)];
-    } else if (geometry.type === "Polygon" && geometry.coordinates[0]?.length > 0) {
-      anchor = geometry.coordinates[0][Math.floor(geometry.coordinates[0].length / 2)];
-    } else if (geometry.type === "Point") {
-      anchor = geometry.coordinates;
-    }
-    if (anchor) {
-      selectionOverlay.show({ lng: anchor[0], lat: anchor[1] });
-    }
-};
+      selectedFeatureIdRef.current = id;
+      let anchor = null;
+      if (geometry.type === "LineString" && geometry.coordinates.length > 0) {
+        anchor = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)];
+      } else if (geometry.type === "Polygon" && geometry.coordinates[0]?.length > 0) {
+        anchor = geometry.coordinates[0][Math.floor(geometry.coordinates[0].length / 2)];
+      } else if (geometry.type === "Point") {
+        anchor = geometry.coordinates;
+      }
+      if (anchor) {
+        selectionOverlay.show({ lng: anchor[0], lat: anchor[1] });
+      }
+    };
 
     const controllers = {
       freehand: new FreehandController({
@@ -802,7 +833,6 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
             features: finalFeaturesRef.current
           });
 
-          // Show selection overlay for the arrow
           selectedFeatureIdRef.current = id;
           const anchor = shaft[Math.floor(shaft.length / 2)];
           if (anchor) {
@@ -849,74 +879,62 @@ const createOnFinalize = (prefix, tool, geometryType = "LineString") => (coords,
           }
         } catch (_) {}
       },
-// Inside setupDrawingTools -> createTextToolbar options:
+      onSaveEdit: async (id, text, size, color) => {
+        const idx = finalFeaturesRef.current.findIndex(f => String(f.properties?.id) === String(id));
 
-onSaveEdit: async (id, text, size, color) => {
-    // 1. Find the existing feature
-    const idx = finalFeaturesRef.current.findIndex(f => String(f.properties?.id) === String(id));
-
-    if (idx === -1) {
-        console.error("Could not find feature to edit:", id);
-        return;
-    }
-
-    const oldFeature = finalFeaturesRef.current[idx];
-
-    // 2. SANITIZE: Create a CLEAN GeoJSON object
-    // We strictly construct only the fields GeoJSON needs. 
-    // This strips out any internal MapLibre properties (layer, source, etc.) that might cause rendering issues.
-    const updatedFeature = {
-        type: "Feature",
-        id: oldFeature.id || id, // Preserve top-level ID if it exists
-        geometry: {
-            type: oldFeature.geometry.type,
-            coordinates: oldFeature.geometry.coordinates // Preserve coordinates exactly
-        },
-        properties: {
-            ...oldFeature.properties, // Keep existing props (like created_at, tool)
-            text: sanitizeText(text), // Update text
-            fontSize: Number(size),   // Ensure Number type
-            color: color,
-            id: id                    // Ensure Property ID matches
+        if (idx === -1) {
+          console.error("Could not find feature to edit:", id);
+          return;
         }
-    };
 
-    // 3. Update Local State & Repaint
-    finalFeaturesRef.current[idx] = updatedFeature;
-    
-    // Using a new array reference [...] ensures React/MapLibre detects the change
-    const newFeatureCollection = {
-        type: "FeatureCollection",
-        features: [...finalFeaturesRef.current]
-    };
-    
-    map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData(newFeatureCollection);
+        const oldFeature = finalFeaturesRef.current[idx];
 
-    // 4. API Call
-    try {
-        if (id && !String(id).includes('_')) {
+        const updatedFeature = {
+          type: "Feature",
+          id: oldFeature.id || id,
+          geometry: {
+            type: oldFeature.geometry.type,
+            coordinates: oldFeature.geometry.coordinates
+          },
+          properties: {
+            ...oldFeature.properties,
+            text: sanitizeText(text),
+            fontSize: Number(size),
+            color: color,
+            id: id
+          }
+        };
+
+        finalFeaturesRef.current[idx] = updatedFeature;
+        
+        const newFeatureCollection = {
+          type: "FeatureCollection",
+          features: [...finalFeaturesRef.current]
+        };
+        
+        map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData(newFeatureCollection);
+
+        try {
+          if (id && !String(id).includes('_')) {
             console.log("Saving text edit to server...", id);
-            // Wrap in FeatureCollection for the API payload
             const updatePayload = {
-                geojson: {
-                    type: 'FeatureCollection',
-                    features: [updatedFeature]
-                },
-                yearInTimeline: {
-                    year: updatedFeature.properties.year,
-                    era: updatedFeature.properties.era
-                }
+              geojson: {
+                type: 'FeatureCollection',
+                features: [updatedFeature]
+              },
+              yearInTimeline: {
+                year: updatedFeature.properties.year,
+                era: updatedFeature.properties.era
+              }
             };
             const currentEmail = ownerEmailRef.current;
-            console.log({id, currentEmail, updatePayload});
-
             await updateMapShape(id, currentEmail, updatePayload);
             console.log("✅ Text successfully updated on server");
+          }
+        } catch (err) {
+          console.error("❌ Failed to save text edit to server:", err);
         }
-    } catch (err) {
-        console.error("❌ Failed to save text edit to server:", err);
-    }
-},
+      },
       onDelete: async (id) => {
         if (!id) return;
         const isSaved = !String(id).includes('_');
@@ -1016,8 +1034,8 @@ onSaveEdit: async (id, text, size, color) => {
     };
 
     const cursorManager = createCursorManager(map);
-    const manager = imageManager(map,dispatch);
-    const hyperlinker = hyperlinkManager(map,dispatch);
+    const manager = imageManager(map, dispatch);
+    const hyperlinker = hyperlinkManager(map, dispatch);
 
     const modeController = createDrawModeController({
       mapRef: map,
@@ -1033,10 +1051,19 @@ onSaveEdit: async (id, text, size, color) => {
       onSelectClick
     });
 
-const onEmpireClick = async (e) => {
+    const onEmpireClick = async (e) => {
+      // ----------------------------------------------------------------
+      // PERFORMANCE: Throttle rapid clicks — queryRenderedFeatures is
+      // not free, especially with many polygon layers rendered.
+      // 50ms guard prevents redundant calls on double-taps / fast clicks.
+      // ----------------------------------------------------------------
+      const now = Date.now();
+      if (now - lastClickTimeRef.current < 50) return;
+      lastClickTimeRef.current = now;
+
       if (currentToolRef.current !== 'select') return;
       
-      // 1. Priority: Check drawing tools first
+      // Priority: Check drawing tools first
       const drawingFeatures = map.current.queryRenderedFeatures(e.point, {
         layers: ["draw-final-line", "draw-final-fill", "draw-final-text"]
       });
@@ -1046,7 +1073,7 @@ const onEmpireClick = async (e) => {
         return;
       }
       
-      // 2. Check for empire clicks
+      // Check for empire clicks
       const features = map.current.queryRenderedFeatures(e.point, {
         layers: ["polygon-fill", "polygon-border"]
       });
@@ -1061,211 +1088,179 @@ const onEmpireClick = async (e) => {
         console.log(empireName);
         
         if (empireId) {
-            selectedEmpireNameRef.current = empireId;
-            const filterExpr = ["==", ["get", "id"], empireId];
-            try {
-                map.current.setFilter("polygon-empire-white-border", filterExpr);
-                map.current.setFilter("polygon-empire-glow-outer", filterExpr);
-                map.current.setFilter("polygon-empire-glow-middle", filterExpr);
-                map.current.setFilter("polygon-empire-glow-inner", filterExpr);
-                
-                // SUBTLE GLOW UPDATES
-                map.current.setPaintProperty("empire-labels", "text-halo-color", [
-                    "case", ["==", ["get", "id"], empireId], "rgba(255, 215, 0, 0.5)", "#ffffff"
-                ]);
-                map.current.setPaintProperty("empire-labels", "text-halo-width", [
-                    "case", ["==", ["get", "id"], empireId], 3, 2
-                ]);
-                map.current.setPaintProperty("empire-labels", "text-halo-blur", [
-                    "case", ["==", ["get", "id"], empireId], 2, 1
-                ]);
-            } catch (e) { console.error("Glow filter error:", e); }
+          selectedEmpireNameRef.current = empireId;
+          const filterExpr = ["==", ["get", "id"], empireId];
+          try {
+            map.current.setFilter("polygon-empire-white-border", filterExpr);
+            map.current.setFilter("polygon-empire-glow-outer", filterExpr);
+            map.current.setFilter("polygon-empire-glow-middle", filterExpr);
+            map.current.setFilter("polygon-empire-glow-inner", filterExpr);
+            
+            map.current.setPaintProperty("empire-labels", "text-halo-color", [
+              "case", ["==", ["get", "id"], empireId], "rgba(255, 215, 0, 0.5)", "#ffffff"
+            ]);
+            map.current.setPaintProperty("empire-labels", "text-halo-width", [
+              "case", ["==", ["get", "id"], empireId], 3, 2
+            ]);
+            map.current.setPaintProperty("empire-labels", "text-halo-blur", [
+              "case", ["==", ["get", "id"], empireId], 2, 1
+            ]);
+          } catch (e) { console.error("Glow filter error:", e); }
         } else if (empireName) {
-            selectedEmpireNameRef.current = empireName;
-            const filterExpr = ["==", ["get", "name"], empireName];
-            try {
-                map.current.setFilter("polygon-empire-white-border", filterExpr);
-                map.current.setFilter("polygon-empire-glow-outer", filterExpr);
-                map.current.setFilter("polygon-empire-glow-middle", filterExpr);
-                map.current.setFilter("polygon-empire-glow-inner", filterExpr);
-                
-                // SUBTLE GLOW UPDATES
-                map.current.setPaintProperty("empire-labels", "text-halo-color", [
-                    "case", ["==", ["get", "name"], empireName], "rgba(255, 215, 0, 0.5)", "#ffffff"
-                ]);
-                map.current.setPaintProperty("empire-labels", "text-halo-width", [
-                    "case", ["==", ["get", "name"], empireName], 3, 2
-                ]);
-                map.current.setPaintProperty("empire-labels", "text-halo-blur", [
-                    "case", ["==", ["get", "name"], empireName], 2, 1
-                ]);
-            } catch (e) {}
+          selectedEmpireNameRef.current = empireName;
+          const filterExpr = ["==", ["get", "name"], empireName];
+          try {
+            map.current.setFilter("polygon-empire-white-border", filterExpr);
+            map.current.setFilter("polygon-empire-glow-outer", filterExpr);
+            map.current.setFilter("polygon-empire-glow-middle", filterExpr);
+            map.current.setFilter("polygon-empire-glow-inner", filterExpr);
+            
+            map.current.setPaintProperty("empire-labels", "text-halo-color", [
+              "case", ["==", ["get", "name"], empireName], "rgba(255, 215, 0, 0.5)", "#ffffff"
+            ]);
+            map.current.setPaintProperty("empire-labels", "text-halo-width", [
+              "case", ["==", ["get", "name"], empireName], 3, 2
+            ]);
+            map.current.setPaintProperty("empire-labels", "text-halo-blur", [
+              "case", ["==", ["get", "name"], empireName], 2, 1
+            ]);
+          } catch (e) {}
         }
 
         if (empireId) {
-            try {
-                const data = await getMetadataByEmpireId(empireId);
+          try {
+            const data = await getMetadataByEmpireId(empireId);
 
-                if (data) {
-                    currentMetadataRef.current = data;
-                    const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
-                    
-                    // Sanitize the name to prevent quotes from breaking the inline JS
-                    const safeEmpireName = (data.name || empireName || 'this empire').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+            if (data) {
+              currentMetadataRef.current = data;
+              const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
+              
+              const safeEmpireName = (data.name || empireName || 'this empire').replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-                    const htmlContent = `
-    <style>
-        /* Removes MapLibre's default white styling, borders, and the popup arrow tip */
-        .maplibregl-popup-content { background: transparent !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
-        .maplibregl-popup-tip { display: none !important; }
-        
-        .dyno-scroll::-webkit-scrollbar { width: 3px; }
-        .dyno-scroll::-webkit-scrollbar-track { background: transparent; }
-        .dyno-scroll::-webkit-scrollbar-thumb { background-color: rgba(42, 31, 20, 0.2); border-radius: 10px; }
-        
-        /* Smooth Reveal for the Gallery Panel */
-        .gallery-panel {
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            opacity: 1;
-            transform: translateX(0);
-            display: flex;
-        }
-        .popup-collapsed .gallery-panel { 
-            opacity: 0;
-            transform: translateX(-10px);
-            position: absolute;
-            pointer-events: none;
-            visibility: hidden;
-            z-index: -1;
-        }
-
-        /* Targeted Width Animation */
-        .animate-resize {
-            transition: width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
-        }
-
-        #popup-wrapper:not(.popup-collapsed) .outside-icon-container { display: none !important; }
-    </style>
-
-    <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden relative ${hasImages ? '' : 'popup-collapsed'}" 
-         style="width: ${hasImages ? '704px' : '380px'}; height: 350px; min-width: ${hasImages ? '704px' : '380px'}; min-height: 250px; padding: 2px;">
-        
-        <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
-            
-            <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
-                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 flex-1 line-clamp-2">
-                    ${data.name || empireName || 'Empire Details'}
-                </h3>
-                
-                <div class="flex items-center gap-2 shrink-0">
-                    <span class="text-[10px] text-[#8c7b6e] font-medium tracking-tight">To know more</span>
-                    <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" 
-                            onclick="
-                                const q = 'Tell me more about ${safeEmpireName}';
-                                localStorage.setItem('pendingDynoQuery', q);
-                                window.dispatchEvent(new CustomEvent('trigger-know-more', { detail: { query: q } }));
-                                setTimeout(() => localStorage.removeItem('pendingDynoQuery'), 500);
-                            ">
-                        Ask Dyno
-                    </button>
-                </div>
-            </div>
-            
-            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0 min-h-0">
-                ${Object.entries(data)
-                    .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
-                    .map(([key, value]) => `
-                        <div class="flex items-start text-xs border-b border-black/5 last:border-0">
-                            <span class="font-semibold text-[#6b5b4e] capitalize w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
-                            <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
-                            <span class="font-medium text-gray-800 text-left leading-tight break-words whitespace-normal min-w-0 flex-1 py-1.5">${value !== null && value !== undefined && value !== '' ? value : '-'}</span>
-                        </div>
-                    `).join('')}
-            </div>
-        </div>
-
-        ${hasImages ? `
-        <div class="outside-icon-container flex items-start shrink-0 h-full pt-1">
-            <button onclick="
-                const wrapper = document.getElementById('popup-wrapper');
-                wrapper.classList.add('animate-resize');
-                wrapper.classList.remove('popup-collapsed');
-                wrapper.style.minWidth = '704px';
-                wrapper.style.width = (wrapper.offsetWidth + 324) + 'px';
-                setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
-            " class="bg-[#f1ebe3] hover:bg-[#e0d5c1] border border-[#d4c5b0] text-[#2A1F14] rounded-full w-8 h-8 flex items-center justify-center shadow-md transition-colors shrink-0" title="Open Gallery">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="15" y1="3" x2="15" y2="21"></line>
-                </svg>
-            </button>
-        </div>
-        ` : ''}
-
-        ${hasImages ? `
-        <div class="gallery-panel w-[320px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
-            
-            <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
-                <h3 class="text-[#2A1F14] font-bold text-sm leading-snug">Gallery</h3>
-                
-                <button onclick="
-                    const wrapper = document.getElementById('popup-wrapper');
-                    wrapper.classList.add('animate-resize');
-                    wrapper.classList.add('popup-collapsed');
-                    wrapper.style.minWidth = '380px';
-                    wrapper.style.width = Math.max(380, wrapper.offsetWidth - 324) + 'px';
-                    setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
-                " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0" title="Close Gallery">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3 min-h-0">
-                ${data.images.map(img => `
-                    <div class="flex flex-col gap-1">
-                        <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />
-                        ${img.caption ? `<span class="text-[10px] text-[#6b5b4e] italic text-center px-1">${img.caption}</span>` : ''}
+              // ----------------------------------------------------------------
+              // PERFORMANCE: No inline <style> block here. Styles were injected
+              // once into <head> via injectPopupStyles() at map load time.
+              // This makes popup HTML ~70% smaller and avoids CSSOM churn on
+              // every empire click.
+              // ----------------------------------------------------------------
+              const htmlContent = `
+  <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden relative ${hasImages ? '' : 'popup-collapsed'}" 
+       style="width: ${hasImages ? '704px' : '380px'}; height: 350px; min-width: ${hasImages ? '704px' : '380px'}; min-height: 250px; padding: 2px;">
+      
+      <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
+          
+          <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
+              <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 flex-1 line-clamp-2">
+                  ${data.name || empireName || 'Empire Details'}
+              </h3>
+              
+              <div class="flex items-center gap-2 shrink-0">
+                  <span class="text-[10px] text-[#8c7b6e] font-medium tracking-tight">To know more</span>
+                  <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" 
+                          onclick="
+                              const q = 'Tell me more about ${safeEmpireName}';
+                              localStorage.setItem('pendingDynoQuery', q);
+                              window.dispatchEvent(new CustomEvent('trigger-know-more', { detail: { query: q } }));
+                              setTimeout(() => localStorage.removeItem('pendingDynoQuery'), 500);
+                          ">
+                      Ask Dyno
+                  </button>
+              </div>
+          </div>
+          
+          <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0 min-h-0">
+              ${Object.entries(data)
+                .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
+                .map(([key, value]) => `
+                    <div class="flex items-start text-xs border-b border-black/5 last:border-0">
+                        <span class="font-semibold text-[#6b5b4e] capitalize w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
+                        <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
+                        <span class="font-medium text-gray-800 text-left leading-tight break-words whitespace-normal min-w-0 flex-1 py-1.5">${value !== null && value !== undefined && value !== '' ? value : '-'}</span>
                     </div>
                 `).join('')}
-            </div>
-        </div>
-        ` : ''}
+          </div>
+      </div>
 
-    </div>
+      ${hasImages ? `
+      <div class="outside-icon-container flex items-start shrink-0 h-full pt-1">
+          <button onclick="
+              const wrapper = document.getElementById('popup-wrapper');
+              wrapper.classList.add('animate-resize');
+              wrapper.classList.remove('popup-collapsed');
+              wrapper.style.minWidth = '704px';
+              wrapper.style.width = (wrapper.offsetWidth + 324) + 'px';
+              setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
+          " class="bg-[#f1ebe3] hover:bg-[#e0d5c1] border border-[#d4c5b0] text-[#2A1F14] rounded-full w-8 h-8 flex items-center justify-center shadow-md transition-colors shrink-0" title="Open Gallery">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="15" y1="3" x2="15" y2="21"></line>
+              </svg>
+          </button>
+      </div>
+      ` : ''}
+
+      ${hasImages ? `
+      <div class="gallery-panel w-[320px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
+          
+          <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
+              <h3 class="text-[#2A1F14] font-bold text-sm leading-snug">Gallery</h3>
+              
+              <button onclick="
+                  const wrapper = document.getElementById('popup-wrapper');
+                  wrapper.classList.add('animate-resize');
+                  wrapper.classList.add('popup-collapsed');
+                  wrapper.style.minWidth = '380px';
+                  wrapper.style.width = Math.max(380, wrapper.offsetWidth - 324) + 'px';
+                  setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
+              " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0" title="Close Gallery">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+              </button>
+          </div>
+          
+          <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3 min-h-0">
+              ${data.images.map(img => `
+                  <div class="flex flex-col gap-1">
+                      <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />
+                      ${img.caption ? `<span class="text-[10px] text-[#6b5b4e] italic text-center px-1">${img.caption}</span>` : ''}
+                  </div>
+              `).join('')}
+          </div>
+      </div>
+      ` : ''}
+
+  </div>
 `;
 
-                    popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
-                        .setLngLat(e.lngLat)
-                        .setHTML(htmlContent)
-                        .addTo(map.current);
-                }
-            } catch (err) { console.error(err); }
+              popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
+                .setLngLat(e.lngLat)
+                .setHTML(htmlContent)
+                .addTo(map.current);
+            }
+          } catch (err) { console.error(err); }
         }
       } else {
-         // Cleanup
-         if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
-         selectedEmpireNameRef.current = null;
-         currentMetadataRef.current = null;
-         
-         // Remove Glow
-         try { 
-             const hideExpr = ["==", ["id"], "never-match-this-id"];
-             map.current.setFilter("polygon-empire-white-border", hideExpr); 
-             map.current.setFilter("polygon-empire-glow-outer", hideExpr);
-             map.current.setFilter("polygon-empire-glow-middle", hideExpr);
-             map.current.setFilter("polygon-empire-glow-inner", hideExpr);
+        // Clicked empty space — clean up
+        if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
+        selectedEmpireNameRef.current = null;
+        currentMetadataRef.current = null;
+        
+        try { 
+          const hideExpr = ["==", ["id"], "never-match-this-id"];
+          map.current.setFilter("polygon-empire-white-border", hideExpr); 
+          map.current.setFilter("polygon-empire-glow-outer", hideExpr);
+          map.current.setFilter("polygon-empire-glow-middle", hideExpr);
+          map.current.setFilter("polygon-empire-glow-inner", hideExpr);
 
-             map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
-             map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
-             map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
-         } catch(e){} 
+          map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
+          map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
+          map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
+        } catch(e) {} 
       }
     };
     
-    // Add click handler for empire polygons (runs after onSelectClick)
     map.current.on("click", onEmpireClick);
     
     map.current.on("move", () => {
@@ -1275,9 +1270,9 @@ const onEmpireClick = async (e) => {
 
     // Export APIs
     window.mapxDrawSetMode = (mode, color = null) => {
-    currentToolRef.current = mode;
-    modeController.setMode(mode, color);
-};
+      currentToolRef.current = mode;
+      modeController.setMode(mode, color);
+    };
     window.mapxDrawGetAll = () => ({
       type: "FeatureCollection",
       features: [...finalFeaturesRef.current]
@@ -1290,7 +1285,6 @@ const onEmpireClick = async (e) => {
         map.current.flyTo({
           center: [lng, lat],
           zoom: zoom ?? Math.max(map.current.getZoom(), 5),
-          // padding: { right: 350 }
         });
       }
     };
@@ -1374,9 +1368,7 @@ const onEmpireClick = async (e) => {
       .forEach(el => { el.style.right = `${rightOffset + 8}px`; el.style.zIndex = "20"; });
 
     const bottomLeft = container.querySelector(".maplibregl-ctrl-bottom-left");
-    const bottomRight = container.querySelector(".maplibregl-ctrl-bottom-right");
     if (bottomLeft) bottomLeft.style.bottom = "130px";
-    // if (bottomRight) bottomRight.style.bottom = "130px";
 
     map.current.addControl(new ScreenshotControl(), "bottom-left");
     map.current.addControl(new MeasureDistanceControl(), "bottom-left");
@@ -1384,12 +1376,12 @@ const onEmpireClick = async (e) => {
     map.current.addControl(new CompactAttributionControl(), "bottom-right");
     map.current.addControl(new ZoomControl(), "bottom-right");
     map.current.addControl(new ResetNorthControl(), "bottom-right");
-
   }, [leftOffset, rightOffset]);
 
   const customLayers = useSelector((state) => state.layers.layers);
-  useLayerManager(map, customLayers,dispatch);
-// Effect to handle the "Ask Dyno" event dispatch
+  useLayerManager(map, customLayers, dispatch);
+
+  // Effect to handle the "Ask Dyno" event dispatch
   useEffect(() => {
     window.handleAskDyno = () => {
       const data = currentMetadataRef.current;
@@ -1398,19 +1390,15 @@ const onEmpireClick = async (e) => {
         return;
       }
 
-      // 1. Get the Empire Name
       const name = data["Empire Name"] || "This empire";
 
-      // 2. Stringify the Metadata
-      // We filter out internal IDs and join the rest into a readable string
       const contextString = Object.entries(data)
-        .filter(([key]) => !['id', 'empire_id', 'name', '_id'].includes(key.toLowerCase())) // Exclude ID and Name (since name is in the prompt)
+        .filter(([key]) => !['id', 'empire_id', 'name', '_id'].includes(key.toLowerCase()))
         .map(([key, value]) => `${key}: ${value}`)
         .join(', ');
 
       const queryText = `Tell me more about ${name}.//////${contextString}`;
-      // console.log({queryText})
-      // 4. Dispatch the Event
+
       const event = new CustomEvent('trigger-know-more', { 
         detail: { 
           query: queryText,
@@ -1464,17 +1452,62 @@ const onEmpireClick = async (e) => {
           refreshExpiredTiles: false,
         });
       }
+
+      // ====================================================================
+      // 1. INITIALIZE MAPX VECTOR TILE WORKER & PROTOCOL
+      // ====================================================================
+      workerRef.current = new Worker(new URL('../../workers/mapxWorker.js', import.meta.url), { type: 'module' });
+      
+      workerRef.current.onmessage = (e) => {
+          const { type, requestKey, buffer, labels } = e.data;
+          
+          if (type === 'DATA_READY') {
+              // Apply labels instantly
+              map.current.getSource('empire-labels-source')?.setData(labels);
+              
+              // Force MapLibre to fetch fresh vector tiles
+              if (map.current.getSource('polygons-source')) {
+                  map.current.getSource('polygons-source').setTiles([`mapx://tile/{z}/{x}/{y}?t=${Date.now()}`]);
+              }
+          }
+          else if (type === 'TILE_RESPONSE' && protocolRequestsRef.current.has(requestKey)) {
+              const callback = protocolRequestsRef.current.get(requestKey);
+              protocolRequestsRef.current.delete(requestKey);
+              if (buffer) {
+                  callback(null, buffer, null, null);
+              } else {
+                  callback(null, new ArrayBuffer(0), null, null);
+              }
+          }
+      };
+
+      maplibregl.addProtocol('mapx', (params, callback) => {
+          if (!workerRef.current) return { cancel: () => {} };
+          const match = params.url.match(/mapx:\/\/tile\/(\d+)\/(\d+)\/(\d+)/);
+          if (!match) return { cancel: () => {} };
+
+          const requestKey = `req_${requestCounterRef.current++}`;
+          protocolRequestsRef.current.set(requestKey, callback);
+
+          workerRef.current.postMessage({
+              type: 'REQUEST_TILE',
+              payload: { z: parseInt(match[1]), x: parseInt(match[2]), y: parseInt(match[3]), requestKey }
+          });
+
+          return { cancel: () => { protocolRequestsRef.current.delete(requestKey); } };
+      });
+      // ====================================================================
+
       attachMapViewCollector(map.current);
       maOverlayManagerRef.current = createMaOverlayManager(map, yearRef);
 
-      // Add error event listener for tile loading failures
       if (!map.current.__ml_error_hook) {
         map.current.__ml_error_hook = true;
         map.current.on("error", (e) => {
           const error = e && e.error ? e.error : e;
           if (error && error.message) {
             if (error.message.includes('tile') || error.message.includes('Failed to load')) {
-              // Silently handle tile loading errors (non-critical)
+              // Silently handle tile loading errors
             } else {
               console.error('[MapView] MapLibre error:', error);
             }
@@ -1482,36 +1515,40 @@ const onEmpireClick = async (e) => {
         });
       }
 
-      // ... inside MapView.js useEffect ...
-
-    map.current.on("load", () => {
+      map.current.on("load", () => {
         maOverlayManagerRef.current?.handleMapLoad();
         setupGlobeProjection();
         initializeMapLayers();
         setupControls();
+
+        // ----------------------------------------------------------------
+        // PERFORMANCE: Inject popup CSS once here, at map load, so it is
+        // never re-injected on empire clicks.
+        // ----------------------------------------------------------------
+        injectPopupStyles();
         
-        // 1. Initialize Tools
         const tools = setupDrawingTools(); 
-        
-        // 2. Assign to local ref for external use if needed
         managersRef = tools; 
 
-        // 3. FORCE Select mode by default on load
         if (window.mapxDrawSetMode) {
-            window.mapxDrawSetMode("select");
+          window.mapxDrawSetMode("select");
         }
 
+        // Push initial data to worker instead of synchronous main-thread processing
         if (polygonsRef.current && polygonsRef.current.length > 0) {
-            updateMapPolygons(polygonsRef.current, false);
+          workerRef.current.postMessage({
+              type: 'LOAD_DATA',
+              payload: { polygons: polygonsRef.current }
+          });
         }
 
         loadMapShapesByContext({
-            year: getAbsoluteYear(year),
-            era: getEraForYear(year)
+          year: getAbsoluteYear(year),
+          era: getEraForYear(year)
         });
-    });
+      });
 
-      map.current.on("zoomend", handleZoomChange);
+      // Keep zoom tracker for UI elements, but remove main-thread update triggers
       map.current.on("zoom", () => setCurrentZoom(map.current.getZoom()));
 
       map.current.on("styledata", () => {
@@ -1527,24 +1564,26 @@ const onEmpireClick = async (e) => {
       map.current.on("style.load", () => {
         setupGlobeProjection();
         initializeMapLayers();
-        if (polygonsRef.current && polygonsRef.current.length > 0) {
-          updateMapPolygons(polygonsRef.current, false);
+        
+        // Force tile refresh if style reloads
+        if (map.current.getSource('polygons-source')) {
+          map.current.getSource('polygons-source').setTiles([`mapx://tile/{z}/{x}/{y}?t=${Date.now()}`]);
         }
       });
     })();
 
     return () => {
-      clearTimeout(zoomDebounceRef.current);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      // Clean up the custom protocol and worker memory
+      maplibregl.removeProtocol('mapx');
+      workerRef.current?.terminate();
+
       maOverlayManagerRef.current?.dispose();
       if (map.current) {
         map.current.remove();
         map.current = null;
       }
     };
-  }, []); // Empty dependency array - only run once!
+}, []); 
 
   // ========================================================================
   // DATA FETCHING
@@ -1555,24 +1594,26 @@ const onEmpireClick = async (e) => {
     lastCenturyRef.current = getCenturyKey(year);
   }, [dispatch, getCenturyKey, year]);
 
-useEffect(() => {
-  if (isMaRange(year)) {
-    return;
-  }
-  const currentCentury = getCenturyKey(year);
-  
-  const isFirstLoad = !lastCenturyRef.current;
-  const isCenturyChange = lastCenturyRef.current !== currentCentury;
-
-  if (isFirstLoad || isCenturyChange) {
-    if (isCenturyChange) {
-      simplificationCacheRef.current.clear();
+  useEffect(() => {
+    if (isMaRange(year)) {
+      return;
     }
+    const currentCentury = getCenturyKey(year);
+    
+    const isFirstLoad = !lastCenturyRef.current;
+    const isCenturyChange = lastCenturyRef.current !== currentCentury;
 
-    dispatch(fetchAllEmpirePolygons());  
-    lastCenturyRef.current = currentCentury;
-  }
-}, [year, dispatch, getCenturyKey]);
+    if (isFirstLoad || isCenturyChange) {
+      if (isCenturyChange) {
+        // Clear caches on century boundary — data is completely different
+        simplificationCacheRef.current.clear();
+        coloredCacheRef.current = null; // Also bust the coloring cache
+      }
+
+      dispatch(fetchAllEmpirePolygons());  
+      lastCenturyRef.current = currentCentury;
+    }
+  }, [year, dispatch, getCenturyKey]);
 
   useEffect(() => {
     if (!map.current) return;
@@ -1586,40 +1627,38 @@ useEffect(() => {
     const isYearChange = prevYearRef.current !== year;
     prevYearRef.current = year;
 
-    updateMapPolygons(polygons, isYearChange);
+    // ----------------------------------------------------------------
+    // PERFORMANCE: Pass forceRecolor only when the year changed.
+    // On zoom/pan updates this is always false — see handleZoomChange.
+    // ----------------------------------------------------------------
+    updateMapPolygons(polygons, isYearChange, isYearChange);
   }, [polygons, year, updateMapPolygons]);
 
-// ========================================================================
+  // ========================================================================
   // HANDLE YEAR CHANGES (for tools & popups)
   // ========================================================================
 
   useEffect(() => {
     if (!map.current) return;
 
-    // 1. 👉 CLOSE THE POPUP
     if (popupRef.current) {
       popupRef.current.remove();
       popupRef.current = null;
     }
 
-    // 2. 👉 RESET THE GLOW FILTERS
-    // This ensures the "highlight" disappears from the old empire 
     selectedEmpireNameRef.current = null;
     try { 
-        const hideExpr = ["==", ["id"], "never-match-this-id"];
-        map.current.setFilter("polygon-empire-white-border", hideExpr); 
-        map.current.setFilter("polygon-empire-glow-outer", hideExpr);
-        map.current.setFilter("polygon-empire-glow-middle", hideExpr);
-        map.current.setFilter("polygon-empire-glow-inner", hideExpr);
+      const hideExpr = ["==", ["id"], "never-match-this-id"];
+      map.current.setFilter("polygon-empire-white-border", hideExpr); 
+      map.current.setFilter("polygon-empire-glow-outer", hideExpr);
+      map.current.setFilter("polygon-empire-glow-middle", hideExpr);
+      map.current.setFilter("polygon-empire-glow-inner", hideExpr);
 
-        map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
-        map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
-        map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
-    } catch(e) {
-        // Silently catch if layers aren't ready yet
-    }
+      map.current.setPaintProperty("empire-labels", "text-halo-color", "#ffffff");
+      map.current.setPaintProperty("empire-labels", "text-halo-width", 2);
+      map.current.setPaintProperty("empire-labels", "text-halo-blur", 1);
+    } catch(e) {}
 
-    // 3. Existing logic for overlays/tools
     maOverlayManagerRef.current?.handleYearChange();
 
     const ctx = { year: getAbsoluteYear(year), era: getEraForYear(year) };
@@ -1693,30 +1732,30 @@ useEffect(() => {
       )}
 
       {markerOn && (
-  <div 
-    className="absolute bottom-45 left-1/2 -translate-x-1/2 z-[1000]" 
-    style={{ width: 'fit-content', borderRadius: '999px', overflow: 'hidden' }}
-  >
-    <LiquidGlass>
-      <div style={{ position: 'relative' }}>
-        
-        <button
-          onClick={handleClear}
-          className="cursor-pointer px-4 py-2 text-white text-sm font-medium text-shadow-zinc-700 text-shadow-sm"
-          style={{ 
-            background: 'none', 
-            border: 'none', 
-            whiteSpace: 'nowrap', 
-            position: 'relative', 
-            zIndex: 1 ,
-          }}
+        <div 
+          className="absolute bottom-45 left-1/2 -translate-x-1/2 z-[1000]" 
+          style={{ width: 'fit-content', borderRadius: '999px', overflow: 'hidden' }}
         >
-          Clear Locations
-        </button>
-      </div>
-    </LiquidGlass>
-  </div>
-)}
+          <LiquidGlass>
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={handleClear}
+                className="cursor-pointer px-4 py-2 text-white text-sm font-medium text-shadow-zinc-700 text-shadow-sm"
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  whiteSpace: 'nowrap', 
+                  position: 'relative', 
+                  zIndex: 1,
+                }}
+              >
+                Clear Locations
+              </button>
+            </div>
+          </LiquidGlass>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }

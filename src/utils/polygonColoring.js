@@ -1,170 +1,160 @@
 import * as turf from "@turf/turf";
 
-// --- YOUR ORIGINAL GEOMETRY HELPERS ---
+// --- HELPERS ---
 function sharesBorderEnough(a, b, minSharedMeters = 50) {
-  const bbA = turf.bbox(a);
-  const bbB = turf.bbox(b);
-  if (
-    bbA[2] < bbB[0] || bbB[2] < bbA[0] || 
-    bbA[3] < bbB[1] || bbB[3] < bbA[1]
-  ) {
-    return false;
-  }
-  const la = turf.polygonToLine(a);
-  const lb = turf.polygonToLine(b);
-  const inter = turf.lineOverlap(la, lb, { tolerance: 1e-6 });
-  if (!inter || (inter.features?.length || 0) === 0) return false;
-  let total = 0;
-  for (const seg of inter.features) {
-    total += turf.length(seg, { units: "kilometers" }) * 1000;
-  }
-  return total >= minSharedMeters;
+    const la = turf.polygonToLine(a);
+    const lb = turf.polygonToLine(b);
+    const inter = turf.lineOverlap(la, lb, { tolerance: 1e-6 });
+    if (!inter || (inter.features?.length || 0) === 0) return false;
+    let total = 0;
+    for (const seg of inter.features) {
+        total += turf.length(seg, { units: "kilometers" }) * 1000;
+    }
+    return total >= minSharedMeters;
 }
 
 function areAdjacent(a, b, options) {
-  const mode = options?.adjacencyMode || "touch"; 
-  if (mode === "segment") return sharesBorderEnough(a, b, options?.minSharedMeters || 50);
-  try {
-    return turf.booleanIntersects(a, b);
-  } catch (_) {
-    return false;
-  }
+    const mode = options?.adjacencyMode || "touch"; 
+    if (mode === "segment") return sharesBorderEnough(a, b, options?.minSharedMeters || 50);
+    try {
+        return turf.booleanIntersects(a, b);
+    } catch (_) {
+        return false;
+    }
 }
 
-// Generates a random-looking but consistent number from a name
 function stringToHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
 }
   
-// --- YOUR ORIGINAL DFS ALGORITHM (UPDATED FOR EMPIRES) ---
+// --- OPTIMIZED ALGORITHM ---
 export function colorPolygonsFourColor(features, options = {}) {
-  if (!Array.isArray(features) || features.length === 0) return [];
-  const minSharedMeters = options.minSharedMeters ?? 50;
-  const maxColors = Math.max(2, Math.min(12, options.maxColors || 6));
+    if (!Array.isArray(features) || features.length === 0) return [];
+    const minSharedMeters = options.minSharedMeters ?? 50;
+    const MAX_COLORS = Math.max(2, Math.min(12, options.maxColors || 8));
 
-  // 1. Group Polygons into Empires by Name
-  const empires = []; 
-  const nameToId = new Map();
+    // 1. Group Polygons into Empires by Name
+    const empires = []; 
+    const nameToId = new Map();
 
-  features.forEach((f, i) => {
-    const t = f?.geometry?.type;
-    if (t !== "Polygon" && t !== "MultiPolygon") return;
+    features.forEach((f, i) => {
+        const t = f?.geometry?.type;
+        if (t !== "Polygon" && t !== "MultiPolygon") return;
 
-    const rawName = f?.properties?.name;
-    // Clean name to ensure fragments match perfectly
-    const name = (rawName && typeof rawName === 'string' && rawName.trim() !== "") 
-        ? rawName.trim().toLowerCase() 
-        : `unnamed_${i}`; // Unnamed polygons get unique IDs
+        const rawName = f?.properties?.name;
+        const name = (rawName && typeof rawName === 'string' && rawName.trim() !== "") 
+            ? rawName.trim().toLowerCase() 
+            : `unnamed_${i}`;
 
-    let empId = nameToId.get(name);
-    if (empId === undefined) {
-      empId = empires.length;
-      nameToId.set(name, empId);
-      empires.push({ id: empId, name: name, polys: [] });
-    }
-    empires[empId].polys.push(f);
-  });
-
-  const n = empires.length;
-  const adj = Array.from({ length: n }, () => new Set());
-
-  // 2. Flatten for efficient neighbor checking
-  const flatPolys = [];
-  empires.forEach(emp => {
-    emp.polys.forEach(f => {
-      flatPolys.push({ empId: emp.id, f, bbox: turf.bbox(f) });
+        let empId = nameToId.get(name);
+        if (empId === undefined) {
+            empId = empires.length;
+            nameToId.set(name, empId);
+            empires.push({ id: empId, name: name, polys: [] });
+        }
+        empires[empId].polys.push(f);
     });
-  });
 
-  // 3. Build Adjacency Graph (Who touches who?)
-  for (let i = 0; i < flatPolys.length; i++) {
-    for (let j = i + 1; j < flatPolys.length; j++) {
-      const p1 = flatPolys[i];
-      const p2 = flatPolys[j];
+    const n = empires.length;
+    const adj = Array.from({ length: n }, () => new Set());
 
-      if (p1.empId === p2.empId) continue; // Same empire, no conflict
-      if (adj[p1.empId].has(p2.empId)) continue; // Already logged
+    // 2. Flatten and pre-calculate BBoxes
+    const flatPolys = [];
+    empires.forEach(emp => {
+        emp.polys.forEach(f => {
+            flatPolys.push({ empId: emp.id, f, bbox: turf.bbox(f) });
+        });
+    });
 
-      // Fast BBox reject
-      if (
-        p1.bbox[2] < p2.bbox[0] || p2.bbox[2] < p1.bbox[0] ||
-        p1.bbox[3] < p2.bbox[1] || p2.bbox[3] < p1.bbox[1]
-      ) continue;
+    // 3. SWEEP-LINE OPTIMIZATION: Sort by minimum X coordinate
+    // This is the magic bullet that stops the crash.
+    flatPolys.sort((a, b) => a.bbox[0] - b.bbox[0]);
 
-      // Your original Turf geometry check!
-      if (areAdjacent(p1.f, p2.f, { adjacencyMode: options.adjacencyMode || "touch", minSharedMeters })) {
-        adj[p1.empId].add(p2.empId);
-        adj[p2.empId].add(p1.empId);
-      }
+    // Build Adjacency Graph
+    for (let i = 0; i < flatPolys.length; i++) {
+        const p1 = flatPolys[i];
+        
+        for (let j = i + 1; j < flatPolys.length; j++) {
+            const p2 = flatPolys[j];
+
+            // THE SWEEP-LINE BREAK: 
+            // Because the array is sorted left-to-right, if p2's left edge is further right 
+            // than p1's right edge, NO OTHER polygons after 'j' can possibly touch 'p1'. 
+            // We can completely abort the inner loop, saving millions of calculations.
+            if (p2.bbox[0] > p1.bbox[2]) break;
+
+            if (p1.empId === p2.empId) continue;
+            if (adj[p1.empId].has(p2.empId)) continue;
+
+            // Fast Y-axis BBox reject
+            if (p1.bbox[3] < p2.bbox[1] || p2.bbox[3] < p1.bbox[1]) continue;
+
+            // Heavy Turf check (only runs if bounding boxes actually overlap)
+            if (areAdjacent(p1.f, p2.f, { adjacencyMode: options.adjacencyMode || "touch", minSharedMeters })) {
+                adj[p1.empId].add(p2.empId);
+                adj[p2.empId].add(p1.empId);
+            }
+        }
     }
-  }
 
-  // 4. DFS Graph Coloring (Your original greedy logic)
-  const order = Array.from({ length: n }, (_, i) => i).sort(
-    (a, b) => adj[b].size - adj[a].size
-  );
+    // 4. ITERATIVE GREEDY COLORING (No more stack overflow crashes)
+    const order = Array.from({ length: n }, (_, i) => i).sort(
+        (a, b) => adj[b].size - adj[a].size
+    );
 
-  const color = new Array(n).fill(-1);
-const MAX_COLORS = Math.max(2, Math.min(12, options.maxColors || 8)); // Ensure it uses all 8
+    const color = new Array(n).fill(-1);
 
-  function canUse(idx, c) {
-    for (const nb of adj[idx]) if (color[nb] === c) return false;
-    return true;
-  }
-
-  function dfs(pos) {
-    if (pos === order.length) return true;
-    const idx = order[pos];
-    
-    // Pick a "Favorite" starting color based on the empire's name
-    const empName = empires[idx].name;
-    const favoriteColor = stringToHash(empName) % MAX_COLORS;
-
-    // Loop through all colors, but START at the favorite color
-    for (let i = 0; i < MAX_COLORS; i++) {
-      const c = (favoriteColor + i) % MAX_COLORS; 
-      
-      if (!canUse(idx, c)) continue; // Neighbor check
-      
-      color[idx] = c;
-      if (dfs(pos + 1)) return true;
-      color[idx] = -1; // Backtrack
+    function canUse(idx, c) {
+        for (const nb of adj[idx]) if (color[nb] === c) return false;
+        return true;
     }
-    
-    // Fallback: allow an extra color if mathematically unavoidable
-    if (options.allowFifthColor) {
-      const cExtra = MAX_COLORS;
-      color[idx] = cExtra;
-      if (dfs(pos + 1)) return true;
-      color[idx] = -1;
-    }
-    return false;
-  }
 
-  dfs(0);
+    // Iterate instead of recurse.
+    for (const idx of order) {
+        const empName = empires[idx].name;
+        const favoriteColor = stringToHash(empName) % MAX_COLORS;
+        
+        let chosenColor = -1;
 
-  // 5. Apply colors back to features
-  return features.map((f, i) => {
-    const outF = { ...f, properties: { ...(f.properties || {}) } };
-    const t = f?.geometry?.type;
-    
-    if (t === "Polygon" || t === "MultiPolygon") {
-      const rawName = f?.properties?.name;
-      const name = (rawName && typeof rawName === 'string' && rawName.trim() !== "") 
-          ? rawName.trim().toLowerCase() 
-          : `unnamed_${i}`;
-      
-      const empId = nameToId.get(name);
-      if (empId !== undefined) {
-        outF.properties.colorIndex = Math.max(0, color[empId] ?? 0);
-      }
+        // Try to find an available color, starting with the favorite
+        for (let i = 0; i < MAX_COLORS; i++) {
+            const c = (favoriteColor + i) % MAX_COLORS;
+            if (canUse(idx, c)) {
+                chosenColor = c;
+                break;
+            }
+        }
+
+        // Apply chosen color, or use the fallback if completely trapped
+        if (chosenColor !== -1) {
+            color[idx] = chosenColor;
+        } else {
+            color[idx] = MAX_COLORS; // The options.allowFifthColor fallback
+        }
     }
-    return outF;
-  });
+
+    // 5. Apply colors back to features
+    return features.map((f, i) => {
+        const outF = { ...f, properties: { ...(f.properties || {}) } };
+        const t = f?.geometry?.type;
+        
+        if (t === "Polygon" || t === "MultiPolygon") {
+            const rawName = f?.properties?.name;
+            const name = (rawName && typeof rawName === 'string' && rawName.trim() !== "") 
+                ? rawName.trim().toLowerCase() 
+                : `unnamed_${i}`;
+            
+            const empId = nameToId.get(name);
+            if (empId !== undefined) {
+                outF.properties.colorIndex = Math.max(0, color[empId] ?? 0);
+            }
+        }
+        return outF;
+    });
 }
 export function colorIndexToHex(idx) {
     // A mix of your modern Tailwind colors and distinct map colors

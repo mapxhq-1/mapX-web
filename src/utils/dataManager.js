@@ -96,16 +96,18 @@ async function mapWithConcurrency(items, limit, mapper) {
   await done;
   return results;
 }
+const RANGE_SIZE = 10; 
 
 function getCenturyKey(year) {
   if (year >= 1) {
-    const start = Math.floor((year - 1) / 100) * 100 + 1;
-    const end = start + 99;
+    // For positive years (CE)
+    const start = Math.floor((year - 1) / RANGE_SIZE) * RANGE_SIZE + 1;
+    const end = start + (RANGE_SIZE - 1);
     return `${start}|${end}`;
   } else {
-    // BCE centuries: -3300 should map cleanly
-    const start = Math.floor(year / 100) * 100;     // e.g. -3300
-    const end = start + 99;                         // e.g. -3201
+    // For negative years (BCE)
+    const start = Math.floor(year / RANGE_SIZE) * RANGE_SIZE;
+    const end = start + (RANGE_SIZE - 1);
     return `${start}|${end}`;
   }
 }
