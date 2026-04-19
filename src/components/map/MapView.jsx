@@ -46,6 +46,7 @@ import { PhotonSearchControl, ScreenshotControl, MeasureDistanceControl, ResetNo
 // Components
 import GalaxyCanvas from "../common/GalaxyCanvas";
 import { attachMapViewCollector } from "./utils/mapViewState";
+import MapxWorker from './hooks/mapxWorker.js?worker';
 
 // ============================================================================
 // PERFORMANCE CONSTANTS

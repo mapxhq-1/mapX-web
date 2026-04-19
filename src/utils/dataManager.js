@@ -198,14 +198,16 @@ export async function loadAllEmpiresWithDetailsCached(
   const cachedDetails = [];
   const missingIds = [];
 
-  if (db) {
+if (db) {
     try {
       const tx = db.transaction(STORE_DETAILS, "readonly");
       const store = tx.objectStore(STORE_DETAILS);
       
-      for (const id of ids) {
-        const req = store.get(id);
-        await new Promise((resolve) => {
+      // Map all requests synchronously so the transaction stays alive
+      const fetchPromises = ids.map(id => {
+        return new Promise((resolve) => {
+          const req = store.get(id);
+          
           req.onsuccess = () => {
             const cached = req.result;
             if (
@@ -220,13 +222,19 @@ export async function loadAllEmpiresWithDetailsCached(
             }
             resolve();
           };
+          
           req.onerror = () => {
             missingIds.push(id);
             resolve();
           };
         });
-      }
-    } catch {
+      });
+
+      // Now await them all at once
+      await Promise.all(fetchPromises);
+      
+    } catch (err) {
+      console.warn("IndexedDB read error:", err);
       missingIds.push(...ids);
     }
   } else {
