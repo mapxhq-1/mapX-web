@@ -22,15 +22,25 @@ const LAYER_IMAGES = {
     "World Rivers": "/Layer images/world riviers/main world river.jpg",
     "Trade Routes": "/Layer images/Trade Route/main trade route image.jpg",
     "Indian Rivers": "/Layer images/Indian rivers/main indian river.jpg",
-    "Explorer Routes": "/Layer images/Explorer routes/main explorere route photo.jpg",
+    "Explorer Route": "/Layer images/Explorer Route/main explorere route photo.jpg",
 
-    "Christopher Columbus": "/Layer images/Explorer routes/Christopher_Columbus.jpg",
-    "Ernest Shackleton": "/Layer images/Explorer routes/ernest-shackleton.jpg",
-    "Fa-hsien": "/Layer images/Explorer routes/Fa-hsien.jpg",
-    "Hiuen Tsang": "/Layer images/Explorer routes/Hiuen Tsang.jpg",
-    "Ibn Battuta": "/Layer images/Explorer routes/Ibn Battuta.jpg",
-    "Marco Polo": "/Layer images/Explorer routes/Marco-Polo.jpg",
-    "Vasco da Gama": "/Layer images/Explorer routes/vasco da gama 1,2,3.png",
+    "Columbus Voyage - 1": "/Layer images/Explorer Route/Christopher_Columbus.jpg",
+    "Columbus Voyage-2": "/Layer images/Explorer Route/Christopher_Columbus.jpg",
+    "Columbus Voyage-3": "/Layer images/Explorer Route/Christopher_Columbus.jpg",
+    "Columbus Voyage-4": "/Layer images/Explorer Route/Christopher_Columbus.jpg",
+
+    "Fa Hein Route": "/Layer images/Explorer Route/Fa-hsien.jpg",
+    "Hiuen Tsang Route": "/Layer images/Explorer Route/Hiuen Tsang.jpg",
+    "Marco Polo Route": "/Layer images/Explorer Route/Marco-Polo.jpg",
+    "Shackleton Route": "/Layer images/Explorer Route/ernest-shackleton.jpg",
+
+    "Vasco Da Gama Voyage -1": "/Layer images/Explorer Route/vasco da gama 1,2,3.png",
+    "Vasco Da Gama Voyage-2": "/Layer images/Explorer Route/vasco da gama 1,2,3.png",
+    "Vasco Da Gama Voyage -3": "/Layer images/Explorer Route/vasco da gama 1,2,3.png",
+
+    "Ibn Battuta Voyage -1": "/Layer images/Explorer Route/Ibn Battuta.jpg",
+    "Ibn Battuta Voyage -2": "/Layer images/Explorer Route/Ibn Battuta.jpg",
+    "Ibn Battuta Voyage -3": "/Layer images/Explorer Route/Ibn Battuta.jpg",
 
     // World Rivers
     "Amezon River": "/Layer images/world riviers/Amazon_River.jpg",
@@ -345,20 +355,35 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                 if (!metaData) {
                     const results = await searchGeoLayers(layer.metadata.type);
                     const found = results.find(r => r.id === layer.id);
-                    if (found) metaData = found.metaDataContent;
+                    if (found) metaData = found.metadataContent;
+                    // console.log(found.metadataContent);
                 }
 
                 if (metaData) {
+                // Default to empty array
+                let parsedPoints = [];
+
+                if (typeof metaData === 'string') {
+                        // console.log("Here")
+                        parsedPoints = metaData
+                            .split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0);
+                } else if (typeof metaData === 'object' && metaData !== null) {
+                    // 3. Handle the case where it was already an object
                     if (Array.isArray(metaData.points)) {
-                        metaPoints = metaData.points;
+                        parsedPoints = metaData.points;
                     } else if (Array.isArray(metaData.infoPoints)) {
-                        metaPoints = metaData.infoPoints;
-                    } else if (typeof metaData === 'object') {
-                        metaPoints = Object.entries(metaData)
-                            .map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`)
-                            .filter(str => str.length > 3);
+                        parsedPoints = metaData.infoPoints;
+                    } else {
+                        parsedPoints = Object.entries(metaData)
+                            .map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}`);
                     }
                 }
+
+                // Filter out any super short junk strings and assign to our main array
+                metaPoints = parsedPoints.filter(str => str.length > 3);
+            }
 
                 if (metaPoints.length === 0) {
                     metaPoints = ["No specific metadata available for this layer."];
@@ -715,13 +740,13 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: -20, opacity: 0 }}
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="absolute top-10 left-[calc(100%+12px)] max-h-[calc(100%-5rem)] w-[320px] bg-[#f1ebe3] shadow-[10px_0_40px_rgba(0,0,0,0.5)] z-[99999] flex flex-col rounded-2xl border border-white/40"
+                        className="absolute top-10 left-[calc(100%+12px)] max-h-[calc(100%-5rem)] w-[320px] bg-[#f1ebe3] shadow-[10px_0_40px_rgba(0,0,0,0.5)] z-[99999] flex flex-col rounded-2xl border border-white/40 overflow-hidden"
                     >
                         {/* Inner padding container */}
-                        <div className="flex flex-col h-full p-5">
+                        <div className="flex flex-col flex-1 min-h-0 p-5">
                             
                             {/* Header Section */}
-                            <div className="flex justify-between items-start border-b border-zinc-300 pb-3 mb-3 relative">
+                            <div className="flex justify-between items-start border-b border-zinc-300 pb-3 mb-3 relative shrink-0">
                                 
                                 <div className="mt-1 flex-1 pr-2">
                                     <h3 className="text-lg font-bold text-zinc-900 leading-tight truncate">
@@ -741,7 +766,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                             </div>
 
                             {/* Body Section - Info Points */}
-                            <div className="flex-1 overflow-y-auto cool-scrollbar-dark pr-1">
+                            <div className="flex-1 overflow-y-auto cool-scrollbar-dark pr-1 min-h-0">
                                 
                                 {dataCache[activeDataLayer.id]?.loading ? (
                                     <div className="space-y-4 mt-2">
@@ -769,7 +794,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                             </div>
 
                             {/* Footer Section - Controls */}
-                            <div className="mt-3 pt-3 border-t border-zinc-300 flex justify-between items-end pb-1">
+                            <div className="mt-3 pt-3 border-t border-zinc-300 flex justify-between items-end pb-1 shrink-0">
                                 <button 
                                     onClick={() => handleLikeToggle(activeDataLayer.id)}
                                     className="flex items-center gap-1.5 group active:scale-90 transition-transform"

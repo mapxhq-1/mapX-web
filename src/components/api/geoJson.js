@@ -93,7 +93,7 @@ export async function fetchLayerFiles(geoJsonFileId){
         }
       }
     );
-    // console.log(res.data.response);
+    console.log(res.data.response);
     return res.data.response; 
   } catch (err) {
     console.error("Error fetching empire details:", err);
