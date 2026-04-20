@@ -1,6 +1,40 @@
 import axios from "axios";
 const BASE_URL = import.meta.env.VITE_URL_GEO + "/geo-json-service";
 
+export async function getEmpiresByYear(year) {
+  const token = localStorage.getItem('bearerToken');
+  try {
+    const res = await axios.get(`${BASE_URL}/get_full_empires_encoded`, {
+      params: { year },
+      headers: { 
+        client_name: "mapx",
+        "Authorization": `Bearer ${token}` 
+      },
+    });
+    
+    const data = res.data;
+
+    // Because the endpoint implies the content is encoded, we decode it here.
+    // If it returns an array of empires:
+    if (Array.isArray(data)) {
+      data.forEach(empire => {
+        if (empire.content && typeof empire.content === 'string') {
+          empire.content = JSON.parse(atob(empire.content));
+        }
+      });
+    } 
+    // If it returns a single wrapped response object:
+    else if (data && data.content && typeof data.content === 'string') {
+      data.content = JSON.parse(atob(data.content));
+    }
+
+    return data;
+  } catch (err) {
+    console.error(`Error fetching empires for year ${year}:`, err);
+    throw err;
+  }
+}
+
 export async function getAllEmpires() {
   const token = localStorage.getItem('bearerToken');
   try {

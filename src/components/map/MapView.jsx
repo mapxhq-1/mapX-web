@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import LiquidGlass from "../Chatbot/LiquidGlass";
 // Redux & Utils
 import { fetchAllEmpirePolygons, openNotes, setFlyToPosition, setMarkers } from "../../store/mapSlice";
-import { colorPolygonsFourColor, colorIndexToHex, colorIndexToHexDark } from "../../utils/polygonColoring";
+import { colorPolygonsFourColor } from "../../utils/polygonColoring";
 import { getEraForYear, getAbsoluteYear, isMaRange } from "../../utils/era";
 import * as turf from "@turf/turf";
 
@@ -493,95 +493,35 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
     }
     
     // Polygon fill layer
-    if (!map.current.getLayer("polygon-fill")) {
+if (!map.current.getLayer("polygon-fill")) {
       map.current.addLayer({
         id: "polygon-fill",
         type: "fill",
         source: "polygons-source",
         paint: {
+          // NEW: Directly fetch the injected fillColor
           "fill-color": [
             "case",
-            ["has", "colorIndex"],
-            [
-              "match",
-              ["get", "colorIndex"],
-              0, colorIndexToHex(0),
-              1, colorIndexToHex(1),
-              2, colorIndexToHex(2),
-              3, colorIndexToHex(3),
-              4, colorIndexToHex(4),
-              5, colorIndexToHex(5),
-              colorIndexToHex(0)
-            ],
-            "#B8860B" 
+            ["has", "fillColor"], ["get", "fillColor"],
+            "#B8860B" // Fallback color if the property is missing
           ],
           "fill-opacity": 0.65,
           "fill-antialias": true,
         }
       }, insertBeforeId);
-    } else {
-      try {
-        map.current.setPaintProperty("polygon-fill", "fill-opacity", 0.65);
-        try {
-          map.current.setLayoutProperty("polygon-fill", "fill-blend-mode", undefined);
-        } catch (_) {}
-      } catch (e) {}
     }
-    
-    // Shadow border layer
-    if (!map.current.getLayer("polygon-border-shadow")) {
-      map.current.addLayer({
-        id: "polygon-border-shadow",
-        type: "line",
-        source: "polygons-source",
-        paint: {
-          "line-color": "#2A1F14",
-          "line-width": [
-            "interpolate", ["linear"], ["zoom"],
-            1, 2.5, 
-            4, 3.0, 
-            10, 4.0 
-          ],
-          "line-opacity": 0.4,
-          "line-blur": 2.0,
-        },
-      }, "polygon-border");
-    } else {
-      try {
-        map.current.setPaintProperty("polygon-border-shadow", "line-color", "#2A1F14");
-        map.current.setPaintProperty("polygon-border-shadow", "line-opacity", 0.4);
-        map.current.setPaintProperty("polygon-border-shadow", "line-blur", 2.0);
-        map.current.setPaintProperty("polygon-border-shadow", "line-width", [
-          "interpolate", ["linear"], ["zoom"],
-          1, 2.5, 
-          4, 3.0, 
-          10, 4.0 
-        ]);
-      } catch (e) {}
-    }
-    
-    // Polygon border layer
+
     if (!map.current.getLayer("polygon-border")) {
       map.current.addLayer({
         id: "polygon-border",
         type: "line",
         source: "polygons-source",
         paint: {
+          // NEW: Directly fetch the injected lineColor
           "line-color": [
             "case",
-            ["has", "colorIndex"],
-            [
-              "match",
-              ["get", "colorIndex"],
-              0, colorIndexToHexDark(0),
-              1, colorIndexToHexDark(1),
-              2, colorIndexToHexDark(2),
-              3, colorIndexToHexDark(3),
-              4, colorIndexToHexDark(4),
-              5, colorIndexToHexDark(5),
-              colorIndexToHexDark(0)
-            ],
-            "#8B6914" 
+            ["has", "lineColor"], ["get", "lineColor"],
+            "#8B6914" // Fallback color if the property is missing
           ],
           "line-width": [
             "interpolate", ["linear"], ["zoom"],
@@ -591,20 +531,17 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
           ],
           "line-opacity": 0.85,
           "line-blur": 0.5,
-        },
+        }
       });
     } else {
       try {
-        map.current.setPaintProperty("polygon-border", "line-opacity", 0.85);
-        map.current.setPaintProperty("polygon-border", "line-blur", 0.5);
-        map.current.setPaintProperty("polygon-border", "line-width", [
-          "interpolate", ["linear"], ["zoom"],
-          1, 1.0, 
-          4, 1.5, 
-          10, 2.5 
-        ]);
+        map.current.setPaintProperty("polygon-fill", "fill-opacity", 0.65);
+        try {
+          map.current.setLayoutProperty("polygon-fill", "fill-blend-mode", undefined);
+        } catch (_) {}
       } catch (e) {}
     }
+    
     
     // Empire labels
     if (!map.current.getLayer("empire-labels")) {

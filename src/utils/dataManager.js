@@ -1,16 +1,17 @@
-import { getAllEmpires, getEmpireDetailsById } from "../components/api/geoJson";
-import { maBinToYear } from "./era";
+import { getEmpiresByYear } from "../components/api/geoJson"; 
 
 const DB_NAME = "mapx-cache";
-const DB_VERSION = 1;
-const STORE_META = "empireMeta";
-const STORE_DETAILS = "empireDetails";
-const STORE_CENTURY = "centuryBatch";
+const DB_VERSION = 2; 
+const STORE_YEARLY = "yearlyPolygons";
 
-// In-memory cache
-let metadataCache = null;
-let metadataCacheTime = 0;
-const loadedCenturies = new Map(); // centuryKey -> empireDetails[]
+// FETCH 20 YEARS at a time for fast scrubbing
+const CHUNK_SIZE = 20; 
+// But only download 5 simultaneously to prevent browser network freezing
+const MAX_CONCURRENT_REQUESTS = 5; 
+
+// In-memory caching & deduplication
+let loadedYears = new Map(); 
+const activeChunkFetches = new Map(); 
 const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7;
 
 function openDB() {
@@ -19,12 +20,9 @@ function openDB() {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains(STORE_META))
-          db.createObjectStore(STORE_META);
-        if (!db.objectStoreNames.contains(STORE_DETAILS))
-          db.createObjectStore(STORE_DETAILS);
-        if (!db.objectStoreNames.contains(STORE_CENTURY))
-          db.createObjectStore(STORE_CENTURY);
+        if (!db.objectStoreNames.contains(STORE_YEARLY)) {
+          db.createObjectStore(STORE_YEARLY);
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -64,216 +62,117 @@ async function idbSet(storeName, key, value) {
   });
 }
 
-async function mapWithConcurrency(items, limit, mapper) {
-  const queue = items.slice();
-  const results = [];
-  let active = 0;
-  let resolveAll;
-  const done = new Promise((resolve) => (resolveAll = resolve));
-
-  const startNext = () => {
-    if (!queue.length && active === 0) {
-      resolveAll();
-      return;
-    }
-    while (active < limit && queue.length) {
-      const item = queue.shift();
-      active++;
-      Promise.resolve()
-        .then(() => mapper(item))
-        .then((res) => {
-          if (res !== undefined) results.push(res);
-        })
-        .catch(() => {})
-        .finally(() => {
-          active--;
-          startNext();
-        });
-    }
-  };
-
-  startNext();
-  await done;
-  return results;
-}
-const RANGE_SIZE = 10; 
-
-function getCenturyKey(year) {
-  if (year >= 1) {
-    // For positive years (CE)
-    const start = Math.floor((year - 1) / RANGE_SIZE) * RANGE_SIZE + 1;
-    const end = start + (RANGE_SIZE - 1);
-    return `${start}|${end}`;
-  } else {
-    // For negative years (BCE)
-    const start = Math.floor(year / RANGE_SIZE) * RANGE_SIZE;
-    const end = start + (RANGE_SIZE - 1);
-    return `${start}|${end}`;
-  }
+function getChunkRange(year) {
+  const start = Math.floor(year / CHUNK_SIZE) * CHUNK_SIZE;
+  const end = start + (CHUNK_SIZE - 1);
+  return { start, end, key: `${start}_${end}` };
 }
 
-function parseCenturyKey(key) {
-  const [start, end] = key.split("|").map(Number);
-  return { start, end };
-}
-
-const toInt = (y) => {
-  if (!y || typeof y.year === "undefined" || y.year === null) return null;
-  const raw = Number(y.year);
-  if (!Number.isFinite(raw)) return null;
-  const era = String(y.era || "").trim().toUpperCase();
-  if (era === "MA") return maBinToYear(raw);
-  if (era === "BCE") return -Math.abs(raw);
-  return Math.abs(raw);
-};
-
-export async function loadAllEmpiresWithDetailsCached(
+/**
+ * Fetches the requested year instantly, and safely batches the rest of the 20-year chunk in the background.
+ */
+export async function loadEmpiresByYearCached(
   currentYear,
   forceRefresh = false,
   dispatch = null
 ) {
+  const yearKey = String(currentYear);
   const now = Date.now();
-  const centuryKey = getCenturyKey(currentYear);
+  let requestedData = null;
 
-  // Check in-memory cache first
-  if (!forceRefresh && loadedCenturies.has(centuryKey)) {
-    return loadedCenturies.get(centuryKey);
-  }
-
-  // Check IndexedDB for this century batch
-  const cached = await idbGet(STORE_CENTURY, centuryKey);
-  if (
-    !forceRefresh &&
-    cached &&
-    cached.data &&
-    now - cached.timestamp < CACHE_EXPIRY_MS
-  ) {
-    loadedCenturies.set(centuryKey, cached.data);
-    return cached.data;
-  }
-
-  // Load metadata (once, in memory)
-  if (!metadataCache || now - metadataCacheTime > CACHE_EXPIRY_MS || forceRefresh) {
-    const cachedMeta = await idbGet(STORE_META, "list");
-    if (
-      !forceRefresh &&
-      cachedMeta &&
-      cachedMeta.data &&
-      now - cachedMeta.timestamp < CACHE_EXPIRY_MS
-    ) {
-      metadataCache = cachedMeta.data;
-      metadataCacheTime = cachedMeta.timestamp;
+  // ==========================================
+  // 1. INSTANT CACHE CHECK FOR TARGET YEAR
+  // ==========================================
+  if (!forceRefresh) {
+    if (loadedYears.has(yearKey)) {
+      requestedData = loadedYears.get(yearKey);
     } else {
-      metadataCache = await getAllEmpires();
-      metadataCacheTime = now;
-      idbSet(STORE_META, "list", {
-        timestamp: now,
-        data: metadataCache,
-      }).catch(() => {});
-    }
-  }
-
-  // Filter empires for this century
-  const { start: minYear, end: maxYear } = parseCenturyKey(centuryKey);
-  const filteredEmpires = metadataCache.filter((e) => {
-    const start = toInt(e.startYear);
-    const end = toInt(e.endYear);
-    if (start === null || end === null) return false;
-    return end >= minYear && start <= maxYear;
-  });
-
-  const ids = filteredEmpires.map((e) => e.objectId).filter(Boolean);
-  if (ids.length === 0) {
-    const emptyResult = [];
-    loadedCenturies.set(centuryKey, emptyResult);
-    idbSet(STORE_CENTURY, centuryKey, {
-      timestamp: now,
-      data: emptyResult,
-    });
-    return emptyResult;
-  }
-
-  // Batch fetch all details from IndexedDB
-  const db = await openDB();
-  const cachedDetails = [];
-  const missingIds = [];
-
-if (db) {
-    try {
-      const tx = db.transaction(STORE_DETAILS, "readonly");
-      const store = tx.objectStore(STORE_DETAILS);
-      
-      // Map all requests synchronously so the transaction stays alive
-      const fetchPromises = ids.map(id => {
-        return new Promise((resolve) => {
-          const req = store.get(id);
-          
-          req.onsuccess = () => {
-            const cached = req.result;
-            if (
-              !forceRefresh &&
-              cached &&
-              cached.data &&
-              now - cached.timestamp < CACHE_EXPIRY_MS
-            ) {
-              cachedDetails.push(cached.data);
-            } else {
-              missingIds.push(id);
-            }
-            resolve();
-          };
-          
-          req.onerror = () => {
-            missingIds.push(id);
-            resolve();
-          };
-        });
-      });
-
-      // Now await them all at once
-      await Promise.all(fetchPromises);
-      
-    } catch (err) {
-      console.warn("IndexedDB read error:", err);
-      missingIds.push(...ids);
-    }
-  } else {
-    missingIds.push(...ids);
-  }
-
-  // Fetch missing details
-  let fetchedDetails = [];
-  if (missingIds.length > 0) {
-    if (dispatch) dispatch({ type: "map/setLoading", payload: true });
-
-    fetchedDetails = await mapWithConcurrency(missingIds, 10, async (id) => {
-      const detail = await getEmpireDetailsById(id);
-      if (detail) {
-        idbSet(STORE_DETAILS, id, {
-          timestamp: now,
-          data: detail,
-        }).catch(() => {});
+      const cached = await idbGet(STORE_YEARLY, yearKey);
+      if (cached && cached.data && now - cached.timestamp < CACHE_EXPIRY_MS) {
+        requestedData = cached.data;
+        loadedYears.set(yearKey, requestedData);
       }
-      return detail;
-    });
+    }
+  }
 
+  // ==========================================
+  // 2. BACKGROUND CHUNK PREFETCHING (SAFE BATCHED)
+  // ==========================================
+  const { start, end, key: chunkKey } = getChunkRange(currentYear);
+
+  const fetchChunkInBackground = async () => {
+    if (activeChunkFetches.has(chunkKey)) return activeChunkFetches.get(chunkKey);
+
+    const missingYears = [];
+    
+    // Find what is missing from the 20-year block
+    for (let y = start; y <= end; y++) {
+      const yKey = String(y);
+      if (loadedYears.has(yKey)) continue;
+
+      const cached = await idbGet(STORE_YEARLY, yKey);
+      if (cached && cached.data && now - cached.timestamp < CACHE_EXPIRY_MS) {
+        loadedYears.set(yKey, cached.data);
+      } else {
+        missingYears.push(y);
+      }
+    }
+
+    if (missingYears.length === 0) return;
+
+    // Fetch missing years safely in groups of 5
+    const fetchPromise = (async () => {
+      try {
+        for (let i = 0; i < missingYears.length; i += MAX_CONCURRENT_REQUESTS) {
+          const batch = missingYears.slice(i, i + MAX_CONCURRENT_REQUESTS);
+          
+          await Promise.all(batch.map(async (y) => {
+            const data = await getEmpiresByYear(y);
+            loadedYears.set(String(y), data);
+            await idbSet(STORE_YEARLY, String(y), { timestamp: now, data }).catch(() => {});
+          }));
+        }
+      } catch (error) {
+        console.error(`Failed to prefetch chunk ${chunkKey}:`, error);
+      }
+    })();
+
+    activeChunkFetches.set(chunkKey, fetchPromise);
+    await fetchPromise;
+    activeChunkFetches.delete(chunkKey);
+  };
+
+  // ==========================================
+  // 3. DECISION ROUTING
+  // ==========================================
+
+  // If the target year is ready, return it instantly and fetch neighbors silently!
+  if (requestedData) {
+    fetchChunkInBackground(); // No await!
+    return requestedData;
+  }
+
+  // If the target year is missing, fetch the requested year FIRST to unblock the UI instantly.
+  if (dispatch) dispatch({ type: "map/setLoading", payload: true });
+  
+  try {
+    // Force the requested year to fetch immediately so the user doesn't wait
+    const freshData = await getEmpiresByYear(currentYear);
+    loadedYears.set(yearKey, freshData);
+    await idbSet(STORE_YEARLY, yearKey, { timestamp: now, data: freshData });
+    
+    // Once the UI has its data, kick off the rest of the chunk quietly
+    fetchChunkInBackground(); // No await!
+    
+    return freshData;
+  } catch (error) {
+    throw error;
+  } finally {
     if (dispatch) dispatch({ type: "map/setLoading", payload: false });
   }
-
-  const allDetails = [...cachedDetails, ...fetchedDetails].filter(Boolean);
-
-  // Cache entire century batch
-  loadedCenturies.set(centuryKey, allDetails);
-  idbSet(STORE_CENTURY, centuryKey, {
-    timestamp: now,
-    data: allDetails,
-  }).catch(() => {});
-
-  return allDetails;
 }
 
-export function resetLoadedCenturies() {
-  loadedCenturies.clear();
-  metadataCache = null;
-  metadataCacheTime = 0;
+export function resetYearlyCache() {
+  loadedYears.clear();
+  activeChunkFetches.clear();
 }
