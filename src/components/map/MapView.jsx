@@ -299,7 +299,6 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
     if (!projectId) return;
     if (maybeHandleMaMapShapes({ era, mapRef: map, finalFeaturesRef })) return;
     
-    console.log("🔄 Loading shapes for year:", year, "era:", era);
     try {
       const response = await getAllMapShapes(projectId, year, era);
       const shapesFromBackend = response?.mapShapes || response || [];
@@ -321,9 +320,7 @@ export default function MapView({ leftOffset = 0, rightOffset = 0 }) {
         type: "FeatureCollection", 
         features 
       });
-      console.log("🎨 Map source updated with features");
     } catch (err) {
-      console.error("❌ Error loading shapes:", err);
       finalFeaturesRef.current = [];
       map.current?.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({ 
         type: "FeatureCollection", 

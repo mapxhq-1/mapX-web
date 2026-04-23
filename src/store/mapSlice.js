@@ -100,19 +100,19 @@ const mapSlice = createSlice({
       .addCase(fetchAllEmpirePolygons.fulfilled, (state, action) => {
         state.loading = false;
         
-        const payload = action.payload || [];
+        // 🚨 CRITICAL FIX: If the cache returned null (aborted request), DO NOTHING.
+        if (!action.payload) return; 
+
+        const payload = action.payload; 
         const newPolygons = [];
 
         for (let i = 0; i < payload.length; i++) {
           const item = payload[i];
-          
-          // Destructure your specific fields from the API response
           const { content, objectId, empireName } = item || {};
           
           const rawFeatures = (content && Array.isArray(content.features)) ? content.features : [];
           if (!rawFeatures.length) continue;
 
-          // Inject ID into properties to bridge the gap for MapView
           const enrichedFeatures = rawFeatures.map(feature => ({
             ...feature,
             properties: {
@@ -123,7 +123,6 @@ const mapSlice = createSlice({
             }
           }));
 
-          // Push directly to the new polygon array instead of indexing
           newPolygons.push(...enrichedFeatures);
         }
         

@@ -2,12 +2,14 @@ import axios from "axios";
 const BASE_URL = import.meta.env.VITE_URL_PROJECT +  "/layers";
 
 export async function fetchAllImages(projectId, year, era) {
+  try{
     const token = localStorage.getItem('bearerToken');
     const res = await axios.get(BASE_URL+'/get-all-images-by-project-id-year-in-timeline' , {
         headers: { client_name: "mapx","Authorization": `Bearer ${token}` },
         params:{projectId,year,era},
     });
     return res.data.images;
+  }catch(err){}
 }
 
 export async function uploadNewImage(projectId, email, latitude, longitude, imageFile, caption, year, era) {

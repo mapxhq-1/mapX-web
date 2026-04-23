@@ -8,11 +8,15 @@ const STORE_YEARLY = "yearlyPolygons";
 const CHUNK_SIZE = 20; 
 // But only download 5 simultaneously to prevent browser network freezing
 const MAX_CONCURRENT_REQUESTS = 5; 
+const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7; // 1 week
 
 // In-memory caching & deduplication
 let loadedYears = new Map(); 
 const activeChunkFetches = new Map(); 
-const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7;
+
+// Trackers for the "Kill Switch" and stale data rejection
+let latestRequestedYear = null; 
+let activeMainController = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -68,20 +72,27 @@ function getChunkRange(year) {
   return { start, end, key: `${start}_${end}` };
 }
 
-/**
- * Fetches the requested year instantly, and safely batches the rest of the 20-year chunk in the background.
- */
 export async function loadEmpiresByYearCached(
   currentYear,
   forceRefresh = false,
   dispatch = null
 ) {
+  // 1. Update global tracker to the absolute newest requested year
+  latestRequestedYear = currentYear;
+  
+  // 2. Kill Switch: Abort any currently pending main network request
+  if (activeMainController) {
+    activeMainController.abort();
+  }
+  activeMainController = new AbortController();
+  const signal = activeMainController.signal;
+
   const yearKey = String(currentYear);
   const now = Date.now();
   let requestedData = null;
 
   // ==========================================
-  // 1. INSTANT CACHE CHECK FOR TARGET YEAR
+  // 3. INSTANT CACHE CHECK FOR TARGET YEAR
   // ==========================================
   if (!forceRefresh) {
     if (loadedYears.has(yearKey)) {
@@ -96,7 +107,7 @@ export async function loadEmpiresByYearCached(
   }
 
   // ==========================================
-  // 2. BACKGROUND CHUNK PREFETCHING (SAFE BATCHED)
+  // 4. BACKGROUND CHUNK PREFETCHING 
   // ==========================================
   const { start, end, key: chunkKey } = getChunkRange(currentYear);
 
@@ -105,7 +116,6 @@ export async function loadEmpiresByYearCached(
 
     const missingYears = [];
     
-    // Find what is missing from the 20-year block
     for (let y = start; y <= end; y++) {
       const yKey = String(y);
       if (loadedYears.has(yKey)) continue;
@@ -120,13 +130,13 @@ export async function loadEmpiresByYearCached(
 
     if (missingYears.length === 0) return;
 
-    // Fetch missing years safely in groups of 5
     const fetchPromise = (async () => {
       try {
         for (let i = 0; i < missingYears.length; i += MAX_CONCURRENT_REQUESTS) {
           const batch = missingYears.slice(i, i + MAX_CONCURRENT_REQUESTS);
           
           await Promise.all(batch.map(async (y) => {
+            // Background tasks don't use the kill switch signal so they finish quietly
             const data = await getEmpiresByYear(y);
             loadedYears.set(String(y), data);
             await idbSet(STORE_YEARLY, String(y), { timestamp: now, data }).catch(() => {});
@@ -143,32 +153,47 @@ export async function loadEmpiresByYearCached(
   };
 
   // ==========================================
-  // 3. DECISION ROUTING
+  // 5. DECISION ROUTING
   // ==========================================
 
-  // If the target year is ready, return it instantly and fetch neighbors silently!
+  // If we already have it locally, return immediately and fetch neighbors silently!
   if (requestedData) {
-    fetchChunkInBackground(); // No await!
+    fetchChunkInBackground(); // No await
     return requestedData;
   }
 
-  // If the target year is missing, fetch the requested year FIRST to unblock the UI instantly.
+  // If we don't have it, trigger the loading state on the UI
   if (dispatch) dispatch({ type: "map/setLoading", payload: true });
   
   try {
-    // Force the requested year to fetch immediately so the user doesn't wait
-    const freshData = await getEmpiresByYear(currentYear);
+    // Pass the kill switch signal to your API!
+    const freshData = await getEmpiresByYear(currentYear, { signal });
+    
+    // 🚨 STALE DATA CHECK: 
+    // If the user kept dragging while the API was thinking, DO NOT RETURN THIS DATA.
+    if (latestRequestedYear !== currentYear) {
+       return null; // mapSlice will safely ignore this!
+    }
+
     loadedYears.set(yearKey, freshData);
     await idbSet(STORE_YEARLY, yearKey, { timestamp: now, data: freshData });
     
-    // Once the UI has its data, kick off the rest of the chunk quietly
-    fetchChunkInBackground(); // No await!
+    fetchChunkInBackground(); // No await
     
     return freshData;
   } catch (error) {
+    // Gracefully handle the intentional abortion so the console doesn't bleed red
+    // Axios throws 'CanceledError', standard fetch throws 'AbortError'
+    if (error.name === 'AbortError' || error.name === 'CanceledError' || error.message?.includes('canceled')) {
+      return null; // mapSlice will safely ignore this
+    }
+    console.error(`Failed to load year ${currentYear}:`, error);
     throw error;
   } finally {
-    if (dispatch) dispatch({ type: "map/setLoading", payload: false });
+    // Only turn off the loading spinner if we are still on the exact year that turned it on
+    if (latestRequestedYear === currentYear && dispatch) {
+      dispatch({ type: "map/setLoading", payload: false });
+    }
   }
 }
 

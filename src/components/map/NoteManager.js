@@ -485,19 +485,7 @@ const ensureCursorEl = () => {
                         lastLoaded = { projectId, year: absYear, era: eraVal };
                     }
                 } catch (err) {
-                    const isNoDataError = err.response?.data?.message?.includes('No') && 
-                                             err.response?.data?.message?.includes('found');
-                    if (isNoDataError) {
-                        console.log(`No notes found for year ${absYear} ${eraVal} - this is normal if no notes were created for this year/era`);
-                    } else {
-                        console.error(`Failed to load notes for year ${absYear} ${eraVal}:`, {
-                            status: err.response?.status,
-                            statusText: err.response?.statusText,
-                            data: err.response?.data,
-                            url: err.config?.url,
-                            params: err.config?.params
-                        });
-                    }
+                    
                 } finally {
                     loading = false;
                 }

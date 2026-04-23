@@ -3,12 +3,16 @@ const BASE_URL = import.meta.env.VITE_URL_PROJECT +  "/project-management-servic
 
 export async function fetchAllNotes(projectId, year, era) {
     const token = localStorage.getItem('bearerToken');
-    const res = await axios.get(BASE_URL+'/get-all-note-by-project-id-and-year/' + projectId, {
-        headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, params: {
-            year: year, era: era
-        }
-    });
-    return res.data.notes;
+    try{
+        const res = await axios.get(BASE_URL+'/get-all-note-by-project-id-and-year/' + projectId, {
+            headers: { client_name: "mapx","Authorization": `Bearer ${token}` }, params: {
+                year: year, era: era
+            }
+        });
+        return res.data.notes;
+    }catch(err){
+        
+    }
 }
 
 export async function updateNote(noteId, year, era, email, htmlText, currentColor) {

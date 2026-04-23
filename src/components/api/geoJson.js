@@ -1,11 +1,12 @@
 import axios from "axios";
 const BASE_URL = import.meta.env.VITE_URL_GEO + "/geo-json-service";
 
-export async function getEmpiresByYear(year) {
+export async function getEmpiresByYear(year, options = {}) {
   const token = localStorage.getItem('bearerToken');
   try {
     const res = await axios.get(`${BASE_URL}/get_full_empires_encoded`, {
       params: { year },
+      signal: options.signal, // <-- Add this line right here!
       headers: { 
         client_name: "mapx",
         "Authorization": `Bearer ${token}` 
@@ -30,7 +31,7 @@ export async function getEmpiresByYear(year) {
 
     return data;
   } catch (err) {
-    console.error(`Error fetching empires for year ${year}:`, err);
+    // Axios throws a specific error when aborted, we can keep the console clean
     throw err;
   }
 }

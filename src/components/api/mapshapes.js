@@ -19,16 +19,12 @@ export async function getAllMapShapes(projectId, year, era) {
     throw new Error("Project ID, year, and era are required to fetch shapes.");
   }
   try {
-     console.log(year);
-    console.log(era);
     const res = await axios.get(`${BASE_URL}/get-all-map-shapes-by-project-id-and-year/${projectId}`, {
       params: { year, era },
       headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
     });
-    console.log("✅ Fetched all map shapes for year:", res.data);
     return res.data;
   } catch (err) {
-    console.error("❌ Failed to fetch map shapes:", err.response?.data || err.message);
     throw err;
   }
 }
@@ -60,10 +56,8 @@ export async function createMapShape(projectId, year, era, email, geojson) {
         headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
       }
     );
-    console.log("✅ Map shape saved successfully:", res.data);
     return res.data;
   } catch (err) {
-    console.error("❌ Failed to save map shape:", err.response?.data || err.message);
     throw err;
   }
 }
@@ -81,7 +75,6 @@ export async function updateMapShape(shapeId, email, updateData) {
     throw new Error("Shape ID, email, and update data are required.");
   }
   try {
-    console.log({updateData},{shapeId},{email})
     const res = await axios.patch(
       `${BASE_URL}/update-mapShapes/${shapeId}`,
       updateData,
@@ -90,10 +83,8 @@ export async function updateMapShape(shapeId, email, updateData) {
         headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
       }
     );
-    console.log("✅ Map shape updated successfully:", res.data);
     return res.data;
   } catch (err) {
-    console.error("❌ Failed to update map shape:", err.response?.data || err.message);
     throw err;
   }
 }
@@ -114,10 +105,8 @@ export async function deleteMapShape(shapeId, email) {
       params: { email },
       headers: { client_name: API_CLIENT_NAME,"Authorization": `Bearer ${token}` },
     });
-    console.log("✅ Map shape deleted successfully:", res.data);
     return res.data;
   } catch (err) {
-    console.error("❌ Failed to delete map shape:", err.response?.data || err.message);
     throw err;
   }
 }

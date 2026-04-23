@@ -2,12 +2,14 @@ import axios from "axios";
 const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
 
 export async function fetchAllHyperlinks(projectId,year,era) {
-    const token = localStorage.getItem('bearerToken');
-    const res = await axios.get(BASE_URL+'/get-all-hyperlink-by-project-id-and-year/'+projectId,{
-        headers:{client_name:"mapx","Authorization": `Bearer ${token}`},
-        params:{year,era}
-    })
-    return res.data.hyperlinks;
+    try{
+        const token = localStorage.getItem('bearerToken');
+        const res = await axios.get(BASE_URL+'/get-all-hyperlink-by-project-id-and-year/'+projectId,{
+            headers:{client_name:"mapx","Authorization": `Bearer ${token}`},
+            params:{year,era}
+        })
+        return res.data.hyperlinks;
+    }catch(err){}
 }
 
 export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era, hyperlinkTitle, latitude, longitude) {
@@ -29,7 +31,7 @@ export async function updateHyperlink(hyperlinkId, email, hyperlink, year, era, 
             params: { email }
         }
     );
-    console.log(res);
+    // console.log(res);
     return res.data;
 }
 
