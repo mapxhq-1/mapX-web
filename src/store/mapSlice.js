@@ -25,7 +25,7 @@ export const fetchAllEmpirePolygons = createAsyncThunk(
       const state = getState();
       const year = state.map.year;
       // Fetch exactly what is needed for this year
-      const yearData = await loadEmpiresByYearCached(year, false, dispatch);
+      const yearData = await loadEmpiresByYearCached(year, true, dispatch);
       return yearData;
     } catch (err) {
       dispatch(setLoading(false));
