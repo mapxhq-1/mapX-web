@@ -986,7 +986,7 @@ if (!map.current.getLayer("polygon-fill")) {
       onSelectClick
     });
 
-    const onEmpireClick = async (e) => {
+const onEmpireClick = async (e) => {
       // ----------------------------------------------------------------
       // PERFORMANCE: Throttle rapid clicks — queryRenderedFeatures is
       // not free, especially with many polygon layers rendered.
@@ -1013,6 +1013,7 @@ if (!map.current.getLayer("polygon-fill")) {
         layers: ["polygon-fill", "polygon-border"]
       });
       
+      // Remove any existing popup immediately on new click
       if (popupRef.current) { popupRef.current.remove(); popupRef.current = null; }
 
       if (features?.length) {
@@ -1063,118 +1064,168 @@ if (!map.current.getLayer("polygon-fill")) {
         }
 
         if (empireId) {
+          // =====================================================================
+          // 1. RENDER SKELETON IMMEDIATELY
+          // =====================================================================
+          const skeletonHtml = `
+            <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden relative popup-collapsed" 
+                 style="width: 380px; height: 350px; min-width: 380px; min-height: 250px; padding: 2px;">
+                <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
+                    
+                    <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0 animate-pulse">
+                        <div class="h-4 bg-[#d4c5b0] rounded w-1/2"></div>
+                        <div class="h-6 bg-[#d4c5b0] rounded-full w-24"></div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-hidden pr-1 space-y-4 mt-2">
+                        ${[1, 2, 3, 4, 5, 6].map(() => `
+                            <div class="flex items-start animate-pulse">
+                                <div class="h-3 bg-[#d4c5b0] rounded w-[80px] shrink-0 mt-1"></div> 
+                                <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
+                                <div class="flex flex-col gap-2 w-full mt-1">
+                                    <div class="h-3 bg-[#e0d5c1] rounded w-full"></div>
+                                    <div class="h-3 bg-[#e0d5c1] rounded w-2/3"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+          `;
+
+          popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
+            .setLngLat(e.lngLat)
+            .setHTML(skeletonHtml)
+            .addTo(map.current);
+
+          // =====================================================================
+          // 2. FETCH DATA
+          // =====================================================================
           try {
             const data = await getMetadataByEmpireId(empireId);
+
+            // =====================================================================
+            // 3. RACE CONDITION GUARD
+            // If the user clicked somewhere else while waiting, abort updating this popup.
+            // =====================================================================
+            if (selectedEmpireNameRef.current !== empireId) return;
+            if (!popupRef.current) return;
 
             if (data) {
               currentMetadataRef.current = data;
               const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
-              
               const safeEmpireName = (data.name || empireName || 'this empire').replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
-              // ----------------------------------------------------------------
-              // PERFORMANCE: No inline <style> block here. Styles were injected
-              // once into <head> via injectPopupStyles() at map load time.
-              // This makes popup HTML ~70% smaller and avoids CSSOM churn on
-              // every empire click.
-              // ----------------------------------------------------------------
+              // =====================================================================
+              // 4. BUILD FINAL HTML
+              // =====================================================================
               const htmlContent = `
-  <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden relative ${hasImages ? '' : 'popup-collapsed'}" 
-       style="width: ${hasImages ? '704px' : '380px'}; height: 350px; min-width: ${hasImages ? '704px' : '380px'}; min-height: 250px; padding: 2px;">
-      
-      <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
-          
-          <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
-              <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 flex-1 line-clamp-2">
-                  ${data.name || empireName || 'Empire Details'}
-              </h3>
-              
-              <div class="flex items-center gap-2 shrink-0">
-                  <span class="text-[10px] text-[#8c7b6e] font-medium tracking-tight">To know more</span>
-                  <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" 
-                          onclick="
-                              const q = 'Tell me more about ${safeEmpireName}';
-                              localStorage.setItem('pendingDynoQuery', q);
-                              window.dispatchEvent(new CustomEvent('trigger-know-more', { detail: { query: q } }));
-                              setTimeout(() => localStorage.removeItem('pendingDynoQuery'), 500);
-                          ">
-                      Ask Dyno
-                  </button>
-              </div>
-          </div>
-          
-          <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0 min-h-0">
-              ${Object.entries(data)
-                .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
-                .map(([key, value]) => `
-                    <div class="flex items-start text-xs border-b border-black/5 last:border-0">
-                        <span class="font-semibold text-[#6b5b4e] capitalize w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
-                        <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
-                        <span class="font-medium text-gray-800 text-left leading-tight break-words whitespace-normal min-w-0 flex-1 py-1.5">${value !== null && value !== undefined && value !== '' ? value : '-'}</span>
+                <div id="popup-wrapper" class="flex gap-1 resize overflow-hidden relative ${hasImages ? '' : 'popup-collapsed'}" 
+                     style="width: ${hasImages ? '704px' : '380px'}; height: 350px; min-width: ${hasImages ? '704px' : '380px'}; min-height: 250px; padding: 2px;">
+                    
+                    <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] flex flex-col relative z-10 py-2 px-4 h-full">
+                        
+                        <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
+                            <h3 class="text-[#2A1F14] font-bold text-sm leading-snug pr-2 flex-1 line-clamp-2">
+                                ${data.name || empireName || 'Empire Details'}
+                            </h3>
+                            
+                            <div class="flex items-center gap-2 shrink-0">
+                                <span class="text-[10px] text-[#8c7b6e] font-medium tracking-tight">To know more</span>
+                                <button class="bg-[#075e54] text-white px-4 py-1.5 rounded-full shadow hover:bg-[#054c44] transition-all duration-200 font-['Potta_One'] text-[10px] tracking-widest uppercase whitespace-nowrap" 
+                                        onclick="
+                                            const q = 'Tell me more about ${safeEmpireName}';
+                                            localStorage.setItem('pendingDynoQuery', q);
+                                            window.dispatchEvent(new CustomEvent('trigger-know-more', { detail: { query: q } }));
+                                            setTimeout(() => localStorage.removeItem('pendingDynoQuery'), 500);
+                                        ">
+                                    Ask Dyno
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-0 min-h-0">
+                            ${Object.entries(data)
+                              .filter(([key]) => !['name', 'id', 'empire_id', 'images'].includes(key.toLowerCase()))
+                              .map(([key, value]) => `
+                                  <div class="flex items-start text-xs border-b border-black/5 last:border-0">
+                                      <span class="font-semibold text-[#6b5b4e] capitalize w-[90px] shrink-0 text-left py-1.5 pr-1 break-words whitespace-normal leading-tight">${key.replace(/_/g, ' ')}</span> 
+                                      <div class="w-px min-w-[1px] shrink-0 bg-black/15 mx-2 my-1 self-stretch"></div>
+                                      <span class="font-medium text-gray-800 text-left leading-tight break-words whitespace-normal min-w-0 flex-1 py-1.5">${value !== null && value !== undefined && value !== '' ? value : '-'}</span>
+                                  </div>
+                              `).join('')}
+                        </div>
                     </div>
-                `).join('')}
-          </div>
-      </div>
 
-      ${hasImages ? `
-      <div class="outside-icon-container flex items-start shrink-0 h-full pt-1">
-          <button onclick="
-              const wrapper = document.getElementById('popup-wrapper');
-              wrapper.classList.add('animate-resize');
-              wrapper.classList.remove('popup-collapsed');
-              wrapper.style.minWidth = '704px';
-              wrapper.style.width = (wrapper.offsetWidth + 324) + 'px';
-              setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
-          " class="bg-[#f1ebe3] hover:bg-[#e0d5c1] border border-[#d4c5b0] text-[#2A1F14] rounded-full w-8 h-8 flex items-center justify-center shadow-md transition-colors shrink-0" title="Open Gallery">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="15" y1="3" x2="15" y2="21"></line>
-              </svg>
-          </button>
-      </div>
-      ` : ''}
+                    ${hasImages ? `
+                    <div class="outside-icon-container flex items-start shrink-0 h-full pt-1">
+                        <button onclick="
+                            const wrapper = document.getElementById('popup-wrapper');
+                            wrapper.classList.add('animate-resize');
+                            wrapper.classList.remove('popup-collapsed');
+                            wrapper.style.minWidth = '704px';
+                            wrapper.style.width = (wrapper.offsetWidth + 324) + 'px';
+                            setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
+                        " class="bg-[#f1ebe3] hover:bg-[#e0d5c1] border border-[#d4c5b0] text-[#2A1F14] rounded-full w-8 h-8 flex items-center justify-center shadow-md transition-colors shrink-0" title="Open Gallery">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="15" y1="3" x2="15" y2="21"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    ` : ''}
 
-      ${hasImages ? `
-      <div class="gallery-panel w-[320px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
-          
-          <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
-              <h3 class="text-[#2A1F14] font-bold text-sm leading-snug">Gallery</h3>
-              
-              <button onclick="
-                  const wrapper = document.getElementById('popup-wrapper');
-                  wrapper.classList.add('animate-resize');
-                  wrapper.classList.add('popup-collapsed');
-                  wrapper.style.minWidth = '380px';
-                  wrapper.style.width = Math.max(380, wrapper.offsetWidth - 324) + 'px';
-                  setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
-              " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0" title="Close Gallery">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-              </button>
-          </div>
-          
-          <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3 min-h-0">
-              ${data.images.map(img => `
-                  <div class="flex flex-col gap-1">
-                      <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />
-                      ${img.caption ? `<span class="text-[10px] text-[#6b5b4e] italic text-center px-1">${img.caption}</span>` : ''}
-                  </div>
-              `).join('')}
-          </div>
-      </div>
-      ` : ''}
+                    ${hasImages ? `
+                    <div class="gallery-panel w-[320px] shrink-0 bg-[#f1ebe3] rounded-lg shadow-xl border border-[#d4c5b0] p-4 flex flex-col overflow-hidden relative z-10 h-full">
+                        
+                        <div class="flex justify-between items-center w-full mb-2 border-b border-black/10 pb-2 h-[48px] shrink-0">
+                            <h3 class="text-[#2A1F14] font-bold text-sm leading-snug">Gallery</h3>
+                            
+                            <button onclick="
+                                const wrapper = document.getElementById('popup-wrapper');
+                                wrapper.classList.add('animate-resize');
+                                wrapper.classList.add('popup-collapsed');
+                                wrapper.style.minWidth = '380px';
+                                wrapper.style.width = Math.max(380, wrapper.offsetWidth - 324) + 'px';
+                                setTimeout(() => wrapper.classList.remove('animate-resize'), 350);
+                            " class="bg-black/5 hover:bg-black/10 border border-black/10 text-[#2A1F14] rounded-full w-7 h-7 flex items-center justify-center transition-colors shrink-0" title="Close Gallery">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div class="dyno-scroll flex-1 overflow-y-auto overflow-x-hidden pr-1 space-y-3 min-h-0">
+                            ${data.images.map(img => `
+                                <div class="flex flex-col gap-1">
+                                    <img src="${img.url}" alt="${img.caption || 'Empire Image'}" class="w-full h-auto rounded border border-black/10 object-cover" loading="lazy" />
+                                    ${img.caption ? `<span class="text-[10px] text-[#6b5b4e] italic text-center px-1">${img.caption}</span>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
 
-  </div>
-`;
+                </div>
+              `;
 
-              popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: true, maxWidth: "none" })
-                .setLngLat(e.lngLat)
-                .setHTML(htmlContent)
-                .addTo(map.current);
+              // =====================================================================
+              // 5. UPDATE EXISTING POPUP INSTEAD OF CREATING A NEW ONE
+              // =====================================================================
+              popupRef.current.setHTML(htmlContent);
             }
-          } catch (err) { console.error(err); }
+          } catch (err) { 
+            console.error(err); 
+            // Optional: Show error state in popup if it fails
+            if (popupRef.current && selectedEmpireNameRef.current === empireId) {
+                popupRef.current.setHTML(`
+                  <div class="flex-1 min-w-[320px] bg-[#f1ebe3] rounded-lg shadow-xl border border-red-300 flex flex-col items-center justify-center py-2 px-4 h-[350px]">
+                      <span class="text-red-500 font-bold">Failed to load data</span>
+                  </div>
+                `);
+            }
+          }
         }
       } else {
         // Clicked empty space — clean up
@@ -1195,7 +1246,7 @@ if (!map.current.getLayer("polygon-fill")) {
         } catch(e) {} 
       }
     };
-    
+
     map.current.on("click", onEmpireClick);
     
     map.current.on("move", () => {
