@@ -4,8 +4,10 @@ const BASE_URL = import.meta.env.VITE_URL_GEO + "/geo-json-service";
 export async function getEmpiresByYear(year, options = {}) {
   const token = localStorage.getItem('bearerToken');
   try {
+    let era="CE"
+    if(year<0)era="BCE"
     const res = await axios.get(`${BASE_URL}/get_full_empires_encoded`, {
-      params: { year },
+      params: { year:Math.abs(year),era },
       signal: options.signal, // <-- Add this line right here!
       headers: { 
         client_name: "mapx",
