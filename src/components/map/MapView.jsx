@@ -1139,7 +1139,7 @@ const onEmpireClick = async (e) => {
                                             window.dispatchEvent(new CustomEvent('trigger-know-more', { detail: { query: q } }));
                                             setTimeout(() => localStorage.removeItem('pendingDynoQuery'), 500);
                                         ">
-                                    Ask Dyno
+                                    Ask Dino
                                 </button>
                             </div>
                         </div>
@@ -1279,6 +1279,12 @@ const onEmpireClick = async (e) => {
       if (theme?.startsWith('http')) { 
         try {
           map.current.setStyle(theme); 
+          map.current.once('style.load', () => {
+            initializeMapLayers(); 
+            if (rawPolygonsRef.current) {
+              updateMapPolygons(rawPolygonsRef.current); 
+            }
+          });
         } catch (error) {
           console.error('[MapView] Failed to set style from URL:', error);
         }
@@ -1299,6 +1305,12 @@ const onEmpireClick = async (e) => {
             styleCache.delete(cacheKey);
           }
           map.current.setStyle(style);
+          map.current.once('style.load', () => {
+            initializeMapLayers(); 
+            if (rawPolygonsRef.current) {
+              updateMapPolygons(rawPolygonsRef.current); 
+            }
+          });
         }
       } catch (error) {
         console.error('[MapView] Failed to set style:', error);
@@ -1451,9 +1463,9 @@ const onEmpireClick = async (e) => {
               map.current.getSource('empire-labels-source')?.setData(labels);
               
               // Force MapLibre to fetch fresh vector tiles
-              if (map.current.getSource('polygons-source')) {
-                  map.current.getSource('polygons-source').setTiles([`mapx://tile/{z}/{x}/{y}?t=${Date.now()}`]);
-              }
+              // if (map.current.getSource('polygons-source')) {
+              //     map.current.getSource('polygons-source').setTiles([`mapx://tile/{z}/{x}/{y}?t=${Date.now()}`]);
+              // }
           }
           else if (type === 'TILE_RESPONSE' && protocolRequestsRef.current.has(requestKey)) {
               const callback = protocolRequestsRef.current.get(requestKey);
@@ -1549,11 +1561,20 @@ const onEmpireClick = async (e) => {
       map.current.on("style.load", () => {
         setupGlobeProjection();
         initializeMapLayers();
+        map.current.getSource(LAYER_IDS.FINAL_SOURCE)?.setData({
+          type: "FeatureCollection",
+          features: finalFeaturesRef.current
+        });
+
+        // 2. THE FIX: Automatically refill the polygon data!
+        if (rawPolygonsRef.current && rawPolygonsRef.current.length > 0) {
+          updateMapPolygons(rawPolygonsRef.current, false, false);
+        }
         
         // Force tile refresh if style reloads
-        if (map.current.getSource('polygons-source')) {
-          map.current.getSource('polygons-source').setTiles([`mapx://tile/{z}/{x}/{y}?t=${Date.now()}`]);
-        }
+        // if (map.current.getSource('polygons-source')) {
+        //   map.current.getSource('polygons-source').setTiles([`mapx://tile/{z}/{x}/{y}?t=${Date.now()}`]);
+        // }
       });
     })();
 

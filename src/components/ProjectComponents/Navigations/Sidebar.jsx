@@ -326,7 +326,7 @@ const Sidebar = () => {
                                             value={feedback}
                                             onChange={(e) => setFeedback(e.target.value)}
                                             className={`w-full ${feedbackHeight} bg-transparent text-zinc-300 text-[12px] rounded-lg p-2.5 outline-none resize-none placeholder:text-zinc-400 transition-all`}
-                                            placeholder="Tell us what you think — Lets make Dyno cool 😎"
+                                            placeholder="Tell us what you think — Lets make Dino cool 😎"
                                         />
                                     </div>
                                 </div>

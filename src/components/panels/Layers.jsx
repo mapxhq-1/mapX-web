@@ -41,6 +41,7 @@ const LAYER_IMAGES = {
     "Ibn Battuta Voyage -1": "/Layer images/Explorer Route/Ibn Battuta.jpg",
     "Ibn Battuta Voyage -2": "/Layer images/Explorer Route/Ibn Battuta.jpg",
     "Ibn Battuta Voyage -3": "/Layer images/Explorer Route/Ibn Battuta.jpg",
+    "Ibn Battuta Voyage -4": "/Layer images/Explorer Route/Ibn Battuta.jpg",
 
     // World Rivers
     "Amezon River": "/Layer images/world riviers/Amazon_River.jpg",
@@ -760,7 +761,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                                         onClick={handleAskDynoClick}
                                         className="bg-[#075e54] text-white text-[9px] px-2.5 py-1 rounded-full font-bold shadow-md hover:bg-[#054a42] active:scale-95 transition-all tracking-wide"
                                     >
-                                        ASK DYNO
+                                        ASK DINO
                                     </button>
                                 </div>
                             </div>
