@@ -1279,12 +1279,7 @@ const onEmpireClick = async (e) => {
       if (theme?.startsWith('http')) { 
         try {
           map.current.setStyle(theme); 
-          map.current.once('style.load', () => {
-            initializeMapLayers(); 
-            if (rawPolygonsRef.current) {
-              updateMapPolygons(rawPolygonsRef.current); 
-            }
-          });
+          // Removed the duplicate .once() listener here!
         } catch (error) {
           console.error('[MapView] Failed to set style from URL:', error);
         }
@@ -1304,18 +1299,15 @@ const onEmpireClick = async (e) => {
           if (styleCache && styleCache.delete) {
             styleCache.delete(cacheKey);
           }
+          
           map.current.setStyle(style);
-          map.current.once('style.load', () => {
-            initializeMapLayers(); 
-            if (rawPolygonsRef.current) {
-              updateMapPolygons(rawPolygonsRef.current); 
-            }
-          });
+          // Removed the duplicate .once() listener here too!
         }
       } catch (error) {
         console.error('[MapView] Failed to set style:', error);
       }
     };
+
     window.mapxSetSatellite = () => map.current.setStyle(buildCloudlessStyle());
 
     const initialContext = {
