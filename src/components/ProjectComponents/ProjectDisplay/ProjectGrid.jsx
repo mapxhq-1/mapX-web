@@ -3,7 +3,7 @@ import ProjectCard from "./ProjectCard";
 import NewProjectCard from "./NewProjectCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
-import { sharedProjApiCall, myProjApiCall } from "../../../store/projectSlice";
+import { sharedProjApiCall, myProjApiCall, setEmail, setUserToken } from "../../../store/projectSlice";
 import GalaxyCanvas from "../../common/GalaxyCanvas";
 
 // --- Animation Variants ---
@@ -76,6 +76,15 @@ const ProjectGrid = () => {
     return sortedData.filter((dat) => dat.projectName.toLowerCase().includes(search.toLowerCase()));
   }, [sortedData, search]);
 
+  function handleLogout() {
+          localStorage.removeItem('ownerEmail');
+          localStorage.removeItem('userToken');
+          localStorage.removeItem('bearerToken');
+          dispatch(setEmail(''));
+          dispatch(setUserToken(''));
+          window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
+      }
+
   // --- Loading State ---
   if (loadingMy || loadingShared) {
     return (
@@ -92,21 +101,67 @@ const ProjectGrid = () => {
     );
   }
 
-  // --- Error State ---
-  if (errorShared || errorMy) {
-    return (
-      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <GalaxyCanvas />
-        </div>
-        <div className="z-10 bg-red-950/30 backdrop-blur-md px-6 py-4 rounded-xl border border-red-500/20 shadow-xl">
-          <h1 className="text-lg text-red-300 font-medium tracking-wide">
-            {errorShared || errorMy}
-          </h1>
-        </div>
+if (errorShared || errorMy) {
+  return (
+    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <GalaxyCanvas />
       </div>
-    );
-  }
+
+      <div className="z-10 w-[90%] max-w-md bg-red-950/30 backdrop-blur-xl px-8 py-7 rounded-2xl border border-red-500/20 shadow-2xl text-center">
+        
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-8 h-8 text-red-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h5a2 2 0 012 2v1"
+            />
+          </svg>
+        </div>
+
+        <h1 className="text-xl text-red-200 font-semibold tracking-wide mb-2">
+          Session Expired
+        </h1>
+
+        <p className="text-red-300/70 text-sm mb-6">
+          {errorShared || errorMy}
+        </p>
+
+        <button
+          onClick={handleLogout}
+          className="group w-full py-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 font-medium tracking-wide transition-all duration-300 hover:bg-red-500 hover:text-white hover:shadow-lg hover:shadow-red-500/30 active:scale-[0.98]"
+        >
+          <span className="flex items-center justify-center gap-2">
+            Logout & Re-Login
+
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M17 16l4-4m0 0l-4-4m4 4H7"
+              />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="relative w-full h-full">
