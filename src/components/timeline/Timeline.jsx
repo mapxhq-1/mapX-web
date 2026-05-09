@@ -146,7 +146,6 @@ export default function Timeline() {
 
   // --- DYNAMIC STYLES ---
   const styles = {
-    // Lifted up from the bottom
     bottom: isCompact ? 12 : 24, 
     
     inputMargin: isCompact ? 0.5 : 2,
@@ -196,14 +195,13 @@ export default function Timeline() {
   }, [localYear]);
 
   useEffect(() => {
-  const slider = sliderRef.current; // Use the same ref as the JSX
+  const slider = sliderRef.current;
   if (!slider) return;
 
   const onTouchStart = (e) => handleDragStart(e);
   const onTouchMove = (e) => handleDragMove(e);
   const onTouchEnd = (e) => handleDragEnd(e);
 
-  // Bind with passive: false to allow preventDefault()
   slider.addEventListener("touchstart", onTouchStart, { passive: false });
   slider.addEventListener("touchmove", onTouchMove, { passive: false });
   slider.addEventListener("touchend", onTouchEnd);
@@ -660,6 +658,7 @@ const speedLookup = useMemo(() => {
                 pointerEvents: "auto",
               }}
             >
+        {/* Left Arrow */}
         <Box
           sx={{
             position: "absolute",
@@ -672,6 +671,15 @@ const speedLookup = useMemo(() => {
             userSelect: "none",
             touchAction: "manipulation",
             WebkitTapHighlightColor: "transparent",
+            // --- ADDED: Expands the click area by 15px vertically and outward ---
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: "-15px",
+              bottom: "-15px",
+              left: "-15px",
+              right: "-5px", // Kept slightly smaller inward to prevent overlapping the drag handle
+            }
           }}
           onMouseDown={(e) => handleArrowStart(-1, e)}
           onMouseUp={handleArrowEnd}
@@ -687,6 +695,7 @@ const speedLookup = useMemo(() => {
           ‹
         </Box>
 
+        {/* Right Arrow */}
         <Box
           sx={{
             position: "absolute",
@@ -699,6 +708,15 @@ const speedLookup = useMemo(() => {
             userSelect: "none",
             touchAction: "manipulation",
             WebkitTapHighlightColor: "transparent",
+            // --- ADDED: Expands the click area by 15px vertically and outward ---
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: "-15px",
+              bottom: "-15px",
+              left: "-5px", // Kept slightly smaller inward to prevent overlapping the drag handle
+              right: "-15px",
+            }
           }}
           onMouseDown={(e) => handleArrowStart(1, e)}
           onMouseUp={handleArrowEnd}
