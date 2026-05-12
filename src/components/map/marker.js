@@ -92,14 +92,8 @@ const createPinElement = (name = "") => {
   const pin = document.createElement("div");
   pin.className = "map-pin-icon";
   pin.innerHTML = `
-<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-  <path d="M 16 19 L 17.5 19 L 16.6 30.5 C 16.4 31.5 16 32 16 32 Z" fill="#94a3b8" />
-  <path d="M 16 19 L 14.5 19 L 15.4 30.5 C 15.6 31.5 16 32 16 32 Z" fill="#cbd5e1" />
-  <line x1="15.2" y1="20" x2="15.6" y2="28" stroke="#f8fafc" stroke-width="0.8" stroke-linecap="round" />
-
-  <circle cx="16" cy="11" r="9" fill="#b91c1c" />
-  <circle cx="15.2" cy="10.2" r="8.5" fill="#ef4444" />
-  <path d="M 10 9 A 5.5 5.5 0 0 1 13.5 5.5" fill="none" stroke="#fca5a5" stroke-width="2.5" stroke-linecap="round" />
+<svg width="16" height="24" viewBox="0 0 16 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M8 0C3.802 0 0 3.403 0 7.602C0 13.845 6.377 14.505 8 24C9.623 14.505 16 13.845 16 7.602C16 3.403 12.199 0 8 0ZM8 11C6.343 11 5 9.657 5 8C5 6.343 6.342 5 8 5C9.658 5 11 6.343 11 8C11 9.657 9.657 11 8 11Z" fill="#FF0000"/>
 </svg>
   `;
   container.appendChild(pin);
