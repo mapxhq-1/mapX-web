@@ -1731,10 +1731,9 @@ const onEmpireClick = async (e) => {
 
       {markerOn && (
         <div 
-          className="absolute bottom-45 left-1/2 -translate-x-1/2 z-[1000]" 
+          className="bg-green-300 absolute bottom-45 left-1/2 -translate-x-1/2 z-[1000]" 
           style={{ width: 'fit-content', borderRadius: '999px', overflow: 'hidden' }}
         >
-          <LiquidGlass>
             <div style={{ position: 'relative' }}>
               <button
                 onClick={handleClear}
@@ -1750,7 +1749,6 @@ const onEmpireClick = async (e) => {
                 Clear Locations
               </button>
             </div>
-          </LiquidGlass>
         </div>
       )}
 
