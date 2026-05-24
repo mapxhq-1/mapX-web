@@ -6,7 +6,7 @@ import { Routes, Route, useLocation } from "react-router-dom"; // <-- Added useL
 import { ToastContainer,Slide } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ProtectedRoute from './components/common/ProtectedRoute';
-
+import { Analytics } from "@vercel/analytics/react"
 import './App.css'
 
 // --- 1. CREATE A SMART ROOT ROUTE ---
@@ -31,6 +31,7 @@ export default function App() {
   const queryClient = new QueryClient();
   return (
     <>
+      <Analytics/>
       <QueryClientProvider client={queryClient}>
         <Routes>
           {/* --- 2. USE THE SMART ROUTE FOR THE BASE URL --- */}

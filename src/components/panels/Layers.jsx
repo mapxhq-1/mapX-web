@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom"; // <-- Added import for navigation
+import { logger } from "../map/utils/activityLogger";
 
 // Redux Actions
 import { 
@@ -129,7 +130,7 @@ const getColorByType = (type) => {
     return colors[Math.floor(Math.random() * colors.length)];
 };
 
-const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = false }) => { 
+const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = false, handleLoginClick }) => { 
     const dispatch = useDispatch();
     const navigate = useNavigate(); 
     const layers = useSelector((state) => state.layers.layers);
@@ -242,6 +243,10 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
 
     // --- 2. NAVIGATION HANDLERS ---
     const handleCategoryClick = (type) => {
+        logger.logAction("MAIN_CATEGORY_CLICK", window.location.pathname, {
+            categoryName: type,
+            action: "opened_category"
+        });
         dispatch(resetAllVisibility());
         setSelectedType(type);
         setShowCategorySelector(false);
@@ -295,6 +300,11 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
 
     // --- 4. TOGGLE HANDLER ---
     const handleToggle = async (layer) => {
+        logger.logAction("SUB_LAYER_TOGGLE", window.location.pathname, {
+            layerId: layer.id,
+            layerName: layer.name,
+            category: layer.metadata?.type || "Unknown",
+        });
         if (!layer.data) {
             setLoading(true);
             try {
@@ -511,7 +521,7 @@ const Layers = ({ searchQuery = "", setSelectedType, selectedType, isDemo = fals
                     {/* Skeuomorphic Pill */}
                     <div className="px-8 py-4 rounded-full bg-gradient-to-b from-zinc-800 to-zinc-900 shadow-[inset_0_2px_2px_rgba(255,255,255,0.1),_0_10px_30px_rgba(0,0,0,0.8)] border border-black/80 flex items-center gap-2">
                         <span 
-                            onClick={() => navigate('/myprojects')} 
+                            onClick={()=>handleLoginClick("LeftPanel")} 
                             className="text-green-400 font-extrabold cursor-pointer text-lg drop-shadow-[0_0_8px_rgba(74,222,128,0.4)] hover:drop-shadow-[0_0_12px_rgba(74,222,128,0.8)] transition-all"
                         >
                             Login

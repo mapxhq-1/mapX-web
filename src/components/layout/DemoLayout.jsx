@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import ScreenRotationIcon from '@mui/icons-material/ScreenRotation'; 
 import FullscreenIcon from '@mui/icons-material/Fullscreen'; 
-
+import { logger } from "../map/utils/activityLogger.js";
 // Shared Components
 import MapView from "../map/MapView";
 import Timeline from "../timeline/Timeline";
@@ -117,6 +117,15 @@ export default function DemoLayout() {
     try { window.mapxDrawSetMode && window.mapxDrawSetMode(shapeType); } catch(e){console.error("Error:", e)}
   };
 
+  const handleLoginClick = (from="") => {
+    logger.logAction("DEMO_LOGIN_CLICKED", window.location.pathname, {
+      action: "login_intent",
+      location: "demo_layout",
+      from
+    },true);
+    navigate('/myprojects');
+  };
+
   const handleEnterFullscreen = async () => {
     try {
       const element = document.documentElement;
@@ -205,7 +214,7 @@ export default function DemoLayout() {
 
       {/* chatbot with Demo Prop */}
       <ResizableWindow>
-        <Chat isDemo={true} />
+        <Chat isDemo={true} handleLoginClick={handleLoginClick}/>
       </ResizableWindow>
 
       <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
@@ -217,11 +226,11 @@ export default function DemoLayout() {
         </Box>
         
         <Box sx={{ position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 20, pointerEvents: "auto" }}>
-          <LeftPanel expanded={leftExpanded} onToggle={() => setLeftExpanded((v) => !v)} position="left" widthExpanded={250} widthCollapsed={50} isDemo={true} />
+          <LeftPanel expanded={leftExpanded} onToggle={() => setLeftExpanded((v) => !v)} position="left" widthExpanded={250} widthCollapsed={50} isDemo={true} handleLoginClick={handleLoginClick} />
         </Box>
         
         <Box sx={{ position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 20, pointerEvents: "auto" }}>
-          <RightPanel expanded={rightExpanded} onToggle={() => setRightExpanded((v) => !v)} position="right" widthExpanded={300} widthCollapsed={50} project={project} isDemo={true} />
+          <RightPanel expanded={rightExpanded} onToggle={() => setRightExpanded((v) => !v)} position="right" widthExpanded={300} widthCollapsed={50} project={project} isDemo={true} onLoginClick={handleLoginClick}/>
         </Box>
         
         {loading && <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, pointerEvents: "none" }}><MapLoader /></Box>}
@@ -252,6 +261,7 @@ export default function DemoLayout() {
             handleShapeClick={handleShapeClick}
             Icons={ToolIcons}
             isDemo={true}
+            onLoginClick={handleLoginClick}
           />
         </motion.div>
       </Box>

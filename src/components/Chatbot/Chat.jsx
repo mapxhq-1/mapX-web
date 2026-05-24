@@ -6,10 +6,11 @@ import { setYear, setFlyToPosition, setMarkers } from "../../store/mapSlice";
 import { yearFromDbFormat } from "../../utils/era";
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from "framer-motion";
-import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish, transcribeAudio, getThinkingText } from "../api/chatService";
+import { sendMessage as sendChatMessage, fetchAllChats, getChatHistory, deleteChatSession, translateToEnglish, transcribeAudio, getThinkingText, openSourcePdf } from "../api/chatService";
 import TypingMarkdown from './TypingMarkdown'
+import { logger } from "../map/utils/activityLogger";
 
-export default function Chat() {
+export default function Chat({isDemo, handleLoginClick}) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -330,6 +331,9 @@ async function fetchThinkingText(query) {
     
     if (userContent.includes(identifier)) {
       userContent = userContent.split(identifier)[0].trim();
+      logger.logAction("ASK_DYNO", window.location.pathname, {
+        userContent
+      });
     }
 
     uiMsgs.push({ role: "user", content: userContent, timestamp: historyItem.timestamp });
@@ -405,7 +409,12 @@ async function fetchThinkingText(query) {
     if (!empireMatch) return;
     console.log(empireMatch);
     var { lat, lng, time, markers, zoom, location } = empireMatch;
-
+    logger.logAction("MAP_FLY_TO", window.location.pathname, {
+        targetLocation: location || "Unknown Location",
+        coordinates: { lat, lng },
+        targetZoom: zoom,
+        targetTime: time
+    });
     if (lat !== undefined && lng !== undefined) flyToIfPossible(lat, lng, zoom);
     if(markers===undefined){
       markers=[{lat,lng,location}];
@@ -535,7 +544,7 @@ async function fetchThinkingText(query) {
         toast.error("Free limit reached! Please login to continue.", { autoClose: 5000 });
         setMessages((prev) => [...prev, { 
           role: "assistant", 
-          content: "You've reached your free limit of 10 messages! Please **[Login](/myProjects)** to continue our conversation." 
+          content: "You've reached your free limit of 10 messages! Please login to continue our conversation." 
         }]);
       } else {
         setMessages((prev) => [...prev, { role: "assistant", content: "Error contacting server. Please try again." }]);
@@ -770,7 +779,7 @@ useEffect(() => {
               {!email && (
                 <div className="w-full text-center text-[13px] text-[#54656f] mb-2 font-medium">
                   Free prompts remaining: <span className="font-bold text-[#006D5B]">{guestPromptsLeft}/10</span>. 
-                  <button onClick={() => navigate('/myProjects')} className="text-[#006D5B] hover:underline ml-1 cursor-pointer bg-transparent border-none">
+                  <button onClick={() => handleLoginClick('Chat with remaining limit '+guestPromptsLeft)} className="text-[#006D5B] hover:underline ml-1 cursor-pointer bg-transparent border-none">
                     Login for unlimited access
                   </button>
                 </div>
@@ -1016,11 +1025,44 @@ useEffect(() => {
                 <button onClick={() => setActiveCitations(null)} className="border-none bg-transparent cursor-pointer p-2 text-2xl text-[#54656f] leading-[0.5] hover:text-[#111b21]">&times;</button>
               </div>
               <div className={`overflow-y-auto custom-scrollbar-chat ${isLandscapeMobile ? 'p-2' : 'p-4'}`}>
-                {activeCitations.map((c, i) => (
-                  <div key={i} className={`mb-2.5 bg-[#f0f2f5] rounded-lg text-[#111b21] leading-snug ${isLandscapeMobile ? 'p-2 text-[11px]' : 'p-3 text-[13px]'}`}>
-                    {typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}
-                  </div>
-                ))}
+                {activeCitations.map((c, i) => {
+                  // Check if this is a structured citation with a grade and lesson (chapterName)
+                  const isClickable = typeof c !== "string" && c.grade && c.lesson;
+
+                  return (
+                    <div 
+                      key={i} 
+                      onClick={() => {
+                        if (isClickable) {
+                          // Pass grade and lesson (which represents chapterName) to the API
+                          openSourcePdf(c.grade, c.lesson).catch((err) => {
+                            console.error("Failed to open PDF:", err);
+                            toast.error("Failed to load the source document.");
+                          });
+                        }
+                      }}
+                      className={`mb-2.5 rounded-lg text-[#111b21] leading-snug transition-colors duration-200 ${
+                        isClickable 
+                          ? "bg-[#e8f5e9] hover:bg-[#c8e6c9] cursor-pointer shadow-sm border border-[#a5d6a7]" 
+                          : "bg-[#f0f2f5]"
+                      } ${isLandscapeMobile ? 'p-2 text-[11px]' : 'p-3 text-[13px]'}`}
+                      title={isClickable ? "Click to view original document" : ""}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}</span>
+                        
+                        {/* Show a small external link icon if it's clickable */}
+                        {isClickable && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#006D5B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

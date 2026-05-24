@@ -16,7 +16,7 @@ const STYLES = {
   iconHover: "rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors cursor-pointer",
 };
 
-function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
+function Open({ setIsOpen, project, isDemo, onLoginClick }) { // <-- Added isDemo prop
   const BASE_URL = import.meta.env.VITE_URL_PROJECT + "/project-management-service";
   
   const [activeModal, setActiveModal] = useState(null); // 'save' | 'share' | null
@@ -198,7 +198,7 @@ function Open({ setIsOpen, project, isDemo }) { // <-- Added isDemo prop
             {isDemo ? (
                // --- NEW DEMO LOGIN BUTTON ---
                <button
-                 onClick={() => navigate('/myProjects')}
+                 onClick={()=>onLoginClick("RightPanel")}
                  className={`flex-1 ml-3 px-3 py-1.5 rounded-full flex items-center justify-center gap-2 text-black font-semibold bg-[#9EFAA5] border-t border-white/40 shadow-[0_2px_10px_rgba(158,250,165,0.2)] hover:brightness-110 transition-all active:scale-95 ${isCompact ? "text-[9px] h-7" : "text-xs h-10"}`}
                >
                  <span>Login to unlock features</span>
@@ -271,13 +271,13 @@ function Closed({ setIsOpen, isDemo }) { // <-- Added isDemo here too just in ca
   );
 }
 
-const RightPanel = ({ project, isDemo }) => { // <-- Accept isDemo at the root component
+const RightPanel = ({ project, isDemo, onLoginClick }) => { // <-- Accept isDemo at the root component
   const [isOpen, setIsOpen] = useState(false);
   return (
     <div className="fixed right-0 top-0 h-full z-50 flex items-center">
       <AnimatePresence mode="wait">
         {isOpen ? (
-          <Open key="open" setIsOpen={setIsOpen} project={project} isDemo={isDemo} />
+          <Open key="open" setIsOpen={setIsOpen} project={project} isDemo={isDemo}  onLoginClick={onLoginClick}/>
         ) : (
           <Closed key="closed" setIsOpen={setIsOpen} isDemo={isDemo} />
         )}

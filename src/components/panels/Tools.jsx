@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import LiquidGlass from "../Chatbot/LiquidGlass";
 
+import { logger } from "../map/utils/activityLogger";
+
 // --- NOTE IMAGES ---
 import noteYellow from '../../assets/Notes/yellow.png';
 import noteBlue from '../../assets/Notes/blue.png';
@@ -97,7 +99,8 @@ const Tools = ({
   handleToolClick,
   handleShapeClick,
   Icons,
-  isDemo
+  isDemo,
+  onLoginClick
 }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -184,6 +187,11 @@ const Tools = ({
     } else if (['pencil', 'note', 'shapes'].includes(toolId)) {
       setActivePopup(activePopup === toolId ? null : toolId);
     } else {
+      // 2. LOG MAIN TOOLS HERE (Direct action tools without submenus)
+      logger.logAction("TOOL_OPENED", window.location.pathname, { 
+        toolId: toolId 
+      });
+
       handleToolClick(toolId);
       setActivePopup(null);
     }
@@ -223,7 +231,7 @@ const Tools = ({
       {isDemo && isMenuOpen && (
         <div className="absolute top-[-60px] z-[60] flex flex-col items-center justify-center">
           <button
-            onClick={() => navigate('/myProjects')}
+            onClick={()=>onLoginClick("Tools")}
             className="flex items-center justify-center gap-2 bg-[#9EFAA5] text-black font-bold rounded-full px-4 py-2 text-xs shadow-lg hover:scale-105 transition-transform whitespace-nowrap pointer-events-auto"
           >
             Login to Unlock Tools
@@ -236,7 +244,7 @@ const Tools = ({
         style={{ width: MENU_SIZE, height: MENU_SIZE }}
       >
 
-        {/* --- 1. MAIN MENU LAYER 1: STRICTLY POINTER EVENTS NONE --- */}
+        {/* --- MAIN MENU LAYER 1 --- */}
         <motion.div
           initial={false}
           animate={{ opacity: isMenuOpen ? 1 : 0 }}
@@ -257,7 +265,7 @@ const Tools = ({
           </div>
         </motion.div>
 
-        {/* --- 1. MAIN MENU LAYER 2: WRAPPER IS NONE, CHILDREN ARE AUTO ONLY IF OPEN --- */}
+        {/* --- MAIN MENU LAYER 2 --- */}
         <motion.div
           initial={false}
           animate={{
@@ -395,7 +403,6 @@ const Tools = ({
 
             return (
               <React.Fragment key={`sub-menu-wrap-${activePopup}`}>
-                {/* STRICTLY POINTER EVENTS NONE ON BACKGROUND EFFECTS */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9, rotate: -30 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
@@ -447,12 +454,38 @@ const Tools = ({
                           if (activePopup === 'shapes') handleShapeClick(null);
                           else handleToolClick(null);
                         } else {
-                          if (activePopup === 'shapes') handleShapeClick(w.opt);
+                          // 3. LOG SUB-TOOLS HERE (with colors/shapes attached)
+                          if (activePopup === 'shapes') {
+                            logger.logAction("TOOL_OPENED", window.location.pathname, { 
+                              toolId: 'shapes', 
+                              subType: w.opt 
+                            });
+                            handleShapeClick(w.opt);
+                          } 
                           else if (activePopup === 'pencil') {
-                            if (w.opt.isTool) handleToolClick(w.opt.id);
-                            if (w.opt.isHighlight) handleToolClick('highlight', w.opt.color);
+                            if (w.opt.isTool) {
+                              logger.logAction("TOOL_OPENED", window.location.pathname, { 
+                                toolId: w.opt.id 
+                              });
+                              handleToolClick(w.opt.id);
+                            }
+                            if (w.opt.isHighlight) {
+                              logger.logAction("TOOL_OPENED", window.location.pathname, { 
+                                toolId: 'highlight', 
+                                color: w.opt.color 
+                              });
+                              handleToolClick('highlight', w.opt.color);
+                            }
+                          } 
+                          else {
+                            // Catch-all for Notes 
+                            const toolColor = w.opt.color || w.opt.id;
+                            logger.logAction("TOOL_OPENED", window.location.pathname, { 
+                              toolId: activePopup, 
+                              color: toolColor 
+                            });
+                            handleToolClick(activePopup, toolColor);
                           }
-                          else handleToolClick(activePopup, w.opt.color || w.opt.id);
                         }
                         setActivePopup(null);
                       })}

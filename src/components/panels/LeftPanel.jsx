@@ -22,7 +22,7 @@ import imageIcon from "../../assets/icons/image_icon.png";
 
 // --- Main Components ---
 
-const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIcons, isDemo }) => {
+const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIcons, isDemo, handleLoginClick }) => {
   const navigate = useNavigate();
   const [showMapMenu, setShowMapMenu] = useState(false);
   const [showTools, setShowTools] = useState(false);
@@ -165,7 +165,7 @@ const Open = ({ setIsOpen, selectedMode, setSelectedMode, setEraserMode, styleIc
     </div>
 
     <div className={`h-[90%] ${isCompact ? 'pt-1' : 'pt-3'}`}>
-        <Layers selectedType={selectedType} setSelectedType={setSelectedType} searchQuery={searchQuery} isDemo={isDemo} />
+        <Layers selectedType={selectedType} setSelectedType={setSelectedType} searchQuery={searchQuery} isDemo={isDemo} handleLoginClick={handleLoginClick}/>
     </div>
 </div>
 
@@ -238,7 +238,7 @@ const Closed = ({ setIsOpen }) => {
   );
 };
 
-const LeftPanel = ({ isDemo }) => { 
+const LeftPanel = ({ isDemo, handleLoginClick}) => { 
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMode, setSelectedMode] = useState(null);
   const [eraserMode, setEraserMode] = useState(false);
@@ -264,6 +264,7 @@ const LeftPanel = ({ isDemo }) => {
             setEraserMode={setEraserMode}
             styleIcons={styleIconsRef}
             isDemo={isDemo} 
+            handleLoginClick={handleLoginClick}
           />
         ) : (
           <Closed key="closed" setIsOpen={setIsOpen} isDemo={isDemo} />

@@ -1,3 +1,5 @@
+import { logger } from '../../components/map/utils/activityLogger';
+
 const BASE_URL = `${import.meta.env.VITE_URL_PROJECT}/project-management-service`;
 
 const API_CLIENT_NAME = "mapx";
@@ -136,24 +138,23 @@ export const deleteChatSession = async (sessionId) => {
     throw error;
   }
 };
+
 export const translateToEnglish = async (text, sourceLangCode = "ta-IN") => {
   try {
-    // If your app passes 'auto', fallback to a default since the API requires a specific code 
-    // (like 'hi-IN' or 'ta-IN') to avoid a 400 Bad Request error.
     const safeSourceCode = sourceLangCode === "auto" ? "ta-IN" : sourceLangCode;
 
     const response = await fetch("https://api.sarvam.ai/translate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "client_name":"mapx",
+        "client_name": "mapx",
         "api-subscription-key": import.meta.env.VITE_SARVAM_API_KEY
       },
       body: JSON.stringify({
         input: text,
         source_language_code: safeSourceCode,
-        target_language_code: "en-IN", // Translating to English
-        model: "sarvam-translate:v1",  // Using the model that supports all 22 languages
+        target_language_code: "en-IN",
+        model: "sarvam-translate:v1",
         mode: "formal"   
       })
     });
@@ -161,18 +162,41 @@ export const translateToEnglish = async (text, sourceLangCode = "ta-IN") => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       console.error(`Sarvam API Error (${response.status}):`, errorData);
-      return text; // Fallback to original text so the app doesn't crash
+      
+      // Log the translation failure
+      logger.logAction("TRANSLATION_ERROR", "API_UTILITY", {
+        service: "Sarvam",
+        statusCode: response.status,
+        sourceLang: safeSourceCode
+      });
+      
+      return text; 
     }
 
     const data = await response.json();
     
+    // Log the successful translation
+    logger.logAction("TRANSLATION_SUCCESS", "API_UTILITY", {
+        service: "Sarvam",
+        sourceLang: safeSourceCode,
+        textLength: text.length
+    });
+
     return data.translated_text || text;
 
   } catch (error) {
     console.error("Failed to execute translateToEnglish:", error);
+    
+    // Log network or execution errors
+    logger.logAction("TRANSLATION_FAILED", "API_UTILITY", {
+      error: error.message
+    });
+    
     return text;
   }
 };
+
+
 /**
  * 6. TRANSCRIBE AUDIO
  */
@@ -181,8 +205,6 @@ export const transcribeAudio = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    // Fetch headers but remove Content-Type so the browser can auto-set 
-    // it to multipart/form-data with the correct boundary
     const headers = getHeaders();
     delete headers["Content-Type"];
 
@@ -200,8 +222,19 @@ export const transcribeAudio = async (file) => {
       } catch (e) {
         errorMessage = await response.text();
       }
+      
+      // Log the transcription failure
+      logger.logAction("TRANSCRIPTION_ERROR", "API_UTILITY", {
+        error: errorMessage
+      });
+      
       throw new Error(errorMessage);
     }
+
+    // Log the successful transcription
+    logger.logAction("TRANSCRIPTION_SUCCESS", "API_UTILITY", {
+      fileSize: file.size
+    });
 
     return await response.json();
   } catch (error) {
@@ -237,6 +270,69 @@ export const getThinkingText = async (query) => {
     return await response.json();
   } catch (error) {
     console.error("Error fetching thinking text:", error);
+    throw error;
+  }
+};
+
+/**
+ * 8. OPEN SOURCE PDF
+ * Fetches the textbook PDF as a blob and opens it in a new tab.
+ */
+export const openSourcePdf = async (grade, chapterName) => {
+  try {
+    const params = new URLSearchParams();
+    if (grade) params.append("grade", grade);
+    if (chapterName) params.append("chapterName", chapterName);
+
+    // NOTE: If your textbook API is NOT under /project-management-service, 
+    // change BASE_URL to `${import.meta.env.VITE_URL_PROJECT}` or the correct service path.
+    const response = await fetch(`${import.meta.env.VITE_URL_PROJECT}/download?${params.toString()}`, {
+      method: "GET",
+      headers: getHeaders(), 
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Server Error ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        errorMessage = errorJson.error || errorMessage;
+      } catch (e) {
+        errorMessage = await response.text();
+      }
+      
+      logger.logAction("PDF_DOWNLOAD_ERROR", "API_UTILITY", {
+        grade,
+        chapterName,
+        error: errorMessage
+      });
+      
+      throw new Error(errorMessage);
+    }
+
+    // Convert the binary response into a Blob
+    const fileBlob = await response.blob();
+    
+    // Explicitly set the MIME type for PDF
+    const pdfBlob = new Blob([fileBlob], { type: 'application/pdf' });
+    
+    // Create a local URL and open it in a new browser tab
+    const fileURL = URL.createObjectURL(pdfBlob);
+    window.open(fileURL, '_blank');
+
+    logger.logAction("PDF_DOWNLOAD_SUCCESS", "API_UTILITY", {
+      grade,
+      chapterName,
+      fileSize: pdfBlob.size
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error fetching source PDF:", error);
+    
+    logger.logAction("PDF_DOWNLOAD_FAILED", "API_UTILITY", {
+      error: error.message
+    });
+    
     throw error;
   }
 };
