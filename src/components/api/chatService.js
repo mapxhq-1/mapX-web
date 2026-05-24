@@ -273,20 +273,31 @@ export const getThinkingText = async (query) => {
     throw error;
   }
 };
-
 /**
  * 8. OPEN SOURCE PDF
  * Fetches the textbook PDF as a blob and opens it in a new tab.
  */
-export const openSourcePdf = async (grade, chapterName) => {
+export const openSourcePdf = async (grade, chapterName, pageRange) => {
   try {
-    const params = new URLSearchParams();
-    if (grade) params.append("grade", grade);
-    if (chapterName) params.append("chapterName", chapterName);
+    // 1. Format Grade (converts "6" to "6th" if missing)
+    let formattedGrade = String(grade);
+    if (formattedGrade && !formattedGrade.includes('th')) {
+      formattedGrade += "th";
+    }
 
-    // NOTE: If your textbook API is NOT under /project-management-service, 
-    // change BASE_URL to `${import.meta.env.VITE_URL_PROJECT}` or the correct service path.
-    const response = await fetch(`${import.meta.env.VITE_URL_PROJECT}/download?${params.toString()}`, {
+    // 2. Format Chapter Name with Pages
+    let formattedChapter = chapterName;
+    if (pageRange && pageRange.includes('-')) {
+      const [start, end] = pageRange.split('-');
+      // Transforms "VILLAGES" and "73-84" into "(VILLAGES)_pgs73_pge84"
+      formattedChapter = `(${chapterName})_pgs${start.trim()}_pge${end.trim()}`;
+    }
+
+    // 3. Construct the exact URL
+    const rootUrl = import.meta.env.VITE_URL_PROJECT;
+    const url = `${rootUrl}/project-management-service/download?grade=${formattedGrade}&chapterName=${encodeURIComponent(formattedChapter)}`;
+
+    const response = await fetch(url, {
       method: "GET",
       headers: getHeaders(), 
     });
@@ -301,38 +312,30 @@ export const openSourcePdf = async (grade, chapterName) => {
       }
       
       logger.logAction("PDF_DOWNLOAD_ERROR", "API_UTILITY", {
-        grade,
-        chapterName,
+        grade: formattedGrade,
+        chapterName: formattedChapter,
         error: errorMessage
       });
       
       throw new Error(errorMessage);
     }
 
-    // Convert the binary response into a Blob
     const fileBlob = await response.blob();
-    
-    // Explicitly set the MIME type for PDF
     const pdfBlob = new Blob([fileBlob], { type: 'application/pdf' });
-    
-    // Create a local URL and open it in a new browser tab
     const fileURL = URL.createObjectURL(pdfBlob);
+    
     window.open(fileURL, '_blank');
 
     logger.logAction("PDF_DOWNLOAD_SUCCESS", "API_UTILITY", {
-      grade,
-      chapterName,
+      grade: formattedGrade,
+      chapterName: formattedChapter,
       fileSize: pdfBlob.size
     });
 
     return true;
   } catch (error) {
     console.error("Error fetching source PDF:", error);
-    
-    logger.logAction("PDF_DOWNLOAD_FAILED", "API_UTILITY", {
-      error: error.message
-    });
-    
+    logger.logAction("PDF_DOWNLOAD_FAILED", "API_UTILITY", { error: error.message });
     throw error;
   }
 };

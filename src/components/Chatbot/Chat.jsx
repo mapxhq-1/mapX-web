@@ -200,6 +200,7 @@ async function fetchThinkingText(query) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeCitations, setActiveCitations] = useState(null);
+  const [activeReferences, setActiveReferences] = useState(null);
 
   const [selectedGrade, setSelectedGrade] = useState(0);
   const [voiceLanguage, setVoiceLanguage] = useState('en-IN');
@@ -355,6 +356,7 @@ async function fetchThinkingText(query) {
       content: historyItem.modelResponse,
       citations: historyItem.citations?.sources || historyItem.citations?.data || [],
       empire_match: empireData,
+      references: historyItem.references || [],
       timestamp: historyItem.timestamp
     });
 
@@ -733,6 +735,12 @@ useEffect(() => {
                             View Sources ({msg.citations.length})
                           </button>
                         )}
+                        {msg.references && msg.references.length > 0 && (
+                          <button onClick={() => setActiveReferences(msg.references)} className={`bg-[#f0f2f5] border border-[#e9edef] hover:bg-[#d9dce0] rounded-full text-[#111b21] flex items-center font-medium transition-colors shadow-sm ${isLandscapeMobile ? 'px-2.5 py-1.5 text-[11px] gap-1.5' : 'px-3.5 py-2 text-[13px] gap-2'}`}>
+                            <svg width={isLandscapeMobile ? "12" : "14"} height={isLandscapeMobile ? "12" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                            Web Links ({msg.references.length})
+                          </button>
+                        )}
                         {msg.empire_match && (
                           <button onClick={() => handleFlyTo(msg.empire_match)} className={`bg-[#f0f2f5] border border-[#e9edef] hover:bg-[#d9dce0] rounded-full text-[#111b21] flex items-center font-medium transition-colors shadow-sm ${isLandscapeMobile ? 'px-2.5 py-1.5 text-[11px] gap-1.5' : 'px-3.5 py-2 text-[13px] gap-2'}`}>
                             <svg width={isLandscapeMobile ? "12" : "14"} height={isLandscapeMobile ? "12" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
@@ -1017,7 +1025,44 @@ useEffect(() => {
               </div>
             </div>
           </div>
+          {/* WEB LINKS POPUP */}
+          {activeReferences && (
+            <div className={`fixed right-5 w-[calc(100%-40px)] bg-white text-[#111b21] shadow-2xl rounded-xl z-50 max-h-[50%] flex flex-col border border-gray-200 ${isLandscapeMobile ? 'top-[50px] max-w-[250px]' : 'top-[70px] max-w-[300px]'}`}>
+              <div className={`border-b border-gray-200 flex justify-between items-center bg-white rounded-t-xl ${isLandscapeMobile ? 'p-2' : 'p-4'}`}>
+                <span className={`font-semibold ${isLandscapeMobile ? 'text-xs' : 'text-sm'}`}>Web References</span>
+                <button onClick={() => setActiveReferences(null)} className="border-none bg-transparent cursor-pointer p-2 text-2xl text-[#54656f] leading-[0.5] hover:text-[#111b21]">&times;</button>
+              </div>
+              <div className={`overflow-y-auto custom-scrollbar-chat ${isLandscapeMobile ? 'p-2' : 'p-4'}`}>
+                
+                {activeReferences.map((url, i) => {
+                  // Make the URL look a bit cleaner by extracting the hostname for the title
+                  let domain = url;
+                  try { domain = new URL(url).hostname.replace('www.', ''); } catch (e) {}
 
+                  return (
+                    <a 
+                      key={i} 
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`mb-2.5 flex items-center justify-between gap-2 rounded-lg text-[#006D5B] leading-snug transition-colors duration-200 bg-[#e8f5e9] hover:bg-[#c8e6c9] shadow-sm border border-[#a5d6a7] no-underline ${isLandscapeMobile ? 'p-2 text-[11px]' : 'p-3 text-[13px]'}`}
+                      title={url}
+                    >
+                      <span className="truncate block w-full">{domain}</span>
+                      
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* SAFE CITATIONS POPUP */}
           {activeCitations && (
             <div className={`fixed right-5 w-[calc(100%-40px)] bg-white text-[#111b21] shadow-2xl rounded-xl z-50 max-h-[50%] flex flex-col border border-gray-200 ${isLandscapeMobile ? 'top-[50px] max-w-[250px]' : 'top-[70px] max-w-[300px]'}`}>
               <div className={`border-b border-gray-200 flex justify-between items-center bg-white rounded-t-xl ${isLandscapeMobile ? 'p-2' : 'p-4'}`}>
@@ -1025,17 +1070,18 @@ useEffect(() => {
                 <button onClick={() => setActiveCitations(null)} className="border-none bg-transparent cursor-pointer p-2 text-2xl text-[#54656f] leading-[0.5] hover:text-[#111b21]">&times;</button>
               </div>
               <div className={`overflow-y-auto custom-scrollbar-chat ${isLandscapeMobile ? 'p-2' : 'p-4'}`}>
-                {activeCitations.map((c, i) => {
-                  // Check if this is a structured citation with a grade and lesson (chapterName)
-                  const isClickable = typeof c !== "string" && c.grade && c.lesson;
+                
+                {/* CRITICAL FIX: Dynamically handles both Array and Object structures to prevent crashes */}
+                {(Array.isArray(activeCitations) ? activeCitations : activeCitations?.sources || []).map((c, i) => {
+                  const isClickable = typeof c !== "string" && c?.grade && c?.lesson;
 
                   return (
                     <div 
                       key={i} 
                       onClick={() => {
                         if (isClickable) {
-                          // Pass grade and lesson (which represents chapterName) to the API
-                          openSourcePdf(c.grade, c.lesson).catch((err) => {
+                          // Pass grade, lesson, AND page_range to the API
+                          openSourcePdf(c.grade, c.lesson, c.page_range).catch((err) => {
                             console.error("Failed to open PDF:", err);
                             toast.error("Failed to load the source document.");
                           });
@@ -1051,7 +1097,6 @@ useEffect(() => {
                       <div className="flex items-center justify-between gap-2">
                         <span>{typeof c === "string" ? c : `Page ${c.page} - ${c.lesson} - Grade : ${c.grade}`}</span>
                         
-                        {/* Show a small external link icon if it's clickable */}
                         {isClickable && (
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#006D5B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
