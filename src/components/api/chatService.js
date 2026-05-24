@@ -289,17 +289,20 @@ export const openSourcePdf = async (grade, chapterName, pageRange) => {
     let formattedChapter = chapterName;
     if (pageRange && pageRange.includes('-')) {
       const [start, end] = pageRange.split('-');
-      // Transforms "VILLAGES" and "73-84" into "(VILLAGES)_pgs73_pge84"
       formattedChapter = `(${chapterName})_pgs${start.trim()}_pge${end.trim()}`;
     }
 
-    // 3. Construct the exact URL
+    // 3. Construct the exact URL (Removed encodeURIComponent to match Postman behavior)
     const rootUrl = import.meta.env.VITE_URL_PROJECT;
-    const url = `${rootUrl}/project-management-service/download?grade=${formattedGrade}&chapterName=${encodeURIComponent(formattedChapter)}`;
+    const url = `${rootUrl}/api/textbook/download?grade=${formattedGrade}&chapterName=${formattedChapter}`;
+
+    // 4. Get headers, but DELETE Content-Type to prevent CORS preflight block on GET requests
+    const headers = getHeaders();
+    delete headers['Content-Type'];
 
     const response = await fetch(url, {
       method: "GET",
-      headers: getHeaders(), 
+      headers: headers, // Will still include Authorization and client_name: mapx
     });
 
     if (!response.ok) {
