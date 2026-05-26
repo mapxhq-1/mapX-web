@@ -275,7 +275,7 @@ export const getThinkingText = async (query) => {
 };
 /**
  * 8. OPEN SOURCE PDF
- * Fetches the textbook PDF as a blob and opens it in a new tab.
+ * Fetches the textbook PDF as a blob and returns the local object URL for embedding.
  */
 export const openSourcePdf = async (grade, chapterName, pageRange) => {
   try {
@@ -292,7 +292,7 @@ export const openSourcePdf = async (grade, chapterName, pageRange) => {
       formattedChapter = `(${chapterName})_pgs${start.trim()}_pge${end.trim()}`;
     }
 
-    // 3. Construct the exact URL (Removed encodeURIComponent to match Postman behavior)
+    // 3. Construct the exact URL
     const rootUrl = import.meta.env.VITE_URL_PROJECT;
     const url = `${rootUrl}/api/textbook/download?grade=${formattedGrade}&chapterName=${formattedChapter}`;
 
@@ -302,7 +302,8 @@ export const openSourcePdf = async (grade, chapterName, pageRange) => {
 
     const response = await fetch(url, {
       method: "GET",
-      headers: headers, // Will still include Authorization and client_name: mapx
+      headers: headers // Includes Authorization and client_name: mapx
+      // Note: 'responseType: blob' is an axios concept, but leaving it here doesn't hurt fetch
     });
 
     if (!response.ok) {
@@ -327,7 +328,7 @@ export const openSourcePdf = async (grade, chapterName, pageRange) => {
     const pdfBlob = new Blob([fileBlob], { type: 'application/pdf' });
     const fileURL = URL.createObjectURL(pdfBlob);
     
-    window.open(fileURL, '_blank');
+    // REMOVED: window.open(fileURL, '_blank');
 
     logger.logAction("PDF_DOWNLOAD_SUCCESS", "API_UTILITY", {
       grade: formattedGrade,
@@ -335,7 +336,9 @@ export const openSourcePdf = async (grade, chapterName, pageRange) => {
       fileSize: pdfBlob.size
     });
 
-    return true;
+    // CHANGED: Return the URL so the React component can inject it into the iframe
+    return fileURL;
+    
   } catch (error) {
     console.error("Error fetching source PDF:", error);
     logger.logAction("PDF_DOWNLOAD_FAILED", "API_UTILITY", { error: error.message });

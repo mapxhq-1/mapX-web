@@ -26,6 +26,7 @@ export default function Chat({isDemo, handleLoginClick}) {
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const [gradeOpen, setGradeOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [pdfModalUrl, setPdfModalUrl] = useState(null);
 
   const startRecording = async () => {
     try {
@@ -1078,13 +1079,19 @@ useEffect(() => {
                   return (
                     <div 
                       key={i} 
-                      onClick={() => {
+                      onClick={async () => {
                         if (isClickable) {
-                          // Pass grade, lesson, AND page_range to the API
-                          openSourcePdf(c.grade, c.lesson, c.page_range).catch((err) => {
+                          try {
+                            // Make sure openSourcePdf in your chatService returns the URL!
+                            const pdfUrl = await openSourcePdf(c.grade, c.lesson, c.page_range);
+                            
+                            if (pdfUrl) {
+                              setPdfModalUrl(pdfUrl);
+                            }
+                          } catch (err) {
                             console.error("Failed to open PDF:", err);
                             toast.error("Failed to load the source document.");
-                          });
+                          }
                         }
                       }}
                       className={`mb-2.5 rounded-lg text-[#111b21] leading-snug transition-colors duration-200 ${
@@ -1111,6 +1118,38 @@ useEffect(() => {
               </div>
             </div>
           )}
+          {/* PDF MODAL VIEWER */}
+{pdfModalUrl && (
+  <div 
+    className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-8" 
+    onClick={() => setPdfModalUrl(null)}
+  >
+    <div 
+      className="w-full max-w-5xl h-full max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden" 
+      onClick={e => e.stopPropagation()} // Prevent clicks inside modal from closing it
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-[#f0f2f5]">
+        <span className="font-semibold text-[#111b21]">Source Document</span>
+        <button 
+          onClick={() => setPdfModalUrl(null)} 
+          className="text-[#54656f] hover:text-[#ef4444] text-2xl font-bold leading-none cursor-pointer border-none bg-transparent"
+        >
+          &times;
+        </button>
+      </div>
+      
+      {/* Iframe Container with Scroll */}
+      <div className="flex-1 w-full bg-[#525659] overflow-hidden relative">
+        <iframe
+          src={`${pdfModalUrl}#toolbar=0&navpanes=0`} // Optional hash params to clean up standard PDF viewers
+          className="w-full h-full border-none"
+          title="PDF Source Viewer"
+        />
+      </div>
+    </div>
+  </div>
+)}
         </div>
       </div>
     </>
