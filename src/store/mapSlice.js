@@ -27,7 +27,7 @@ export const fetchAllEmpirePolygons = createAsyncThunk(
       // Fetch exactly what is needed for this year
       //Force Fetch the Data ->  Change boolean to false to turn on the caching and true to turn off the caching
       if(year>2000)return [];
-      const yearData = await loadEmpiresByYearCached(year, true, dispatch);
+      const yearData = await loadEmpiresByYearCached(year, false, dispatch);
       return yearData;
     } catch (err) {
       dispatch(setLoading(false));
