@@ -1,7 +1,10 @@
 import axios from "axios";
 
-// const BASE_URL = "/auth-service";
-const BASE_URL = import.meta.env.VITE_URL_AUTH + "/auth-service" ;
+const AUTH_SERVICE_PATH = "/auth-service";
+const AUTH_API_BASE_URL = (import.meta.env.VITE_URL_AUTH || "").replace(/\/+$/, "");
+const BASE_URL = AUTH_API_BASE_URL.endsWith(AUTH_SERVICE_PATH)
+  ? AUTH_API_BASE_URL
+  : `${AUTH_API_BASE_URL}${AUTH_SERVICE_PATH}`;
 
 const API_CLIENT_NAME = "mapx";
 
@@ -82,26 +85,18 @@ export const deleteProfilePhoto = async (userId, email) => {
  * @returns {Promise<object>} - API response
  */
 export async function getUserInfo(code) {
-  try {
-    const response = await axios.post(
-      `${BASE_URL}/get-user-info`,
-      { code },                  // request body
-      {
-        headers: {
-          "Content-Type": "application/json",
-          client_name: API_CLIENT_NAME, // use constant
-        },
-      }
-    );
-
-    return response.data; // success response
-  } catch (error) {
-    if (error.response) {
-      return error.response.data; // backend error
-    } else {
-      return { status: "failure", message: error.message }; // network or other error
+  const response = await axios.post(
+    `${BASE_URL}/get-user-info`,
+    { code },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        client_name: API_CLIENT_NAME,
+      },
     }
-  }
+  );
+
+  return response.data;
 }
 
 export async function getProfilePhoto(email,fileId) {

@@ -17,6 +17,7 @@ const Projects = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -25,9 +26,14 @@ const Projects = () => {
     if (code) {
       getUserInfo(code)
         .then((data) => {
-          const email = data.clientUserinfoResult.active_token.email;
-          const token = data.clientUserinfoResult.active_token.identity;
-          const bearer = data.clientUserinfoResult.active_token.token;
+          const activeToken = data?.clientUserinfoResult?.active_token;
+          if (!activeToken?.email || !activeToken?.identity || !activeToken?.token) {
+            throw new Error(data?.message || 'Authentication response did not include a valid user session.');
+          }
+
+          const email = activeToken.email;
+          const token = activeToken.identity;
+          const bearer = activeToken.token;
           
           dispatch(setUserToken(token));
           dispatch(setEmail(email));
@@ -43,7 +49,8 @@ const Projects = () => {
         })
         .catch((err) => {
           console.error("Auth error:", err);
-          window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL;
+          setAuthError(err.response?.data?.message || err.message || 'Authentication failed. Please try again.');
+          setIsAuthReady(true);
         });
     } else {
       const token = localStorage.getItem('bearerToken');
@@ -91,6 +98,20 @@ const Projects = () => {
       }
     }
   }, [dispatch, navigate, location.search]);
+
+  if (authError) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-lg">Sign-in failed: {authError}</p>
+        <button
+          className="rounded bg-blue-600 px-4 py-2 text-white"
+          onClick={() => { window.location.href = import.meta.env.VITE_PANGEA_AUTH_URL; }}
+        >
+          Try signing in again
+        </button>
+      </div>
+    );
+  }
 
   if (!isAuthReady) {
     return (
