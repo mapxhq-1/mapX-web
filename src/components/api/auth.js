@@ -1,10 +1,10 @@
 import axios from "axios";
 
 const AUTH_SERVICE_PATH = "/auth-service";
-const AUTH_API_BASE_URL = (import.meta.env.VITE_URL_AUTH || "").replace(/\/+$/, "");
-const BASE_URL = AUTH_API_BASE_URL.endsWith(AUTH_SERVICE_PATH)
-  ? AUTH_API_BASE_URL
-  : `${AUTH_API_BASE_URL}${AUTH_SERVICE_PATH}`;
+const AUTH_API_BASE_URL = (import.meta.env.VITE_URL_AUTH || "")
+  .replace(/\/+$/, "")
+  .replace(/(?:\/auth-service)+$/i, "");
+const BASE_URL = `${AUTH_API_BASE_URL}${AUTH_SERVICE_PATH}`;
 
 const API_CLIENT_NAME = "mapx";
 
